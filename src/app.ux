@@ -1,7 +1,9 @@
 <script>
 import file from "@system.file"
+import shellData from "./common/scripts/shellData.js"
 
 export default {
+  shellData: shellData,
   onCreate() {
     file.writeText({
       uri: "internal://files/cmd_result.json",

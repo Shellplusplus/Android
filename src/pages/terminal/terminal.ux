@@ -24,11 +24,19 @@
           <text class="input-send" onclick="sendBuffer">{{ $t("terminal.send") }}</text>
         </div>
 
+        <!-- ========== 最近命令 ========== -->
+        <div show="{{showToolbar}}" class="card" onclick="goHistory">
+          <div class="card-left">
+            <text class="card-label">{{ $t("terminal.historyTitle") }}</text>
+            <text class="card-sub">{{ $t("terminal.historyDesc") }}</text>
+          </div>
+        </div>
+
         <!-- ========== 快捷命令卡片 ========== -->
         <div show="{{showToolbar}}" class="card" onclick="goQuickCmds">
           <div class="card-left">
-            <text class="card-label">快捷命令</text>
-            <text class="card-sub">快速填充命令</text>
+            <text class="card-label">{{ $t("terminal.quickTitle") }}</text>
+            <text class="card-sub">{{ $t("terminal.quickDesc") }}</text>
           </div>
         </div>
 
@@ -41,14 +49,14 @@
 
         <!-- ========== 查看完整输出 ========== -->
         <div show="{{hasFullOutput && showToolbar}}" class="full-output-btn" onclick="goViewFullOutput">
-          <text class="full-output-text">查看完整输出 →</text>
+          <text class="full-output-text">{{ $t("terminal.fullOutput") }}</text>
         </div>
       </div>
     </div>
 
     <!-- ========== 输入法键盘 ========== -->
     <input-method hide="{{ !showKeyboard }}" screentype="{{ screenType }}"
-                   keyboardtype="QWERTY" maxlength="5"
+                   keyboardtype="QWERTY" vibratemode="short" maxlength="5"
                    @complete="onKeyComplete" @delete="onKeyDelete"
                    @close-keyboard="onCloseKeyboard"></input-method>
 
@@ -62,6 +70,8 @@ import device from "@system.device"
 
 var CMD_FILE = "internal://files/cmd_request.json"
 var RESULT_FILE = "internal://files/cmd_result.json"
+var HISTORY_FILE = "internal://files/cmd_history.json"
+var HISTORY_CONFIG_FILE = "internal://files/history_config.json"
 var cmdSeq = Date.now()
 var lastResultSeq = -1
 var lastSentSeq = -1
@@ -78,10 +88,11 @@ export default {
     screenType: "rect",
     latestFullOutput: "",
     hasFullOutput: false,
-    lastSentCmd: ""
+    lastSentCmd: "",
+    historyLimit: 5
   },
 
-  protected: { cmd: "" },
+  protected: { cmd: "", autoSend: "" },
 
   onInit() {
     var self = this
@@ -89,6 +100,11 @@ export default {
     self.outputText = self.$t("terminal.startHint")
     if (this.cmd) {
       this.cmdBuffer = this.cmd
+    }
+    self.loadHistoryLimit()
+    if (this.shouldAutoSend()) {
+      self.sendCommand(this.cmd, false)
+      self.cmdBuffer = ""
     }
     self.timer = setInterval(function() { self.updateTime() }, 1000)
 
@@ -107,6 +123,7 @@ export default {
   onShow() {
     /* 页面可见时启动轮询 */
     var self = this
+    self.loadHistoryLimit()
     if (!self.pollTimer) {
       self.pollTimer = setInterval(function() { self.pollResult() }, 800)
     }
@@ -151,18 +168,92 @@ export default {
     this.showKeyboard = false
   },
 
+  shouldAutoSend() {
+    return this.autoSend === true || this.autoSend === "true" || this.autoSend === "1"
+  },
+
+  normalizeHistoryLimit(limit) {
+    return this.$app.$def.shellData.normalizeHistoryLimit(limit)
+  },
+
+  loadHistoryLimit() {
+    var self = this
+    file.readText({
+      uri: HISTORY_CONFIG_FILE,
+      success: function(data) {
+        try {
+          var json = JSON.parse(data.text)
+          self.historyLimit = self.normalizeHistoryLimit(json.limit)
+        } catch (e) {
+          self.historyLimit = self.$app.$def.shellData.defaultHistoryLimit
+        }
+      },
+      fail: function() {
+        self.historyLimit = self.$app.$def.shellData.defaultHistoryLimit
+      }
+    })
+  },
+
+  normalizeHistory(items) {
+    var normalized = []
+    var seen = {}
+    if (!(items instanceof Array)) return normalized
+    for (var i = 0; i < items.length; i++) {
+      var cmd = items[i]
+      if (typeof cmd !== "string") continue
+      cmd = cmd.trim()
+      if (!cmd || seen[cmd]) continue
+      seen[cmd] = true
+      normalized.push(cmd)
+      if (normalized.length >= this.historyLimit) break
+    }
+    return normalized
+  },
+
+  recordManualHistory(cmd) {
+    var self = this
+    if (!cmd) return
+    file.readText({
+      uri: HISTORY_FILE,
+      success: function(data) {
+        var list = []
+        try {
+          list = JSON.parse(data.text)
+        } catch (e) {}
+        list.unshift(cmd)
+        self.writeHistory(list)
+      },
+      fail: function() {
+        self.writeHistory([cmd])
+      }
+    })
+  },
+
+  writeHistory(items) {
+    file.writeText({
+      uri: HISTORY_FILE,
+      text: JSON.stringify(this.normalizeHistory(items)),
+      append: false
+    })
+  },
+
   /* ====== 发送命令 ====== */
   sendBuffer() {
     if (!this.cmdBuffer) return
-    this.sendCommand(this.cmdBuffer)
+    var cmd = this.cmdBuffer
+    this.sendCommand(cmd, true)
     this.cmdBuffer = ""
     this.showKeyboard = false
   },
 
-  sendCommand(cmd) {
+  sendCommand(cmd, shouldRecord) {
     var self = this
     cmdSeq++
     lastSentSeq = cmdSeq
+    self.hasFullOutput = false
+    self.latestFullOutput = ""
+    self.lastSentCmd = cmd
+    self.outputText = "> " + cmd + "\n\n" + self.$t("terminal.waiting")
     var d = new Date()
     var ts = ("0" + d.getHours()).slice(-2) + ":" +
              ("0" + d.getMinutes()).slice(-2) + ":" +
@@ -175,16 +266,15 @@ export default {
       text: req,
       append: false,
       success: function() {
-        self.hasFullOutput = false
-        self.latestFullOutput = ""
-        self.lastSentCmd = cmd
-        self.outputText = "> " + cmd + "\n" + self.$t("terminal.waiting")
+        if (shouldRecord) {
+          self.recordManualHistory(cmd)
+        }
       },
       fail: function() {
         var out = self.outputText
         var hint = self.$t("terminal.startHint")
         if (out.indexOf(hint) !== -1) out = out.replace(hint, "")
-        self.outputText = "$ " + cmd + "\n[错误] " + self.$t("terminal.errorSend") + "\n\n" + out
+        self.outputText = "$ " + cmd + "\n\n[" + self.$t("terminal.errorLabel") + "] " + self.$t("terminal.errorSend") + "\n\n" + out
       }
     })
   },
@@ -205,17 +295,17 @@ export default {
 
           /* 构建完整输出文本 */
           var full = ""
-          full += "> " + json.cmd + "\n"
+          full += "> " + json.cmd + "\n\n"
           if (json.stdout) full += json.stdout
-          if (json.stderr && json.stderr !== "") full += "\n[stderr]\n" + json.stderr
-          if (json.stdout === "" && json.stderr === "") full += "(no output)"
+          if (json.stderr && json.stderr !== "") full += "\n[" + self.$t("terminal.stderrLabel") + "]\n" + json.stderr
+          if (json.stdout === "" && json.stderr === "") full += self.$t("terminal.noOutput")
 
           /* 存完整输出供阅读器使用 */
           self.latestFullOutput = full
           self.hasFullOutput = true
 
           /* 预览：只取前 200 字符，替换掉"等待结果" */
-          var preview = full.length > 200 ? full.substring(0, 200) + "\n...\n" : full
+          var preview = full.length > 200 ? full.substring(0, 200) + "\n" + self.$t("terminal.previewMore") + "\n" : full
           self.outputText = preview
           if (self.outputText.length > 10000) {
             self.outputText = self.outputText.substring(0, 10000)
@@ -253,6 +343,10 @@ export default {
     router.push({ uri: "/pages/setting", params: { entry: "terminal" } })
   },
 
+  goHistory() {
+    router.push({ uri: "/pages/history" })
+  },
+
   /* ====== 工具栏切换 ====== */
   onTxtClick() {
     this.showToolbar = !this.showToolbar
@@ -265,6 +359,8 @@ export default {
 </script>
 
 <style>
+@import '../../common/card.css';
+
 /* ====== 全局页面 ====== */
 .page { width: 336px; height: 480px; background-color: #000000; flex-direction: column; }
 .main-area { width: 336px; flex: 1; flex-direction: column; }
@@ -279,10 +375,7 @@ export default {
 .content-body { flex: 1; flex-direction: column; margin-top: 0; }
 
 /* ====== 快捷命令卡片（与首页卡片一致） ====== */
-.card { width: 324px; height: 112px; margin: 8px 6px 0 6px; background-color: #262626; border-radius: 36px; flex-direction: row; align-items: center; padding-left: 20px; padding-right: 20px; flex-shrink: 0; }
-.card-left { flex-direction: column; flex: 1; }
-.card-label { font-size: 32px; line-height: 40px; font-weight: bold; color: #ffffff; lines: 1; }
-.card-sub { font-size: 28px; line-height: 37px; font-weight: bold; color: rgba(255,255,255,0.6); margin-top: 4px; lines: 1; }
+.card { margin: 8px 6px 0 6px; flex-shrink: 0; }
 
 /* ====== 命令输入栏 ====== */
 .input-bar { width: 324px; height: 48px; margin: 8px 6px 0 6px; background-color: #1a1a1a; border-radius: 24px; flex-direction: row; align-items: center; padding: 0 4px; flex-shrink: 0; }
@@ -314,7 +407,7 @@ export default {
   .pill-more { width: 92px; height: 72px; background-image: url(/common/back_capsule.png); background-size: 92px 72px; border-radius: 32px; }
   .hd-title { width: 192px; top: 22px; font-size: 22px; }
   .hd-back { left: 4px; top: 4px; width: 52px; height: 52px; }
-  .card { width: 184px; height: 110px; border-radius: 27px; padding-left: 14px; padding-right: 16px; margin: 8px 4px 0 4px; }
+  .card { margin: 8px 4px 0 4px; }
   .input-bar { width: 184px; margin: 8px 4px 0 4px; }
   .input-send { width: 52px; font-size: 20px; }
   .full-output-btn { width: 184px; margin: 4px 4px 8px 4px; }
@@ -330,7 +423,7 @@ export default {
   .pill-more { width: 102px; height: 72px; background-image: url(/common/back_capsule.png); background-size: 102px 72px; border-radius: 36px; }
   .hd-title { width: 212px; top: 22px; font-size: 22px; }
   .hd-back { left: 4px; top: 4px; width: 52px; height: 52px; }
-  .card { width: 204px; height: 110px; border-radius: 27px; padding-left: 14px; padding-right: 16px; margin: 8px 4px 0 4px; }
+  .card { margin: 8px 4px 0 4px; }
   .input-bar { width: 204px; margin: 8px 4px 0 4px; }
   .full-output-btn { width: 204px; margin: 4px 4px 8px 4px; }
   .text-container { padding: 4px 10px 4px 10px; width: 212px; flex: 1; }

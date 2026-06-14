@@ -5,12 +5,15 @@
   "index": {
     "title": "Shell++",
     "status": "Status",
+    "waitingConnection": "Waiting for connection...",
     "connected": "Connected",
     "disconnected": "Disconnected",
     "terminal": "Terminal",
     "terminalDesc": "Execute shell commands",
     "settings": "Settings",
-    "settingsDesc": "Quick commands, connection, about"
+    "settingsDesc": "Quick commands, connection, about",
+    "debugEnabledToast": "Debug mode enabled",
+    "debugDisabledToast": "Debug mode disabled"
   },
   "terminal": {
     "title": "Terminal",
@@ -19,7 +22,21 @@
     "startHint": "Tap a command or type then send",
     "waiting": "Waiting for result...",
     "errorSend": "Failed to send command",
-    "noOutput": "(no output)"
+    "errorLabel": "Error",
+    "noOutput": "(no output)",
+    "historyTitle": "Recent Commands",
+    "historyDesc": "View recently sent commands",
+    "quickTitle": "Quick Commands",
+    "quickDesc": "Fill a command quickly",
+    "fullOutput": "View full output ->",
+    "stderrLabel": "stderr",
+    "previewMore": "..."
+  },
+  "history": {
+    "title": "Command History",
+    "emptyTitle": "No command history yet",
+    "emptyDesc": "Manually sent commands will appear here",
+    "tapToRun": "Tap to run again"
   },
   "log": {
     "title": "Full output",
@@ -32,12 +49,16 @@
     "disconnected": "Disconnected",
     "lastSync": "Last sync",
     "none": "None",
+    "timeout": "Timed out",
+    "unknown": "Unknown",
     "dataDir": "Data directory",
     "luaBackend": "Lua backend",
     "running": "Running",
     "stopped": "Stopped"
   },
   "category": {
+    "favorites": "Your Favorites",
+    "favoritesPreview": "Your saved common commands",
     "templates": "Templates",
     "templatesPreview": "ls · cat · uname · ps etc.",
     "file": "File",
@@ -103,10 +124,18 @@
     "nslookup": "nslookup",
     "nslookupDesc": "DNS lookup"
   },
+  "setting": {
+    "title": "Quick Commands"
+  },
   "settings": {
     "title": "Settings",
     "disclaimerTitle": "Disclaimer",
     "debugMode": "Debug Mode",
+    "favorites": "Command Favorites",
+    "favoritesDesc": "Manage your favorite commands",
+    "historyLimit": "History Limit",
+    "historyLimitDescPrefix": "Keep ",
+    "historyLimitDescSuffix": " items, tap to switch",
     "debugOn": "ON — Dangerous commands allowed",
     "debugOff": "OFF — Dangerous commands blocked",
     "disclaimer": "Software Disclaimer\n\nIMPORTANT: Please read the following terms carefully before using this software and its debugging features. By using this software, you acknowledge that you have fully understood and agree to all terms of this disclaimer.\n\nDebug Mode Risk Notice\n\nThe debug mode, developer options, and advanced features provided by this software are intended solely for troubleshooting and development testing by qualified technical personnel. Enabling debug mode may cause system instability, data loss, abnormal hardware operation, device damage, or other unforeseeable consequences.\n\nLimitation of Liability\n\nThe software authors, development team, and affiliates shall not be held liable for any direct or indirect losses resulting from the user's voluntary activation of debug mode, execution of debug commands, or modification of system parameters, including but not limited to device damage, data corruption, business interruption, privacy breaches, and other property losses.\n\nPrerequisites for Use\n\nThis feature is for debugging purposes only. Before executing any command or operation, please think carefully, ensure you fully understand the implications, and back up important data in advance. If you do not possess the necessary technical skills, do not use debug mode.\n\nNo Warranty\n\nThis software is provided \"as is\" without any express or implied warranties, including but not limited to warranties of merchantability, fitness for a particular purpose, and non-infringement.\n\nGoverning Law\n\nThe interpretation, validity, and dispute resolution of this disclaimer shall be governed by the laws of the People's Republic of China (or the applicable laws of your jurisdiction).\n\nLanguage\n\nIn the event of any discrepancy between this translated version and the Simplified Chinese version, the Simplified Chinese version shall prevail."
@@ -117,5 +146,13 @@
     "cancel": "Cancel",
     "ok": "Confirm",
     "needDebug": "Permission denied. Enable debug mode in Settings"
+  },
+  "favorites": {
+    "title": "Your Favorites",
+    "manageTitle": "Command Favorites",
+    "emptyTitle": "No favorite commands yet",
+    "emptyDesc": "Add favorite commands in Settings",
+    "addDesc": "Tap to add to favorites",
+    "removeDesc": "Favorited, tap to remove"
   }
 }

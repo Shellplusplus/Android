@@ -44,51 +44,76 @@ export default function(global, globalThis, window, $app_exports$, $app_evaluate
                         [
                             [
                                 0,
-                                "about-bg"
-                            ]
-                        ],
-                        {
-                            position: "absolute",
-                            left: 0,
-                            top: 0
-                        }
-                    ],
-                    [
-                        [
-                            [
-                                0,
-                                "about-336"
+                                "content-full"
                             ]
                         ],
                         {
                             width: "336px",
-                            height: "480px"
+                            height: "480px",
+                            flexDirection: "column"
                         }
                     ],
                     [
                         [
                             [
                                 0,
-                                "about-192"
+                                "header-area"
                             ]
                         ],
                         {
-                            display: "none",
-                            width: "192px",
-                            height: "490px"
+                            width: "336px",
+                            height: "102px",
+                            position: "relative"
                         }
                     ],
                     [
                         [
                             [
                                 0,
-                                "about-212"
+                                "header-bg"
                             ]
                         ],
                         {
-                            display: "none",
-                            width: "212px",
-                            height: "520px"
+                            width: "336px",
+                            height: "102px"
+                        }
+                    ],
+                    [
+                        [
+                            [
+                                0,
+                                "hd-time"
+                            ]
+                        ],
+                        {
+                            position: "absolute",
+                            left: "78px",
+                            top: "7px",
+                            width: "180px",
+                            height: "32px",
+                            textAlign: "center",
+                            fontSize: "24px",
+                            fontWeight: "bold",
+                            color: "rgba(255, 255, 255, 0.6)"
+                        }
+                    ],
+                    [
+                        [
+                            [
+                                0,
+                                "hd-title"
+                            ]
+                        ],
+                        {
+                            position: "absolute",
+                            left: "78px",
+                            top: "35px",
+                            width: "180px",
+                            height: "42px",
+                            textAlign: "center",
+                            fontSize: "32px",
+                            fontWeight: "bold",
+                            color: "#ffffff"
                         }
                     ],
                     [
@@ -139,11 +164,12 @@ export default function(global, globalThis, window, $app_exports$, $app_evaluate
                         [
                             [
                                 0,
-                                "about-336"
+                                "content-full"
                             ]
                         ],
                         {
-                            display: "none"
+                            width: "192px",
+                            height: "490px"
                         }
                     ],
                     [
@@ -153,35 +179,7 @@ export default function(global, globalThis, window, $app_exports$, $app_evaluate
                         [
                             [
                                 0,
-                                "about-192"
-                            ]
-                        ],
-                        {
-                            display: "flex"
-                        }
-                    ],
-                    [
-                        {
-                            condition: "screen and (shape:pill-shaped) and (max-width:100)"
-                        },
-                        [
-                            [
-                                0,
-                                "about-212"
-                            ]
-                        ],
-                        {
-                            display: "none"
-                        }
-                    ],
-                    [
-                        {
-                            condition: "screen and (shape:pill-shaped) and (max-width:100)"
-                        },
-                        [
-                            [
-                                0,
-                                "hd-back"
+                                "header-area"
                             ]
                         ],
                         {
@@ -250,6 +248,40 @@ export default function(global, globalThis, window, $app_exports$, $app_evaluate
                     ],
                     [
                         {
+                            condition: "screen and (shape:pill-shaped) and (max-width:100)"
+                        },
+                        [
+                            [
+                                0,
+                                "hd-title"
+                            ]
+                        ],
+                        {
+                            width: "192px",
+                            top: "22px",
+                            fontSize: "22px"
+                        }
+                    ],
+                    [
+                        {
+                            condition: "screen and (shape:pill-shaped) and (max-width:100)"
+                        },
+                        [
+                            [
+                                0,
+                                "hd-back"
+                            ]
+                        ],
+                        {
+                            left: "4px",
+                            top: "4px",
+                            width: "52px",
+                            height: "52px",
+                            display: "none"
+                        }
+                    ],
+                    [
+                        {
                             condition: "screen and (shape:pill-shaped) and (min-width:101)"
                         },
                         [
@@ -270,11 +302,12 @@ export default function(global, globalThis, window, $app_exports$, $app_evaluate
                         [
                             [
                                 0,
-                                "about-336"
+                                "content-full"
                             ]
                         ],
                         {
-                            display: "none"
+                            width: "212px",
+                            height: "520px"
                         }
                     ],
                     [
@@ -284,35 +317,7 @@ export default function(global, globalThis, window, $app_exports$, $app_evaluate
                         [
                             [
                                 0,
-                                "about-192"
-                            ]
-                        ],
-                        {
-                            display: "none"
-                        }
-                    ],
-                    [
-                        {
-                            condition: "screen and (shape:pill-shaped) and (min-width:101)"
-                        },
-                        [
-                            [
-                                0,
-                                "about-212"
-                            ]
-                        ],
-                        {
-                            display: "flex"
-                        }
-                    ],
-                    [
-                        {
-                            condition: "screen and (shape:pill-shaped) and (min-width:101)"
-                        },
-                        [
-                            [
-                                0,
-                                "hd-back"
+                                "header-area"
                             ]
                         ],
                         {
@@ -378,6 +383,169 @@ export default function(global, globalThis, window, $app_exports$, $app_evaluate
                             backgroundSize: "102px 72px",
                             borderRadius: "36px"
                         }
+                    ],
+                    [
+                        {
+                            condition: "screen and (shape:pill-shaped) and (min-width:101)"
+                        },
+                        [
+                            [
+                                0,
+                                "hd-title"
+                            ]
+                        ],
+                        {
+                            width: "212px",
+                            top: "22px",
+                            fontSize: "22px"
+                        }
+                    ],
+                    [
+                        {
+                            condition: "screen and (shape:pill-shaped) and (min-width:101)"
+                        },
+                        [
+                            [
+                                0,
+                                "hd-back"
+                            ]
+                        ],
+                        {
+                            left: "4px",
+                            top: "4px",
+                            width: "52px",
+                            height: "52px",
+                            display: "none"
+                        }
+                    ],
+                    [
+                        [
+                            [
+                                0,
+                                "about-bg"
+                            ]
+                        ],
+                        {
+                            display: "none"
+                        }
+                    ],
+                    [
+                        [
+                            [
+                                0,
+                                "about-336"
+                            ]
+                        ],
+                        {
+                            display: "flex",
+                            width: "336px"
+                        }
+                    ],
+                    [
+                        [
+                            [
+                                0,
+                                "about-192"
+                            ]
+                        ],
+                        {
+                            width: "192px"
+                        }
+                    ],
+                    [
+                        [
+                            [
+                                0,
+                                "about-212"
+                            ]
+                        ],
+                        {
+                            width: "212px"
+                        }
+                    ],
+                    [
+                        {
+                            condition: "screen and (shape:pill-shaped) and (max-width:100)"
+                        },
+                        [
+                            [
+                                0,
+                                "about-336"
+                            ]
+                        ],
+                        {
+                            display: "none"
+                        }
+                    ],
+                    [
+                        {
+                            condition: "screen and (shape:pill-shaped) and (max-width:100)"
+                        },
+                        [
+                            [
+                                0,
+                                "about-192"
+                            ]
+                        ],
+                        {
+                            display: "flex"
+                        }
+                    ],
+                    [
+                        {
+                            condition: "screen and (shape:pill-shaped) and (max-width:100)"
+                        },
+                        [
+                            [
+                                0,
+                                "about-212"
+                            ]
+                        ],
+                        {
+                            display: "none"
+                        }
+                    ],
+                    [
+                        {
+                            condition: "screen and (shape:pill-shaped) and (min-width:101)"
+                        },
+                        [
+                            [
+                                0,
+                                "about-336"
+                            ]
+                        ],
+                        {
+                            display: "none"
+                        }
+                    ],
+                    [
+                        {
+                            condition: "screen and (shape:pill-shaped) and (min-width:101)"
+                        },
+                        [
+                            [
+                                0,
+                                "about-192"
+                            ]
+                        ],
+                        {
+                            display: "none"
+                        }
+                    ],
+                    [
+                        {
+                            condition: "screen and (shape:pill-shaped) and (min-width:101)"
+                        },
+                        [
+                            [
+                                0,
+                                "about-212"
+                            ]
+                        ],
+                        {
+                            display: "flex"
+                        }
                     ]
                 ];
                 var $app_script$ = function __scriptModule__(module, exports, $app_require$1) {
@@ -430,36 +598,47 @@ export default function(global, globalThis, window, $app_exports$, $app_evaluate
                             ]
                         }
                     }, [
-                        aiot.__ce__("image", {
+                        aiot.__ce__("scroll", {
                             __vm__: _vm_,
                             __opts__: {
-                                src: "/common/About_336.png",
                                 classList: [
-                                    "about-bg",
-                                    "about-336"
-                                ]
+                                    "content-full"
+                                ],
+                                scrollY: "true",
+                                bounces: "true"
                             }
-                        }, []),
-                        aiot.__ce__("image", {
-                            __vm__: _vm_,
-                            __opts__: {
-                                src: "/common/About_192.png",
-                                classList: [
-                                    "about-bg",
-                                    "about-192"
-                                ]
-                            }
-                        }, []),
-                        aiot.__ce__("image", {
-                            __vm__: _vm_,
-                            __opts__: {
-                                src: "/common/About_212.png",
-                                classList: [
-                                    "about-bg",
-                                    "about-212"
-                                ]
-                            }
-                        }, []),
+                        }, [
+                            aiot.__ce__("image", {
+                                __vm__: _vm_,
+                                __opts__: {
+                                    src: "/common/About_336.png",
+                                    classList: [
+                                        "about-bg",
+                                        "about-336"
+                                    ]
+                                }
+                            }, []),
+                            aiot.__ce__("image", {
+                                __vm__: _vm_,
+                                __opts__: {
+                                    src: "/common/About_192.png",
+                                    classList: [
+                                        "about-bg",
+                                        "about-192"
+                                    ]
+                                }
+                            }, []),
+                            aiot.__ce__("image", {
+                                __vm__: _vm_,
+                                __opts__: {
+                                    src: "/common/About_212.png",
+                                    classList: [
+                                        "about-bg",
+                                        "about-212"
+                                    ]
+                                }
+                            }, [])
+                        ]),
                         aiot.__ce__("image", {
                             __vm__: _vm_,
                             __opts__: {
@@ -518,4 +697,4 @@ export default function(global, globalThis, window, $app_exports$, $app_evaluate
     })(global, globalThis, window, $app_exports$, $app_evaluate$);
 }
 
-//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoicGFnZXMvYWJvdXQvYWJvdXQuanMiLCJzb3VyY2VzIjpbIndlYnBhY2s6Ly9TaGVsbCsrL3dlYnBhY2svcnVudGltZS9yc3BhY2tfdmVyc2lvbiIsIndlYnBhY2s6Ly9TaGVsbCsrL3dlYnBhY2svcnVudGltZS9yc3BhY2tfdW5pcXVlX2lkIiwid2VicGFjazovL1NoZWxsKysvc3JjL3BhZ2VzL2Fib3V0L2Fib3V0LnV4Il0sInNvdXJjZXNDb250ZW50IjpbIl9fd2VicGFja19yZXF1aXJlX18ucnYgPSAoKSA9PiAoXCIxLjcuMTFcIikiLCJfX3dlYnBhY2tfcmVxdWlyZV9fLnJ1aWQgPSBcImJ1bmRsZXI9cnNwYWNrQDEuNy4xMVwiOyIsIjx0ZW1wbGF0ZT5cbiAgPGRpdiBjbGFzcz1cInBhZ2VcIj5cbiAgICA8aW1nIHNyYz1cIi9jb21tb24vQWJvdXRfMzM2LnBuZ1wiIGNsYXNzPVwiYWJvdXQtYmcgYWJvdXQtMzM2XCIgLz5cbiAgICA8aW1nIHNyYz1cIi9jb21tb24vQWJvdXRfMTkyLnBuZ1wiIGNsYXNzPVwiYWJvdXQtYmcgYWJvdXQtMTkyXCIgLz5cbiAgICA8aW1nIHNyYz1cIi9jb21tb24vQWJvdXRfMjEyLnBuZ1wiIGNsYXNzPVwiYWJvdXQtYmcgYWJvdXQtMjEyXCIgLz5cbiAgICA8aW1nIHNyYz1cIi9jb21tb24vYmFjay5wbmdcIiBAY2xpY2s9XCJnb0JhY2tcIiBjbGFzcz1cImhkLWJhY2tcIiAvPlxuICAgIDxkaXYgY2xhc3M9XCJwaWxsLWhlYWRlclwiPlxuICAgICAgPGRpdiBjbGFzcz1cInBpbGwtbW9yZS13cmFwXCIgQGNsaWNrPVwiZ29CYWNrXCI+XG4gICAgICAgIDxkaXYgY2xhc3M9XCJwaWxsLW1vcmVcIj48L2Rpdj5cbiAgICAgIDwvZGl2PlxuICAgIDwvZGl2PlxuICA8L2Rpdj5cbjwvdGVtcGxhdGU+XG5cbjxzY3JpcHQ+XG5pbXBvcnQgcm91dGVyIGZyb20gXCJAc3lzdGVtLnJvdXRlclwiXG5cbmV4cG9ydCBkZWZhdWx0IHtcbiAgZ29CYWNrKCkge1xuICAgIHJvdXRlci5iYWNrKClcbiAgfVxufVxuPC9zY3JpcHQ+XG5cbjxzdHlsZT5cbi5wYWdlIHsgd2lkdGg6IDMzNnB4OyBoZWlnaHQ6IDQ4MHB4OyBiYWNrZ3JvdW5kLWNvbG9yOiAjMDAwMDAwOyBwb3NpdGlvbjogcmVsYXRpdmU7IH1cbi5hYm91dC1iZyB7IHBvc2l0aW9uOiBhYnNvbHV0ZTsgbGVmdDogMDsgdG9wOiAwOyB9XG4uYWJvdXQtMzM2IHsgd2lkdGg6IDMzNnB4OyBoZWlnaHQ6IDQ4MHB4OyB9XG4uYWJvdXQtMTkyIHsgZGlzcGxheTogbm9uZTsgd2lkdGg6IDE5MnB4OyBoZWlnaHQ6IDQ5MHB4OyB9XG4uYWJvdXQtMjEyIHsgZGlzcGxheTogbm9uZTsgd2lkdGg6IDIxMnB4OyBoZWlnaHQ6IDUyMHB4OyB9XG4uaGQtYmFjayB7IHBvc2l0aW9uOiBhYnNvbHV0ZTsgbGVmdDogNnB4OyB0b3A6IDZweDsgd2lkdGg6IDcycHg7IGhlaWdodDogNzJweDsgfVxuLnBpbGwtaGVhZGVyIHsgZGlzcGxheTogbm9uZTsgfVxuQG1lZGlhIChzaGFwZTogcGlsbC1zaGFwZWQpIGFuZCAobWF4LXdpZHRoOiAxMDApIHtcbiAgLnBhZ2UgeyB3aWR0aDogMTkycHg7IGhlaWdodDogNDkwcHg7IH1cbiAgLmFib3V0LTMzNiB7IGRpc3BsYXk6IG5vbmU7IH1cbiAgLmFib3V0LTE5MiB7IGRpc3BsYXk6IGZsZXg7IH1cbiAgLmFib3V0LTIxMiB7IGRpc3BsYXk6IG5vbmU7IH1cbiAgLmhkLWJhY2sgeyBkaXNwbGF5OiBub25lOyB9XG4gIC5waWxsLWhlYWRlciB7IGRpc3BsYXk6IGZsZXg7IHdpZHRoOiAxOTJweDsgaGVpZ2h0OiA5MnB4OyBmbGV4LWRpcmVjdGlvbjogY29sdW1uOyBhbGlnbi1pdGVtczogY2VudGVyOyBqdXN0aWZ5LWNvbnRlbnQ6IGZsZXgtc3RhcnQ7IHBvc2l0aW9uOiBhYnNvbHV0ZTsgdG9wOiAwOyBsZWZ0OiAwOyB9XG4gIC5waWxsLW1vcmUtd3JhcCB7IHdpZHRoOiA5MnB4OyBoZWlnaHQ6IDcycHg7IGJvcmRlci1yYWRpdXM6IDMycHg7IGZsZXgtZGlyZWN0aW9uOiByb3c7IGp1c3RpZnktY29udGVudDogY2VudGVyOyBhbGlnbi1pdGVtczogY2VudGVyOyBtYXJnaW4tdG9wOiAxMHB4OyB9XG4gIC5waWxsLW1vcmUgeyB3aWR0aDogOTJweDsgaGVpZ2h0OiA3MnB4OyBiYWNrZ3JvdW5kLWltYWdlOiB1cmwoL2NvbW1vbi9iYWNrX2NhcHN1bGUucG5nKTsgYmFja2dyb3VuZC1zaXplOiA5MnB4IDcycHg7IGJvcmRlci1yYWRpdXM6IDMycHg7IH1cbn1cbkBtZWRpYSAoc2hhcGU6IHBpbGwtc2hhcGVkKSBhbmQgKG1pbi13aWR0aDogMTAxKSB7XG4gIC5wYWdlIHsgd2lkdGg6IDIxMnB4OyBoZWlnaHQ6IDUyMHB4OyB9XG4gIC5hYm91dC0zMzYgeyBkaXNwbGF5OiBub25lOyB9XG4gIC5hYm91dC0xOTIgeyBkaXNwbGF5OiBub25lOyB9XG4gIC5hYm91dC0yMTIgeyBkaXNwbGF5OiBmbGV4OyB9XG4gIC5oZC1iYWNrIHsgZGlzcGxheTogbm9uZTsgfVxuICAucGlsbC1oZWFkZXIgeyBkaXNwbGF5OiBmbGV4OyB3aWR0aDogMjEycHg7IGhlaWdodDogOTJweDsgZmxleC1kaXJlY3Rpb246IGNvbHVtbjsgYWxpZ24taXRlbXM6IGNlbnRlcjsganVzdGlmeS1jb250ZW50OiBmbGV4LXN0YXJ0OyBwb3NpdGlvbjogYWJzb2x1dGU7IHRvcDogMDsgbGVmdDogMDsgfVxuICAucGlsbC1tb3JlLXdyYXAgeyB3aWR0aDogMTAycHg7IGhlaWdodDogNzJweDsgYm9yZGVyLXJhZGl1czogMzZweDsgZmxleC1kaXJlY3Rpb246IHJvdzsganVzdGlmeS1jb250ZW50OiBjZW50ZXI7IGFsaWduLWl0ZW1zOiBjZW50ZXI7IG1hcmdpbi10b3A6IDEwcHg7IH1cbiAgLnBpbGwtbW9yZSB7IHdpZHRoOiAxMDJweDsgaGVpZ2h0OiA3MnB4OyBiYWNrZ3JvdW5kLWltYWdlOiB1cmwoL2NvbW1vbi9iYWNrX2NhcHN1bGUucG5nKTsgYmFja2dyb3VuZC1zaXplOiAxMDJweCA3MnB4OyBib3JkZXItcmFkaXVzOiAzNnB4OyB9XG59XG48L3N0eWxlPlxuIl0sIm5hbWVzIjpbIl9fd2VicGFja19yZXF1aXJlX18iLCJfc3lzdGVtIiwiX2ludGVyb3BSZXF1aXJlRGVmYXVsdCIsIiRhcHBfcmVxdWlyZSQiLCJlIiwiX19lc01vZHVsZSIsImRlZmF1bHQiLCJfZGVmYXVsdCIsImV4cG9ydHMiLCJnb0JhY2siLCJyb3V0ZXIiLCJiYWNrIl0sIm1hcHBpbmdzIjoiOzs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7O29CQUFBQSxvQkFBb0IsRUFBRSxHQUFHLElBQU87OztvQkNBaENBLG9CQUFvQixJQUFJLEdBQUc7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7OztvQkNlM0IsSUFBQUMsVUFBQUMsdUJBQUFDLGVBQUE7b0JBQW1DLFNBQUFELHVCQUFBRSxDQUFBO3dCQUFBLE9BQUFBLEtBQUFBLEVBQUFDLFVBQUEsR0FBQUQsSUFBQTs0QkFBQUUsU0FBQUY7d0JBQUE7b0JBQUE7b0JBQUEsSUFBQUcsV0FBQUMsUUFBQUYsT0FBQSxHQUVwQjt3QkFDYkc7NEJBQ0VDLFFBQUFBLE9BQU0sQ0FBQ0MsSUFBSTt3QkFDYjtvQkFDRiJ9
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoicGFnZXMvYWJvdXQvYWJvdXQuanMiLCJzb3VyY2VzIjpbIndlYnBhY2s6Ly9TaGVsbCsrL3dlYnBhY2svcnVudGltZS9yc3BhY2tfdmVyc2lvbiIsIndlYnBhY2s6Ly9TaGVsbCsrL3dlYnBhY2svcnVudGltZS9yc3BhY2tfdW5pcXVlX2lkIiwid2VicGFjazovL1NoZWxsKysvc3JjL3BhZ2VzL2Fib3V0L2Fib3V0LnV4Il0sInNvdXJjZXNDb250ZW50IjpbIl9fd2VicGFja19yZXF1aXJlX18ucnYgPSAoKSA9PiAoXCIxLjcuMTFcIikiLCJfX3dlYnBhY2tfcmVxdWlyZV9fLnJ1aWQgPSBcImJ1bmRsZXI9cnNwYWNrQDEuNy4xMVwiOyIsIjx0ZW1wbGF0ZT5cbiAgPGRpdiBjbGFzcz1cInBhZ2VcIj5cbiAgICA8c2Nyb2xsIGNsYXNzPVwiY29udGVudC1mdWxsXCIgc2Nyb2xsLXk9XCJ0cnVlXCIgYm91bmNlcz1cInRydWVcIj5cbiAgICAgIDxpbWcgc3JjPVwiL2NvbW1vbi9BYm91dF8zMzYucG5nXCIgY2xhc3M9XCJhYm91dC1iZyBhYm91dC0zMzZcIiAvPlxuICAgICAgPGltZyBzcmM9XCIvY29tbW9uL0Fib3V0XzE5Mi5wbmdcIiBjbGFzcz1cImFib3V0LWJnIGFib3V0LTE5MlwiIC8+XG4gICAgICA8aW1nIHNyYz1cIi9jb21tb24vQWJvdXRfMjEyLnBuZ1wiIGNsYXNzPVwiYWJvdXQtYmcgYWJvdXQtMjEyXCIgLz5cbiAgICA8L3Njcm9sbD5cbiAgICA8aW1nIHNyYz1cIi9jb21tb24vYmFjay5wbmdcIiBAY2xpY2s9XCJnb0JhY2tcIiBjbGFzcz1cImhkLWJhY2tcIiAvPlxuICAgIDxkaXYgY2xhc3M9XCJwaWxsLWhlYWRlclwiPlxuICAgICAgPGRpdiBjbGFzcz1cInBpbGwtbW9yZS13cmFwXCIgQGNsaWNrPVwiZ29CYWNrXCI+XG4gICAgICAgIDxkaXYgY2xhc3M9XCJwaWxsLW1vcmVcIj48L2Rpdj5cbiAgICAgIDwvZGl2PlxuICAgIDwvZGl2PlxuICA8L2Rpdj5cbjwvdGVtcGxhdGU+XG5cbjxzY3JpcHQ+XG5pbXBvcnQgcm91dGVyIGZyb20gXCJAc3lzdGVtLnJvdXRlclwiXG5cbmV4cG9ydCBkZWZhdWx0IHtcbiAgZ29CYWNrKCkge1xuICAgIHJvdXRlci5iYWNrKClcbiAgfVxufVxuPC9zY3JpcHQ+XG5cbjxzdHlsZT5cbkBpbXBvcnQgJy4uLy4uL2NvbW1vbi9iYWNrLXBhZ2UuY3NzJztcblxuLnBhZ2UgeyBwb3NpdGlvbjogcmVsYXRpdmU7IH1cbi5hYm91dC1iZyB7IGRpc3BsYXk6IG5vbmU7IH1cbi5hYm91dC0zMzYgeyBkaXNwbGF5OiBmbGV4OyB3aWR0aDogMzM2cHg7IH1cbi5hYm91dC0xOTIgeyB3aWR0aDogMTkycHg7IH1cbi5hYm91dC0yMTIgeyB3aWR0aDogMjEycHg7IH1cbkBtZWRpYSAoc2hhcGU6IHBpbGwtc2hhcGVkKSBhbmQgKG1heC13aWR0aDogMTAwKSB7XG4gIC5hYm91dC0zMzYgeyBkaXNwbGF5OiBub25lOyB9XG4gIC5hYm91dC0xOTIgeyBkaXNwbGF5OiBmbGV4OyB9XG4gIC5hYm91dC0yMTIgeyBkaXNwbGF5OiBub25lOyB9XG4gIC5oZC1iYWNrIHsgZGlzcGxheTogbm9uZTsgfVxuICAucGlsbC1oZWFkZXIgeyBwb3NpdGlvbjogYWJzb2x1dGU7IHRvcDogMDsgbGVmdDogMDsgfVxufVxuQG1lZGlhIChzaGFwZTogcGlsbC1zaGFwZWQpIGFuZCAobWluLXdpZHRoOiAxMDEpIHtcbiAgLmFib3V0LTMzNiB7IGRpc3BsYXk6IG5vbmU7IH1cbiAgLmFib3V0LTE5MiB7IGRpc3BsYXk6IG5vbmU7IH1cbiAgLmFib3V0LTIxMiB7IGRpc3BsYXk6IGZsZXg7IH1cbiAgLmhkLWJhY2sgeyBkaXNwbGF5OiBub25lOyB9XG4gIC5waWxsLWhlYWRlciB7IHBvc2l0aW9uOiBhYnNvbHV0ZTsgdG9wOiAwOyBsZWZ0OiAwOyB9XG59XG48L3N0eWxlPlxuIl0sIm5hbWVzIjpbIl9fd2VicGFja19yZXF1aXJlX18iLCJfc3lzdGVtIiwiX2ludGVyb3BSZXF1aXJlRGVmYXVsdCIsIiRhcHBfcmVxdWlyZSQiLCJlIiwiX19lc01vZHVsZSIsImRlZmF1bHQiLCJfZGVmYXVsdCIsImV4cG9ydHMiLCJnb0JhY2siLCJyb3V0ZXIiLCJiYWNrIl0sIm1hcHBpbmdzIjoiOzs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7O29CQUFBQSxvQkFBb0IsRUFBRSxHQUFHLElBQU87OztvQkNBaENBLG9CQUFvQixJQUFJLEdBQUc7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7OztvQkNpQjNCLElBQUFDLFVBQUFDLHVCQUFBQyxlQUFBO29CQUFtQyxTQUFBRCx1QkFBQUUsQ0FBQTt3QkFBQSxPQUFBQSxLQUFBQSxFQUFBQyxVQUFBLEdBQUFELElBQUE7NEJBQUFFLFNBQUFGO3dCQUFBO29CQUFBO29CQUFBLElBQUFHLFdBQUFDLFFBQUFGLE9BQUEsR0FFcEI7d0JBQ2JHOzRCQUNFQyxRQUFBQSxPQUFNLENBQUNDLElBQUk7d0JBQ2I7b0JBQ0YifQ==

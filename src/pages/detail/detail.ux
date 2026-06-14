@@ -118,7 +118,7 @@ export default {
             }
             if (now - ts > 15) {
               self.luaConnected = false
-              self.lastHeartbeat = json.timestamp + " (超时)"
+              self.lastHeartbeat = json.timestamp + " (" + self.$t("detail.timeout") + ")"
               return
             }
           }
@@ -129,7 +129,7 @@ export default {
             var d = new Date(ht * 1000)
             self.lastHeartbeat = ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2) + ":" + ("0" + d.getSeconds()).slice(-2)
           } else {
-            self.lastHeartbeat = json.timestamp || "未知"
+            self.lastHeartbeat = json.timestamp || self.$t("detail.unknown")
           }
         } catch(e) {
           /* 心跳文件损坏或格式异常 */
@@ -149,50 +149,18 @@ export default {
 </script>
 
 <style>
-.page { width: 336px; height: 480px; background-color: #000000; }
-.content-full { width: 336px; height: 480px; flex-direction: column; }
-.header-area { width: 336px; height: 102px; position: relative; }
-.header-bg { width: 336px; height: 102px; }
-.hd-title { position: absolute; left: 78px; top: 35px; width: 180px; height: 42px; text-align: center; font-size: 32px; font-weight: bold; color: #ffffff; }
-.hd-back { position: absolute; left: 6px; top: 6px; width: 72px; height: 72px; }
-.hd-time { position: absolute; left: 78px; top: 7px; width: 180px; height: 32px; text-align: center; font-size: 24px; font-weight: bold; color: rgba(255,255,255,0.6); }
-.pill-header { display: none; }
+@import '../../common/back-page.css';
+@import '../../common/card.css';
+
 .scroll-inner { margin-top: 0; padding: 0 6px 20px 6px; flex-direction: column; }
-.card { width: 324px; height: 112px; margin-top: 8px; background-color: #262626; border-radius: 36px; flex-direction: row; align-items: center; padding-left: 20px; padding-right: 20px; }
-.card-left { flex-direction: column; flex: 1; }
-.card-label { font-size: 32px; line-height: 40px; font-weight: bold; color: #ffffff; lines: 1; }
-.card-sub { font-size: 28px; line-height: 37px; font-weight: bold; color: rgba(255,255,255,0.6); margin-top: 4px; lines: 1; }
-.card-primary { background-color: #0D6EFF; }
-.card-sub-primary { color: rgba(255,255,255,0.7); }
-.spacer { height: 20px; }
 
 @media (shape: rect) {
   .scroll-inner { margin-top: -15px; }
 }
 @media (shape: pill-shaped) and (max-width: 100) {
-  .page { width: 192px; height: 490px; }
-  .content-full { width: 192px; height: 490px; }
-  .header-area { display: none; }
-  .pill-header { display: flex; width: 192px; height: 92px; flex-direction: column; align-items: center; justify-content: flex-start; }
-  .pill-more-wrap { width: 102px; height: 72px; border-radius: 36px; flex-direction: row; justify-content: center; align-items: center; margin-top: 10px; }
-  .pill-more { width: 102px; height: 72px; background-image: url(/common/back_capsule.png); background-size: 102px 72px; border-radius: 36px; }
   .scroll-inner { padding: 0 4px 16px 4px; }
-  .card { width: 184px; height: 110px; border-radius: 27px; padding-left: 14px; padding-right: 16px; margin-top: 8px; }
-  .card-label { font-size: 32px; line-height: 38px; }
-  .card-sub { font-size: 28px; line-height: 34px; margin-top: 6px; }
-  .spacer { height: 16px; }
 }
 @media (shape: pill-shaped) and (min-width: 101) {
-  .page { width: 212px; height: 520px; }
-  .content-full { width: 212px; height: 520px; }
-  .header-area { display: none; }
-  .pill-header { display: flex; width: 212px; height: 92px; flex-direction: column; align-items: center; justify-content: flex-start; }
-  .pill-more-wrap { width: 102px; height: 72px; border-radius: 36px; flex-direction: row; justify-content: center; align-items: center; margin-top: 10px; }
-  .pill-more { width: 102px; height: 72px; background-image: url(/common/back_capsule.png); background-size: 102px 72px; border-radius: 36px; }
   .scroll-inner { padding: 0 4px 16px 4px; }
-  .card { width: 204px; height: 110px; border-radius: 27px; padding-left: 14px; padding-right: 16px; margin-top: 8px; }
-  .card-label { font-size: 32px; line-height: 38px; }
-  .card-sub { font-size: 28px; line-height: 34px; margin-top: 9px; }
-  .spacer { height: 16px; }
 }
 </style>

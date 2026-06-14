@@ -52,6 +52,12 @@
         "component": "terminal",
         "launchMode": "clearTask"
       },
+      "pages/history": {
+        "component": "history"
+      },
+      "pages/favorites": {
+        "component": "favorites"
+      },
       "pages/about": {
         "component": "about"
       },

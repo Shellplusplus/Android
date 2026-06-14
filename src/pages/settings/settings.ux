@@ -15,11 +15,17 @@
 
       <div class="scroll-inner">
 
-        <!-- 调试模式 -->
-        <div class="card {{ debugCardClass }}" onclick="toggleDebug">
+        <div class="card" onclick="goFavorites">
           <div class="card-left">
-            <text class="card-label">{{ $t("settings.debugMode") }}</text>
-            <text class="card-sub {{ debugSubClass }}">{{ debugStatusText }}</text>
+            <text class="card-label">{{ $t("settings.favorites") }}</text>
+            <text class="card-sub">{{ $t("settings.favoritesDesc") }}</text>
+          </div>
+        </div>
+
+        <div class="card" onclick="toggleHistoryLimit">
+          <div class="card-left">
+            <text class="card-label">{{ $t("settings.historyLimit") }}</text>
+            <text class="card-sub">{{ historyLimitText }}</text>
           </div>
         </div>
 
@@ -33,32 +39,25 @@
 import router from "@system.router"
 import file from "@system.file"
 
-var DEBUG_FILE = "internal://files/debug_mode.json"
+var HISTORY_CONFIG_FILE = "internal://files/history_config.json"
 
 export default {
   private: {
     nowTime: "00:00",
     timer: null,
-    debugEnabled: false,
-    debugStatusText: "",
-    debugCardClass: "",
-    debugSubClass: "",
-    pendingEnable: false
+    historyLimit: 5,
+    historyLimitText: ""
   },
 
   onInit() {
     var self = this
     self.updateTime()
     self.timer = setInterval(function() { self.updateTime() }, 1000)
-    self.loadDebugMode()
+    self.loadHistoryLimit()
   },
 
   onShow() {
-    /* 从免责声明返回后，执行待定的调试模式开启 */
-    if (this.pendingEnable) {
-      this.pendingEnable = false
-      this.writeDebugMode(true)
-    }
+    this.loadHistoryLimit()
   },
 
   onDestroy() {
@@ -70,62 +69,62 @@ export default {
     this.nowTime = ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2)
   },
 
-  loadDebugMode() {
+  normalizeHistoryLimit(limit) {
+    return this.$app.$def.shellData.normalizeHistoryLimit(limit)
+  },
+
+  updateHistoryLimitText() {
+    this.historyLimitText = this.$t("settings.historyLimitDescPrefix") + this.historyLimit + this.$t("settings.historyLimitDescSuffix")
+  },
+
+  loadHistoryLimit() {
     var self = this
     file.readText({
-      uri: DEBUG_FILE,
+      uri: HISTORY_CONFIG_FILE,
       success: function(data) {
         try {
           var json = JSON.parse(data.text)
-          self.debugEnabled = json.enabled === true
+          self.historyLimit = self.normalizeHistoryLimit(json.limit)
         } catch(e) {
-          self.debugEnabled = false
+          self.historyLimit = self.$app.$def.shellData.defaultHistoryLimit
         }
-        self.updateDebugText()
+        self.updateHistoryLimitText()
       },
       fail: function() {
-        self.debugEnabled = false
-        self.updateDebugText()
+        self.historyLimit = self.$app.$def.shellData.defaultHistoryLimit
+        self.updateHistoryLimitText()
       }
     })
   },
 
-  updateDebugText() {
-    if (this.debugEnabled) {
-      this.debugStatusText = this.$t("settings.debugOn")
-      this.debugCardClass = "card-primary"
-      this.debugSubClass = "card-sub-primary"
-    } else {
-      this.debugStatusText = this.$t("settings.debugOff")
-      this.debugCardClass = ""
-      this.debugSubClass = ""
-    }
-  },
-
-  writeDebugMode(enabled) {
+  writeHistoryLimit(limit) {
     var self = this
     file.writeText({
-      uri: DEBUG_FILE,
-      text: JSON.stringify({ enabled: enabled }),
+      uri: HISTORY_CONFIG_FILE,
+      text: JSON.stringify({ limit: limit }),
       append: false,
       success: function() {
-        self.debugEnabled = enabled
-        self.updateDebugText()
+        self.historyLimit = limit
+        self.updateHistoryLimitText()
       }
     })
   },
 
-  toggleDebug() {
-    var self = this
-    if (self.debugEnabled) {
-      /* 关闭：直接写入 */
-      self.writeDebugMode(false)
-    } else {
-      /* 开启：先展示免责声明 */
-      self.pendingEnable = true
-      var disclaimer = self.$t("settings.disclaimer")
-      router.push({ uri: "/pages/log", params: { content: disclaimer, title: self.$t("settings.disclaimerTitle") } })
+  toggleHistoryLimit() {
+    var options = this.$app.$def.shellData.historyLimitOptions
+    var currentIndex = 0
+    for (var i = 0; i < options.length; i++) {
+      if (options[i] === this.historyLimit) {
+        currentIndex = i
+        break
+      }
     }
+    var nextIndex = (currentIndex + 1) % options.length
+    this.writeHistoryLimit(options[nextIndex])
+  },
+
+  goFavorites() {
+    router.push({ uri: "/pages/favorites" })
   },
 
   goBack() { router.back() }
@@ -133,50 +132,18 @@ export default {
 </script>
 
 <style>
-.page { width: 336px; height: 480px; background-color: #000000; }
-.content-full { width: 336px; height: 480px; flex-direction: column; }
-.header-area { width: 336px; height: 102px; position: relative; }
-.header-bg { width: 336px; height: 102px; }
-.hd-title { position: absolute; left: 78px; top: 35px; width: 180px; height: 42px; text-align: center; font-size: 32px; font-weight: bold; color: #ffffff; }
-.hd-back { position: absolute; left: 6px; top: 6px; width: 72px; height: 72px; }
-.hd-time { position: absolute; left: 78px; top: 7px; width: 180px; height: 32px; text-align: center; font-size: 24px; font-weight: bold; color: rgba(255,255,255,0.6); }
-.pill-header { display: none; }
+@import '../../common/back-page.css';
+@import '../../common/card.css';
+
 .scroll-inner { margin-top: 0; padding: 0 6px 20px 6px; flex-direction: column; }
-.card { width: 324px; height: 112px; margin-top: 8px; background-color: #262626; border-radius: 36px; flex-direction: row; align-items: center; padding-left: 20px; padding-right: 20px; }
-.card-left { flex-direction: column; flex: 1; }
-.card-label { font-size: 32px; line-height: 40px; font-weight: bold; color: #ffffff; lines: 1; }
-.card-sub { font-size: 28px; line-height: 37px; font-weight: bold; color: rgba(255,255,255,0.6); margin-top: 4px; lines: 1; }
-.card-primary { background-color: #0D6EFF; }
-.card-sub-primary { color: rgba(255,255,255,0.7); }
-.spacer { height: 20px; }
 
 @media (shape: rect) {
   .scroll-inner { margin-top: -15px; }
 }
 @media (shape: pill-shaped) and (max-width: 100) {
-  .page { width: 192px; height: 490px; }
-  .content-full { width: 192px; height: 490px; }
-  .header-area { display: none; }
-  .pill-header { display: flex; width: 192px; height: 92px; flex-direction: column; align-items: center; justify-content: flex-start; }
-  .pill-more-wrap { width: 102px; height: 72px; border-radius: 36px; flex-direction: row; justify-content: center; align-items: center; margin-top: 10px; }
-  .pill-more { width: 102px; height: 72px; background-image: url(/common/back_capsule.png); background-size: 102px 72px; border-radius: 36px; }
   .scroll-inner { padding: 0 4px 16px 4px; }
-  .card { width: 184px; height: 110px; border-radius: 27px; padding-left: 14px; padding-right: 16px; margin-top: 8px; }
-  .card-label { font-size: 32px; line-height: 38px; }
-  .card-sub { font-size: 28px; line-height: 34px; margin-top: 6px; }
-  .spacer { height: 16px; }
 }
 @media (shape: pill-shaped) and (min-width: 101) {
-  .page { width: 212px; height: 520px; }
-  .content-full { width: 212px; height: 520px; }
-  .header-area { display: none; }
-  .pill-header { display: flex; width: 212px; height: 92px; flex-direction: column; align-items: center; justify-content: flex-start; }
-  .pill-more-wrap { width: 102px; height: 72px; border-radius: 36px; flex-direction: row; justify-content: center; align-items: center; margin-top: 10px; }
-  .pill-more { width: 102px; height: 72px; background-image: url(/common/back_capsule.png); background-size: 102px 72px; border-radius: 36px; }
   .scroll-inner { padding: 0 4px 16px 4px; }
-  .card { width: 204px; height: 110px; border-radius: 27px; padding-left: 14px; padding-right: 16px; margin-top: 8px; }
-  .card-label { font-size: 32px; line-height: 38px; }
-  .card-sub { font-size: 28px; line-height: 34px; margin-top: 9px; }
-  .spacer { height: 16px; }
 }
 </style>

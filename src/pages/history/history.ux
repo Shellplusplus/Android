@@ -1,0 +1,164 @@
+<template>
+  <div class="page">
+    <scroll class="content-full" scroll-y="true" bounces="true">
+      <div class="header-area">
+        <img src="/common/hd.png" class="header-bg" />
+        <text class="hd-time">{{ nowTime }}</text>
+        <text class="hd-title">{{ $t("history.title") }}</text>
+        <img src="/common/back.png" @click="goBack" class="hd-back" />
+      </div>
+      <div class="pill-header">
+        <div class="pill-more-wrap" @click="goBack">
+          <div class="pill-more"></div>
+        </div>
+      </div>
+
+      <div class="scroll-inner">
+        <div if="{{!hasHistory}}" class="card">
+          <div class="card-left">
+            <text class="card-label">{{ $t("history.emptyTitle") }}</text>
+            <text class="card-sub">{{ $t("history.emptyDesc") }}</text>
+          </div>
+        </div>
+
+        <div if="{{hasHistory}}" class="card" for="{{historyItems}}" tid="id" onclick="runHistory($item.cmd)">
+          <div class="card-left">
+            <text class="card-label history-label">{{ $item.cmd }}</text>
+            <text class="card-sub">{{ $t("history.tapToRun") }}</text>
+          </div>
+        </div>
+
+        <div class="spacer"></div>
+      </div>
+    </scroll>
+  </div>
+</template>
+
+<script>
+import router from "@system.router"
+import file from "@system.file"
+
+var HISTORY_FILE = "internal://files/cmd_history.json"
+var HISTORY_CONFIG_FILE = "internal://files/history_config.json"
+
+export default {
+  private: {
+    nowTime: "00:00",
+    timer: null,
+    historyItems: [],
+    hasHistory: false,
+    historyLimit: 5
+  },
+
+  onInit() {
+    var self = this
+    self.updateTime()
+    self.timer = setInterval(function() { self.updateTime() }, 1000)
+    self.refreshHistory()
+  },
+
+  onShow() {
+    this.refreshHistory()
+  },
+
+  onDestroy() {
+    clearInterval(this.timer)
+  },
+
+  updateTime() {
+    var d = new Date()
+    this.nowTime = ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2)
+  },
+
+  normalizeHistoryLimit(limit) {
+    return this.$app.$def.shellData.normalizeHistoryLimit(limit)
+  },
+
+  refreshHistory() {
+    var self = this
+    file.readText({
+      uri: HISTORY_CONFIG_FILE,
+      success: function(data) {
+        try {
+          var json = JSON.parse(data.text)
+          self.historyLimit = self.normalizeHistoryLimit(json.limit)
+        } catch (e) {
+          self.historyLimit = self.$app.$def.shellData.defaultHistoryLimit
+        }
+        self.loadHistory()
+      },
+      fail: function() {
+        self.historyLimit = self.$app.$def.shellData.defaultHistoryLimit
+        self.loadHistory()
+      }
+    })
+  },
+
+  normalizeHistory(items) {
+    var normalized = []
+    var seen = {}
+    if (!(items instanceof Array)) return normalized
+    for (var i = 0; i < items.length; i++) {
+      var cmd = items[i]
+      if (typeof cmd !== "string") continue
+      cmd = cmd.trim()
+      if (!cmd || seen[cmd]) continue
+      seen[cmd] = true
+      normalized.push({
+        id: "history-" + normalized.length,
+        cmd: cmd
+      })
+      if (normalized.length >= this.historyLimit) break
+    }
+    return normalized
+  },
+
+  loadHistory() {
+    var self = this
+    file.readText({
+      uri: HISTORY_FILE,
+      success: function(data) {
+        var list = []
+        try {
+          list = JSON.parse(data.text)
+        } catch (e) {}
+        self.historyItems = self.normalizeHistory(list)
+        self.hasHistory = self.historyItems.length > 0
+      },
+      fail: function() {
+        self.historyItems = []
+        self.hasHistory = false
+      }
+    })
+  },
+
+  runHistory(cmd) {
+    if (!cmd) return
+    router.replace({ uri: "/pages/terminal", params: { cmd: cmd, autoSend: "1" } })
+  },
+
+  goBack() {
+    router.back()
+  }
+}
+</script>
+
+<style>
+@import '../../common/back-page.css';
+@import '../../common/card.css';
+
+.scroll-inner { margin-top: 0; padding: 0 6px 20px 6px; flex-direction: column; }
+.history-label { width: 284px; }
+
+@media (shape: rect) {
+  .scroll-inner { margin-top: -15px; }
+}
+@media (shape: pill-shaped) and (max-width: 100) {
+  .card { width: 184px; height: 110px; border-radius: 27px; padding-left: 14px; padding-right: 16px; margin-top: 8px; }
+  .history-label { width: 154px; }
+}
+@media (shape: pill-shaped) and (min-width: 101) {
+  .card { width: 204px; height: 110px; border-radius: 27px; padding-left: 14px; padding-right: 16px; margin-top: 8px; }
+  .history-label { width: 174px; }
+}
+</style>

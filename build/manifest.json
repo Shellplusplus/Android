@@ -52,6 +52,12 @@
         "component": "terminal",
         "launchMode": "clearTask"
       },
+      "pages/history": {
+        "component": "history"
+      },
+      "pages/favorites": {
+        "component": "favorites"
+      },
       "pages/about": {
         "component": "about"
       },
@@ -63,8 +69,8 @@
   "minAPILevel": 1,
   "packageInfo": {
     "toolkit": "2.0.5",
-    "timeStamp": "2026-06-14T12:36:42.559Z",
-    "node": "v26.2.0",
+    "timeStamp": "2026-06-14T16:08:13.380Z",
+    "node": "v20.18.3",
     "platform": "linux",
     "arch": "x64",
     "component": true

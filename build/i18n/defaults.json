@@ -5,21 +5,38 @@
   "index": {
     "title": "Shell++",
     "status": "状态",
+    "waitingConnection": "等待连接...",
     "connected": "已连接",
     "disconnected": "未连接",
     "terminal": "终端",
-    "terminalDesc": "执行 Shell 命令",
+    "terminalDesc": "执行命令",
     "settings": "设置",
-    "settingsDesc": "快捷命令、连接详情、关于"
+    "settingsDesc": "设置",
+    "debugEnabledToast": "调试模式已开启",
+    "debugDisabledToast": "调试模式已关闭"
   },
   "terminal": {
     "title": "终端",
     "inputHint": "输入命令...",
     "send": "发送",
-    "startHint": "点击命令或输入后按发送",
+    "startHint": "输入后发送",
     "waiting": "等待结果...",
     "errorSend": "无法发送命令",
-    "noOutput": "(无输出)"
+    "errorLabel": "错误",
+    "noOutput": "(无输出)",
+    "historyTitle": "最近命令",
+    "historyDesc": "查看最近发送过的命令",
+    "quickTitle": "快捷命令",
+    "quickDesc": "快速填充命令",
+    "fullOutput": "查看完整输出 →",
+    "stderrLabel": "stderr",
+    "previewMore": "..."
+  },
+  "history": {
+    "title": "命令历史",
+    "emptyTitle": "暂无历史命令",
+    "emptyDesc": "手动发送后会记录在这里",
+    "tapToRun": "点击重复执行"
   },
   "log": {
     "title": "完整输出",
@@ -32,12 +49,16 @@
     "disconnected": "未连接",
     "lastSync": "最后同步",
     "none": "无",
+    "timeout": "超时",
+    "unknown": "未知",
     "dataDir": "数据目录",
     "luaBackend": "Lua 后端",
     "running": "运行中",
     "stopped": "未启动"
   },
   "category": {
+    "favorites": "你的收藏",
+    "favoritesPreview": "你收藏的命令",
     "templates": "命令模板",
     "templatesPreview": "ls · cat · uname · ps 等完整命令",
     "file": "文件",
@@ -103,10 +124,18 @@
     "nslookup": "nslookup",
     "nslookupDesc": "DNS 查询"
   },
+  "setting": {
+    "title": "快捷命令"
+  },
   "settings": {
     "title": "设置",
     "disclaimerTitle": "免责声明",
     "debugMode": "调试模式",
+    "favorites": "命令收藏",
+    "favoritesDesc": "管理你的收藏命令",
+    "historyLimit": "历史数量",
+    "historyLimitDescPrefix": "当前保留 ",
+    "historyLimitDescSuffix": " 条",
     "debugOn": "已开启",
     "debugOff": "已关闭",
     "disclaimer": "软件免责声明\n\n重要提示：在使用本软件及其调试功能前，请仔细阅读以下条款。一旦使用，即视为您已充分理解并同意接受本声明的全部内容。\n\n调试模式风险告知\n\n本软件提供的调试模式、开发者选项及高级功能仅供专业技术人员进行问题排查与开发测试使用。开启调试模式可能导致系统不稳定、数据丢失、硬件异常运行、设备损坏或其他不可预期的后果。\n\n责任免除\n\n因用户主动开启调试模式、执行调试命令或修改系统参数而导致的任何直接或间接损失，包括但不限于设备损坏、数据损毁、业务中断、隐私泄露及其他财产损失，软件作者、开发团队及关联方概不承担任何法律责任与经济赔偿责任。\n\n使用前提\n\n本功能仅供调试用途。在执行任何命令或操作前，请务必三思，确认您已充分理解该操作的影响，并建议提前备份重要数据。如您不具备相应的技术能力，请勿使用调试模式。\n\n无担保声明\n\n本软件按\"现状\"提供，不作任何明示或暗示的担保，包括但不限于对适销性、特定用途适用性及非侵权性的担保。\n\n法律适用\n\n本声明的解释、效力及争议解决均适用中华人民共和国法律（或您所在司法管辖区的适用法律）。"
@@ -116,6 +145,14 @@
     "warn": "此命令可能造成数据丢失或系统问题",
     "cancel": "取消",
     "ok": "确认执行",
-    "needDebug": "权限不足，请在设置中开启调试模式"
+    "needDebug": "权限不足"
+  },
+  "favorites": {
+    "title": "你的收藏",
+    "manageTitle": "命令收藏",
+    "emptyTitle": "暂无收藏命令",
+    "emptyDesc": "去设置里添加",
+    "addDesc": "点击加入收藏",
+    "removeDesc": "已收藏，点击取消"
   }
 }
