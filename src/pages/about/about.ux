@@ -1,0 +1,52 @@
+<template>
+  <div class="page">
+    <img src="/common/about.png" class="about-bg" />
+    <div class="about-bg-capsule-wrap">
+      <img src="/common/about_capsule.png" class="about-bg-capsule" />
+    </div>
+    <img src="/common/back.png" @click="goBack" class="hd-back" />
+    <div class="pill-header">
+      <div class="pill-more-wrap" @click="goBack">
+        <div class="pill-more"></div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+import router from "@system.router"
+
+export default {
+  goBack() {
+    router.back()
+  }
+}
+</script>
+
+<style>
+.page { width: 336px; height: 480px; background-color: #000000; position: relative; }
+.about-bg { width: 336px; height: 480px; }
+.about-bg-capsule-wrap { display: none; }
+.about-bg-capsule { width: 192px; height: 490px; }
+.hd-back { position: absolute; left: 6px; top: 6px; width: 72px; height: 72px; }
+.pill-header { display: none; }
+@media (shape: pill-shaped) and (max-width: 100) {
+  .page { width: 192px; height: 490px; }
+  .about-bg { display: none; }
+  .hd-back { display: none; }
+  .about-bg-capsule-wrap { display: flex; width: 192px; height: 490px; margin-top: 5px; }
+  .pill-header { display: flex; width: 192px; height: 92px; flex-direction: column; align-items: center; justify-content: flex-start; position: absolute; top: 0; left: 0; }
+  .pill-more-wrap { width: 92px; height: 72px; border-radius: 32px; flex-direction: row; justify-content: center; align-items: center; margin-top: 10px; }
+  .pill-more { width: 92px; height: 72px; background-image: url(/common/back_capsule.png); background-size: 92px 72px; border-radius: 32px; }
+}
+@media (shape: pill-shaped) and (min-width: 101) {
+  .page { width: 212px; height: 520px; }
+  .about-bg { display: none; }
+  .hd-back { display: none; }
+  .about-bg-capsule-wrap { display: flex; width: 212px; height: 520px; margin-top: 5px; }
+  .about-bg-capsule { width: 212px; height: 520px; }
+  .pill-header { display: flex; width: 212px; height: 92px; flex-direction: column; align-items: center; justify-content: flex-start; position: absolute; top: 0; left: 0; }
+  .pill-more-wrap { width: 102px; height: 72px; border-radius: 36px; flex-direction: row; justify-content: center; align-items: center; margin-top: 10px; }
+  .pill-more { width: 102px; height: 72px; background-image: url(/common/back_capsule.png); background-size: 102px 72px; border-radius: 36px; }
+}
+</style>

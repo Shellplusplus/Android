@@ -1,0 +1,17 @@
+<script>
+import file from "@system.file"
+
+export default {
+  onCreate() {
+    file.writeText({
+      uri: "internal://files/cmd_result.json",
+      text: '{"seq":-1}',
+      append: false
+    })
+    console.log("Shell project created")
+  },
+  onDestroy() {
+    console.log("Shell project destroyed")
+  }
+}
+</script>

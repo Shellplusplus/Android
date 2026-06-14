@@ -1,0 +1,316 @@
+<import name="input-method" src="../../components/InputMethod/InputMethod.ux"></import>
+<template>
+  <div class="page">
+    <div class="main-area">
+
+      <!-- ========== 方屏顶部栏 ========== -->
+      <div show="{{showToolbar}}" class="header-area">
+        <img src="/common/hd.png" class="header-bg" />
+        <text class="hd-time">{{ nowTime }}</text>
+        <text class="hd-title">{{ $t("terminal.title") }}</text>
+        <img src="/common/back.png" @click="goBack" class="hd-back" />
+      </div>
+      <div show="{{showToolbar}}" class="pill-header">
+        <div class="pill-more-wrap" @click="goBack">
+          <div class="pill-more"></div>
+        </div>
+      </div>
+
+      <!-- ========== 命令输入栏 ========== -->
+      <div show="{{showToolbar}}" class="input-bar">
+        <text class="input-prompt">></text>
+        <text class="input-text" onclick="toggleKeyboard">{{ cmdBuffer ? cmdBuffer : $t("terminal.inputHint") }}</text>
+        <text class="input-send" onclick="sendBuffer">{{ $t("terminal.send") }}</text>
+      </div>
+
+      <!-- ========== 快捷命令卡片 ========== -->
+      <div show="{{showToolbar}}" class="card" onclick="goQuickCmds">
+        <div class="card-left">
+          <text class="card-label">快捷命令</text>
+          <text class="card-sub">快速填充命令</text>
+        </div>
+      </div>
+
+      <!-- ========== 输出区域 ========== -->
+      <scroll id="outputScroll" class="output-scroll" scroll-y="true" bounces="true">
+        <div class="text-container">
+          <text class="log-text" style="font-size: {{fontSize}}px; line-height: {{lineHeight}}px;">{{ outputText }}</text>
+        </div>
+      </scroll>
+
+      <!-- ========== 查看完整输出 ========== -->
+      <div show="{{hasFullOutput && showToolbar}}" class="full-output-btn" onclick="goViewFullOutput">
+        <text class="full-output-text">查看完整输出 →</text>
+      </div>
+    </div>
+
+    <!-- ========== 输入法键盘 ========== -->
+    <input-method hide="{{ !showKeyboard }}" screentype="{{ screenType }}"
+                   keyboardtype="QWERTY" maxlength="5"
+                   @complete="onKeyComplete" @delete="onKeyDelete"
+                   @close-keyboard="onCloseKeyboard"></input-method>
+
+    <!-- ========== 底部工具栏（输入法隐藏时显示） ========== -->
+    <div show="{{showToolbar && !showKeyboard}}" class="toolbar-area">
+      <img class="bt-bar" src="/common/bt.png" />
+      <number_choose class="num-choose"
+                     max="50" min="20" step="1" unit="px" value="{{fontSize}}"
+                     name="{{ $t('terminal.fontSize') }}" @change="onFontChange"></number_choose>
+    </div>
+  </div>
+</template>
+
+<script>
+import router from "@system.router"
+import file from "@system.file"
+import device from "@system.device"
+
+var CMD_FILE = "internal://files/cmd_request.json"
+var RESULT_FILE = "internal://files/cmd_result.json"
+var cmdSeq = 0
+var lastResultSeq = -1
+
+export default {
+  private: {
+    nowTime: "00:00",
+    timer: null,
+    pollTimer: null,
+    outputText: "",
+    showToolbar: true,
+    fontSize: 28,
+    lineHeight: 36,
+    cmdBuffer: "",
+    showKeyboard: false,
+    screenType: "rect",
+    latestFullOutput: "",
+    hasFullOutput: false,
+    lastSentCmd: ""
+  },
+
+  protected: { cmd: "" },
+
+  onInit() {
+    var self = this
+    self.updateTime()
+    self.outputText = self.$t("terminal.startHint")
+    if (this.cmd) {
+      this.cmdBuffer = this.cmd
+    }
+    self.timer = setInterval(function() { self.updateTime() }, 1000)
+    self.pollTimer = setInterval(function() { self.pollResult() }, 800)
+
+    /* 检测屏幕类型 */
+    device.getInfo({
+      success: function(ret) {
+        var w = ret.screenWidth || 336
+        self.screenType = w <= 230 ? "pill-shaped" : "rect"
+      },
+      fail: function() {
+        self.screenType = "rect"
+      }
+    })
+  },
+
+  onDestroy() {
+    clearInterval(this.timer)
+    clearInterval(this.pollTimer)
+  },
+
+  updateTime() {
+    var d = new Date()
+    this.nowTime = ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2)
+  },
+
+  /* ====== 输入法事件 ====== */
+  toggleKeyboard() {
+    this.showKeyboard = !this.showKeyboard
+  },
+
+  onKeyComplete(e) {
+    this.cmdBuffer = this.cmdBuffer + e.detail.content
+  },
+
+  onKeyDelete() {
+    if (this.cmdBuffer.length > 0) {
+      this.cmdBuffer = this.cmdBuffer.substring(0, this.cmdBuffer.length - 1)
+    }
+  },
+
+  onCloseKeyboard() {
+    this.showKeyboard = false
+  },
+
+  /* ====== 发送命令 ====== */
+  sendBuffer() {
+    if (!this.cmdBuffer) return
+    this.sendCommand(this.cmdBuffer)
+    this.cmdBuffer = ""
+    this.showKeyboard = false
+  },
+
+  sendCommand(cmd) {
+    var self = this
+    cmdSeq++
+    var d = new Date()
+    var ts = ("0" + d.getHours()).slice(-2) + ":" +
+             ("0" + d.getMinutes()).slice(-2) + ":" +
+             ("0" + d.getSeconds()).slice(-2)
+
+    var req = JSON.stringify({ seq: cmdSeq, cmd: cmd, timestamp: ts })
+
+    file.writeText({
+      uri: CMD_FILE,
+      text: req,
+      append: false,
+      success: function() {
+        self.hasFullOutput = false
+        self.latestFullOutput = ""
+        self.lastSentCmd = cmd
+        self.outputText = "> " + cmd + "\n" + self.$t("terminal.waiting")
+      },
+      fail: function() {
+        var out = self.outputText
+        var hint = self.$t("terminal.startHint")
+        if (out.indexOf(hint) !== -1) out = out.replace(hint, "")
+        self.outputText = "$ " + cmd + "\n[错误] " + self.$t("terminal.errorSend") + "\n\n" + out
+      }
+    })
+  },
+
+  /* ====== 轮询结果 ====== */
+  pollResult() {
+    var self = this
+    file.readText({
+      uri: RESULT_FILE,
+      success: function(data) {
+        if (!data.text) return
+        try {
+          var json = JSON.parse(data.text)
+          if (json.seq === undefined || json.seq === lastResultSeq) return
+          lastResultSeq = json.seq
+
+          /* 构建完整输出文本 */
+          var full = ""
+          full += "> " + json.cmd + "\n"
+          if (json.stdout) full += json.stdout
+          if (json.stderr && json.stderr !== "") full += "\n[stderr]\n" + json.stderr
+          if (json.stdout === "" && json.stderr === "") full += "(no output)"
+
+          /* 存完整输出供阅读器使用 */
+          self.latestFullOutput = full
+          self.hasFullOutput = true
+
+          /* 预览：只取前 200 字符，替换掉"等待结果" */
+          var preview = full.length > 200 ? full.substring(0, 200) + "\n...\n" : full
+          self.outputText = preview
+          if (self.outputText.length > 10000) {
+            self.outputText = self.outputText.substring(0, 10000)
+          }
+        } catch(e) {}
+      },
+      fail: function() {}
+    })
+  },
+
+  goViewFullOutput() {
+    if (this.latestFullOutput) {
+      router.push({ uri: "/pages/log", params: { content: this.latestFullOutput } })
+    }
+  },
+
+  goQuickCmds() { router.push({ uri: "/pages/setting" }) },
+
+  /* ====== 工具栏切换 ====== */
+  onTxtClick() {
+    this.showToolbar = !this.showToolbar
+  },
+
+  onFontChange(e) {
+    this.fontSize = e.detail.value
+    this.lineHeight = parseInt((-0.01) * (this.fontSize * this.fontSize) + 1.62 * this.fontSize - 3.23)
+    if (this.lineHeight < this.fontSize + 4) this.lineHeight = this.fontSize + 4
+  },
+
+  goBack() {
+    router.back()
+  }
+}
+</script>
+
+<style>
+/* ====== 全局页面 ====== */
+.page { width: 336px; height: 480px; background-color: #000000; flex-direction: column; }
+.main-area { width: 336px; flex: 1; flex-direction: column; margin-top: -7px; }
+
+/* ====== 顶部栏 ====== */
+.header-area { width: 336px; height: 102px; position: relative; flex-shrink: 0; }
+.header-bg { width: 336px; height: 102px; }
+.hd-time { position: absolute; left: 78px; top: 7px; width: 180px; height: 32px; text-align: center; font-size: 24px; font-weight: bold; color: rgba(255,255,255,0.6); }
+.hd-title { position: absolute; left: 78px; top: 35px; width: 180px; height: 42px; text-align: center; font-size: 32px; font-weight: bold; color: #ffffff; }
+.hd-back { position: absolute; left: 6px; top: 6px; width: 72px; height: 72px; }
+.pill-header { display: none; }
+
+/* ====== 快捷命令卡片（与首页卡片一致） ====== */
+.card { width: 324px; height: 112px; margin: 8px 6px 0 6px; background-color: #262626; border-radius: 36px; flex-direction: row; align-items: center; padding-left: 20px; padding-right: 20px; flex-shrink: 0; }
+.card-left { flex-direction: column; flex: 1; }
+.card-label { font-size: 32px; line-height: 40px; font-weight: bold; color: #ffffff; lines: 1; }
+.card-sub { font-size: 28px; line-height: 37px; font-weight: bold; color: rgba(255,255,255,0.6); margin-top: 4px; lines: 1; }
+
+/* ====== 命令输入栏 ====== */
+.input-bar { width: 324px; height: 48px; margin: 4px 6px 0 6px; background-color: #1a1a1a; border-radius: 24px; flex-direction: row; align-items: center; padding: 0 4px; flex-shrink: 0; }
+.input-prompt { width: 30px; font-size: 28px; color: #ffffff; font-weight: bold; text-align: center; }
+.input-text { flex: 1; font-size: 24px; color: #ffffff; lines: 1; padding: 0 4px; }
+.input-send { width: 60px; height: 36px; border-radius: 18px; background-color: #0D6EFF; text-align: center; font-size: 24px; color: #ffffff; font-weight: bold; line-height: 36px; }
+
+/* ====== 输出区域 ====== */
+.output-scroll { width: 336px; flex: 1; flex-direction: column; }
+.text-container { padding: 4px 16px 4px 16px; width: 336px; flex-direction: column; flex: 1; }
+.log-text { width: 304px; text-align: left; color: #ffffff; font-weight: bold; word-break: break-all; }
+
+/* ====== 查看完整输出 ====== */
+.full-output-btn { width: 324px; height: 48px; margin: 4px 6px 8px 6px; background-color: #0D6EFF; border-radius: 24px; flex-direction: row; align-items: center; justify-content: center; flex-shrink: 0; }
+.full-output-text { font-size: 24px; color: #ffffff; font-weight: bold; text-align: center; }
+
+/* ====== 底部工具栏 ====== */
+.toolbar-area { width: 336px; height: 102px; position: relative; flex-shrink: 0; }
+.bt-bar { position: absolute; left: 0; top: 0; width: 336px; height: 102px; }
+.num-choose { position: absolute; top: 24px; }
+
+/* ========== 胶囊屏适配 ========== */
+@media (shape: pill-shaped) and (max-width: 100) {
+  .page { width: 192px; height: 490px; }
+  .main-area { width: 192px; }
+  .header-area { display: none; }
+  .pill-header { display: flex; width: 192px; height: 92px; flex-direction: column; align-items: center; justify-content: flex-start; flex-shrink: 0; }
+  .pill-more-wrap { width: 92px; height: 72px; border-radius: 32px; flex-direction: row; justify-content: center; align-items: center; margin-top: 10px; }
+  .pill-more { width: 92px; height: 72px; background-image: url(/common/back_capsule.png); background-size: 92px 72px; border-radius: 32px; }
+  .hd-title { width: 192px; top: 22px; font-size: 22px; }
+  .hd-back { left: 4px; top: 4px; width: 52px; height: 52px; }
+  .card { width: 184px; height: 110px; border-radius: 27px; padding-left: 14px; padding-right: 16px; margin: 8px 4px 0 4px; }
+  .input-bar { width: 184px; margin: 4px 4px 0 4px; }
+  .input-send { width: 52px; font-size: 20px; }
+  .full-output-btn { width: 184px; margin: 4px 4px 8px 4px; }
+  .text-container { padding: 4px 10px 4px 10px; width: 192px; flex: 1; }
+  .log-text { width: 172px; word-break: break-all; }
+  .toolbar-area { width: 192px; height: 102px; }
+  .bt-bar { width: 192px; height: 102px; }
+  .num-choose { width: 192px; }
+}
+@media (shape: pill-shaped) and (min-width: 101) {
+  .page { width: 212px; height: 520px; }
+  .main-area { width: 212px; }
+  .header-area { display: none; }
+  .pill-header { display: flex; width: 212px; height: 92px; flex-direction: column; align-items: center; justify-content: flex-start; flex-shrink: 0; }
+  .pill-more-wrap { width: 102px; height: 72px; border-radius: 36px; flex-direction: row; justify-content: center; align-items: center; margin-top: 10px; }
+  .pill-more { width: 102px; height: 72px; background-image: url(/common/back_capsule.png); background-size: 102px 72px; border-radius: 36px; }
+  .hd-title { width: 212px; top: 22px; font-size: 22px; }
+  .hd-back { left: 4px; top: 4px; width: 52px; height: 52px; }
+  .card { width: 204px; height: 110px; border-radius: 27px; padding-left: 14px; padding-right: 16px; margin: 8px 4px 0 4px; }
+  .input-bar { width: 204px; margin: 4px 4px 0 4px; }
+  .full-output-btn { width: 204px; margin: 4px 4px 8px 4px; }
+  .text-container { padding: 4px 10px 4px 10px; width: 212px; flex: 1; }
+  .log-text { width: 192px; word-break: break-all; }
+  .toolbar-area { width: 212px; height: 102px; }
+  .bt-bar { width: 212px; height: 102px; }
+}
+</style>

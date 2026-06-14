@@ -1,0 +1,37 @@
+{
+  "app": {
+    "name": "Shell"
+  },
+  "index": {
+    "title": "Shell",
+    "status": "状态",
+    "connected": "已连接",
+    "disconnected": "未连接",
+    "terminal": "终端",
+    "terminalDesc": "执行 Shell 命令",
+    "about": "关于",
+    "aboutDesc": "安装与使用说明"
+  },
+  "terminal": {
+    "title": "终端",
+    "inputHint": "输入命令...",
+    "send": "发送",
+    "startHint": "点击命令或输入后按发送",
+    "waiting": "等待结果...",
+    "errorSend": "无法发送命令",
+    "noOutput": "(无输出)",
+    "fontSize": "字体大小"
+  },
+  "detail": {
+    "title": "连接详情",
+    "status": "连接状态",
+    "connected": "已连接",
+    "disconnected": "未连接",
+    "lastSync": "最后同步",
+    "none": "无",
+    "dataDir": "数据目录",
+    "luaBackend": "Lua 后端",
+    "running": "运行中",
+    "stopped": "未启动"
+  }
+}
