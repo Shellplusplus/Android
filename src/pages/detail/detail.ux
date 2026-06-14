@@ -31,7 +31,7 @@
         <div class="card">
           <div class="card-left">
             <text class="card-label">{{ $t("detail.dataDir") }}</text>
-            <text class="card-sub">/data/quickapp/files/com.shell.project/</text>
+            <text class="card-sub">/data/quickapp/files/com.shell.liangyi/</text>
           </div>
         </div>
 

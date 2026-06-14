@@ -1,9 +1,9 @@
 {
   "app": {
-    "name": "Shell++"
+    "name": "Shell"
   },
   "index": {
-    "title": "Shell++",
+    "title": "Shell",
     "status": "Status",
     "connected": "Connected",
     "disconnected": "Disconnected",
