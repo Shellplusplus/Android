@@ -1,0 +1,37 @@
+{
+  "app": {
+    "name": "Shell++"
+  },
+  "index": {
+    "title": "Shell++",
+    "status": "Status",
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "terminal": "Terminal",
+    "terminalDesc": "Execute shell commands",
+    "about": "About",
+    "aboutDesc": "Setup & instructions"
+  },
+  "terminal": {
+    "title": "Terminal",
+    "inputHint": "Type a command...",
+    "send": "Send",
+    "startHint": "Tap a command or type then send",
+    "waiting": "Waiting for result...",
+    "errorSend": "Failed to send command",
+    "noOutput": "(no output)",
+    "fontSize": "Font size"
+  },
+  "detail": {
+    "title": "Connection",
+    "status": "Status",
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "lastSync": "Last sync",
+    "none": "None",
+    "dataDir": "Data directory",
+    "luaBackend": "Lua backend",
+    "running": "Running",
+    "stopped": "Stopped"
+  }
+}
