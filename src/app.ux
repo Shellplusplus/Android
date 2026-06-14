@@ -8,10 +8,10 @@ export default {
       text: '{"seq":-1}',
       append: false
     })
-    console.log("Shell project created")
+    console.log("Shell++ project created")
   },
   onDestroy() {
-    console.log("Shell project destroyed")
+    console.log("Shell++ project destroyed")
   }
 }
 </script>
