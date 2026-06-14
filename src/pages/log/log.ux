@@ -4,7 +4,7 @@
       <div show="{{showToolbar}}" class="header-area">
         <img src="/common/hd.png" class="header-bg" />
         <text class="hd-time">{{ nowTime }}</text>
-        <text class="hd-title">{{ $t("log.title") }}</text>
+        <text class="hd-title">{{ logTitle }}</text>
         <img src="/common/back.png" @click="goBack" class="hd-back" />
       </div>
       <div show="{{showToolbar}}" class="pill-header">
@@ -25,12 +25,13 @@ import router from "@system.router"
 import file from "@system.file"
 
 export default {
-  protected: { content: "" },
+  protected: { content: "", title: "" },
 
   private: {
     nowTime: "00:00",
     timer: null,
     logText: "",
+    logTitle: "",
     showToolbar: true
   },
 
@@ -38,6 +39,7 @@ export default {
     var self = this
     self.updateTime()
     self.timer = setInterval(function() { self.updateTime() }, 1000)
+    self.logTitle = self.title || self.$t("log.title")
     /* 优先从文件读取完整输出，其次从路由参数 */
     if (this.content) {
       self.logText = this.content

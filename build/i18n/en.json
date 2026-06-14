@@ -9,8 +9,8 @@
     "disconnected": "Disconnected",
     "terminal": "Terminal",
     "terminalDesc": "Execute shell commands",
-    "about": "About",
-    "aboutDesc": "Setup & instructions"
+    "settings": "Settings",
+    "settingsDesc": "Quick commands, connection, about"
   },
   "terminal": {
     "title": "Terminal",
@@ -103,10 +103,19 @@
     "nslookup": "nslookup",
     "nslookupDesc": "DNS lookup"
   },
+  "settings": {
+    "title": "Settings",
+    "disclaimerTitle": "Disclaimer",
+    "debugMode": "Debug Mode",
+    "debugOn": "ON — Dangerous commands allowed",
+    "debugOff": "OFF — Dangerous commands blocked",
+    "disclaimer": "Software Disclaimer\n\nIMPORTANT: Please read the following terms carefully before using this software and its debugging features. By using this software, you acknowledge that you have fully understood and agree to all terms of this disclaimer.\n\nDebug Mode Risk Notice\n\nThe debug mode, developer options, and advanced features provided by this software are intended solely for troubleshooting and development testing by qualified technical personnel. Enabling debug mode may cause system instability, data loss, abnormal hardware operation, device damage, or other unforeseeable consequences.\n\nLimitation of Liability\n\nThe software authors, development team, and affiliates shall not be held liable for any direct or indirect losses resulting from the user's voluntary activation of debug mode, execution of debug commands, or modification of system parameters, including but not limited to device damage, data corruption, business interruption, privacy breaches, and other property losses.\n\nPrerequisites for Use\n\nThis feature is for debugging purposes only. Before executing any command or operation, please think carefully, ensure you fully understand the implications, and back up important data in advance. If you do not possess the necessary technical skills, do not use debug mode.\n\nNo Warranty\n\nThis software is provided \"as is\" without any express or implied warranties, including but not limited to warranties of merchantability, fitness for a particular purpose, and non-infringement.\n\nGoverning Law\n\nThe interpretation, validity, and dispute resolution of this disclaimer shall be governed by the laws of the People's Republic of China (or the applicable laws of your jurisdiction).\n\nLanguage\n\nIn the event of any discrepancy between this translated version and the Simplified Chinese version, the Simplified Chinese version shall prevail."
+  },
   "confirm": {
-    "title": "⚠ Confirm",
+    "title": "Confirm",
     "warn": "This may cause data loss or system issues",
     "cancel": "Cancel",
-    "ok": "Confirm"
+    "ok": "Confirm",
+    "needDebug": "Permission denied. Enable debug mode in Settings"
   }
 }

@@ -20,6 +20,9 @@
     },
     {
       "name": "system.vibrator"
+    },
+    {
+      "name": "system.prompt"
     }
   ],
   "config": {
@@ -51,6 +54,9 @@
       },
       "pages/about": {
         "component": "about"
+      },
+      "pages/settings": {
+        "component": "settings"
       }
     }
   }

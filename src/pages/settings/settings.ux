@@ -4,39 +4,22 @@
       <div class="header-area">
         <img src="/common/hd.png" class="header-bg" />
         <text class="hd-time">{{ nowTime }}</text>
-        <text class="hd-title">{{ $t("index.title") }}</text>
-        <img src="/common/back.png" class="hd-back" />
-        <img src="/common/More_B@1x.png" @click="goAbout" class="hd-more" />
+        <text class="hd-title">{{ $t("settings.title") }}</text>
+        <img src="/common/back.png" @click="goBack" class="hd-back" />
       </div>
       <div class="pill-header">
-        <div class="pill-more-wrap" @click="goAbout">
+        <div class="pill-more-wrap" @click="goBack">
           <div class="pill-more"></div>
         </div>
       </div>
 
       <div class="scroll-inner">
 
-        <!-- 连接状态 -->
-        <div class="card" onclick="goDetail">
+        <!-- 调试模式 -->
+        <div class="card {{ debugCardClass }}" onclick="toggleDebug">
           <div class="card-left">
-            <text class="card-label">{{ $t("index.status") }}</text>
-            <text class="card-sub">{{ statusText }}</text>
-          </div>
-        </div>
-
-        <!-- 终端 -->
-        <div class="card card-primary" onclick="goTerminal">
-          <div class="card-left">
-            <text class="card-label">{{ $t("index.terminal") }}</text>
-            <text class="card-sub card-sub-primary">{{ $t("index.terminalDesc") }}</text>
-          </div>
-        </div>
-
-        <!-- 设置 -->
-        <div class="card" onclick="goSettings">
-          <div class="card-left">
-            <text class="card-label">{{ $t("index.settings") }}</text>
-            <text class="card-sub">{{ $t("index.settingsDesc") }}</text>
+            <text class="card-label">{{ $t("settings.debugMode") }}</text>
+            <text class="card-sub {{ debugSubClass }}">{{ debugStatusText }}</text>
           </div>
         </div>
 
@@ -50,42 +33,36 @@
 import router from "@system.router"
 import file from "@system.file"
 
-var SYSINFO_FILE = "internal://files/system_info.json"
+var DEBUG_FILE = "internal://files/debug_mode.json"
 
 export default {
   private: {
     nowTime: "00:00",
     timer: null,
-    sysTimer: null,
-    statusText: "等待连接..."
+    debugEnabled: false,
+    debugStatusText: "",
+    debugCardClass: "",
+    debugSubClass: "",
+    pendingEnable: false
   },
 
   onInit() {
     var self = this
     self.updateTime()
     self.timer = setInterval(function() { self.updateTime() }, 1000)
+    self.loadDebugMode()
   },
 
   onShow() {
-    var self = this
-    self.checkConn()
-    if (!self.sysTimer) {
-      self.sysTimer = setInterval(function() { self.checkConn() }, 5000)
-    }
-  },
-
-  onHide() {
-    if (this.sysTimer) {
-      clearInterval(this.sysTimer)
-      this.sysTimer = null
+    /* 从免责声明返回后，执行待定的调试模式开启 */
+    if (this.pendingEnable) {
+      this.pendingEnable = false
+      this.writeDebugMode(true)
     }
   },
 
   onDestroy() {
     clearInterval(this.timer)
-    if (this.sysTimer) {
-      clearInterval(this.sysTimer)
-    }
   },
 
   updateTime() {
@@ -93,47 +70,65 @@ export default {
     this.nowTime = ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2)
   },
 
-  checkConn() {
+  loadDebugMode() {
     var self = this
     file.readText({
-      uri: SYSINFO_FILE,
+      uri: DEBUG_FILE,
       success: function(data) {
         try {
           var json = JSON.parse(data.text)
-          if (json._init) {
-            self.statusText = self.$t("index.disconnected")
-            return
-          }
-          /* 检查心跳是否超时（超过 15 秒视为断开） */
-          if (json.timestamp) {
-            var now = Math.floor(Date.now() / 1000)
-            var ts = parseInt(json.timestamp)
-            if (isNaN(ts)) {
-              self.statusText = self.$t("index.disconnected")
-              return
-            }
-            if (now - ts > 15) {
-              self.statusText = self.$t("index.disconnected")
-              return
-            }
-          }
-          self.statusText = self.$t("index.connected")
+          self.debugEnabled = json.enabled === true
         } catch(e) {
-          /* 心跳文件损坏或格式异常 */
-          self.statusText = self.$t("index.disconnected")
+          self.debugEnabled = false
         }
+        self.updateDebugText()
       },
       fail: function() {
-        self.statusText = self.$t("index.disconnected")
+        self.debugEnabled = false
+        self.updateDebugText()
       }
     })
   },
 
-  goTerminal() { router.push({ uri: "/pages/terminal" }) },
-  goDetail()   { router.push({ uri: "/pages/detail" }) },
-  goSettings() { router.push({ uri: "/pages/settings" }) },
-  goAbout()    { router.push({ uri: "/pages/about" }) },
-  goBack()     { router.back() }
+  updateDebugText() {
+    if (this.debugEnabled) {
+      this.debugStatusText = this.$t("settings.debugOn")
+      this.debugCardClass = "card-primary"
+      this.debugSubClass = "card-sub-primary"
+    } else {
+      this.debugStatusText = this.$t("settings.debugOff")
+      this.debugCardClass = ""
+      this.debugSubClass = ""
+    }
+  },
+
+  writeDebugMode(enabled) {
+    var self = this
+    file.writeText({
+      uri: DEBUG_FILE,
+      text: JSON.stringify({ enabled: enabled }),
+      append: false,
+      success: function() {
+        self.debugEnabled = enabled
+        self.updateDebugText()
+      }
+    })
+  },
+
+  toggleDebug() {
+    var self = this
+    if (self.debugEnabled) {
+      /* 关闭：直接写入 */
+      self.writeDebugMode(false)
+    } else {
+      /* 开启：先展示免责声明 */
+      self.pendingEnable = true
+      var disclaimer = self.$t("settings.disclaimer")
+      router.push({ uri: "/pages/log", params: { content: disclaimer, title: self.$t("settings.disclaimerTitle") } })
+    }
+  },
+
+  goBack() { router.back() }
 }
 </script>
 
@@ -145,7 +140,6 @@ export default {
 .hd-title { position: absolute; left: 78px; top: 35px; width: 180px; height: 42px; text-align: center; font-size: 32px; font-weight: bold; color: #ffffff; }
 .hd-back { position: absolute; left: 6px; top: 6px; width: 72px; height: 72px; }
 .hd-time { position: absolute; left: 78px; top: 7px; width: 180px; height: 32px; text-align: center; font-size: 24px; font-weight: bold; color: rgba(255,255,255,0.6); }
-.hd-more { position: absolute; left: 258px; top: 6px; width: 72px; height: 72px; }
 .pill-header { display: none; }
 .scroll-inner { margin-top: 0; padding: 0 6px 20px 6px; flex-direction: column; }
 .card { width: 324px; height: 112px; margin-top: 8px; background-color: #262626; border-radius: 36px; flex-direction: row; align-items: center; padding-left: 20px; padding-right: 20px; }
@@ -165,7 +159,7 @@ export default {
   .header-area { display: none; }
   .pill-header { display: flex; width: 192px; height: 92px; flex-direction: column; align-items: center; justify-content: flex-start; }
   .pill-more-wrap { width: 102px; height: 72px; border-radius: 36px; flex-direction: row; justify-content: center; align-items: center; margin-top: 10px; }
-  .pill-more { width: 102px; height: 72px; border-radius: 36px; background-image: url(/common/more_capsule.png); background-size: 102px 72px; }
+  .pill-more { width: 102px; height: 72px; background-image: url(/common/back_capsule.png); background-size: 102px 72px; border-radius: 36px; }
   .scroll-inner { padding: 0 4px 16px 4px; }
   .card { width: 184px; height: 110px; border-radius: 27px; padding-left: 14px; padding-right: 16px; margin-top: 8px; }
   .card-label { font-size: 32px; line-height: 38px; }
@@ -178,7 +172,7 @@ export default {
   .header-area { display: none; }
   .pill-header { display: flex; width: 212px; height: 92px; flex-direction: column; align-items: center; justify-content: flex-start; }
   .pill-more-wrap { width: 102px; height: 72px; border-radius: 36px; flex-direction: row; justify-content: center; align-items: center; margin-top: 10px; }
-  .pill-more { width: 102px; height: 72px; background-image: url(/common/more_capsule.png); background-size: 102px 72px; border-radius: 36px; }
+  .pill-more { width: 102px; height: 72px; background-image: url(/common/back_capsule.png); background-size: 102px 72px; border-radius: 36px; }
   .scroll-inner { padding: 0 4px 16px 4px; }
   .card { width: 204px; height: 110px; border-radius: 27px; padding-left: 14px; padding-right: 16px; margin-top: 8px; }
   .card-label { font-size: 32px; line-height: 38px; }

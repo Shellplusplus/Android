@@ -24,29 +24,15 @@
         <div class="spacer"></div>
       </div>
     </scroll>
-
-    <!-- 危险命令确认弹窗 -->
-    <div show="{{showConfirm}}" class="confirm-overlay">
-      <div class="confirm-box">
-        <text class="confirm-title">{{ $t("confirm.title") }}</text>
-        <text class="confirm-cmd">{{ confirmCmd }}</text>
-        <text class="confirm-warn">{{ $t("confirm.warn") }}</text>
-        <div class="confirm-btns">
-          <div class="confirm-btn confirm-cancel" onclick="cancelDanger">
-            <text class="confirm-btn-text">{{ $t("confirm.cancel") }}</text>
-          </div>
-          <div class="confirm-btn confirm-ok" onclick="confirmDanger">
-            <text class="confirm-btn-text">{{ $t("confirm.ok") }}</text>
-          </div>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
 <script>
 import router from "@system.router"
-import vibrator from "@system.vibrator"
+import file from "@system.file"
+import prompt from "@system.prompt"
+
+var DEBUG_FILE = "internal://files/debug_mode.json"
 
 /* 命令数据：分类 ID → { i18nKey, items } */
 var COMMAND_DATA = {
@@ -115,9 +101,7 @@ export default {
     nowTime: "00:00",
     timer: null,
     cmds: [],
-    categoryTitle: "",
-    showConfirm: false,
-    confirmCmd: ""
+    categoryTitle: ""
   },
 
   onInit() {
@@ -156,24 +140,30 @@ export default {
   sendCmd(cmd, danger) {
     var self = this
     if (danger) {
-      vibrator.vibrate({ duration: 80 })
-      self.confirmCmd = cmd
-      self.showConfirm = true
+      /* 检查调试模式 */
+      file.readText({
+        uri: DEBUG_FILE,
+        success: function(data) {
+          try {
+            var json = JSON.parse(data.text)
+            if (json.enabled === true) {
+              /* 调试模式已开启：直接跳转 */
+              self.doNavigate(cmd)
+            } else {
+              /* 非调试模式：系统提示 */
+              prompt.showToast({ message: self.$t("confirm.needDebug") })
+            }
+          } catch(e) {
+            prompt.showToast({ message: self.$t("confirm.needDebug") })
+          }
+        },
+        fail: function() {
+          prompt.showToast({ message: self.$t("confirm.needDebug") })
+        }
+      })
       return
     }
     self.doNavigate(cmd)
-  },
-
-  confirmDanger() {
-    var cmd = this.confirmCmd
-    this.showConfirm = false
-    this.confirmCmd = ""
-    this.doNavigate(cmd)
-  },
-
-  cancelDanger() {
-    this.showConfirm = false
-    this.confirmCmd = ""
   },
 
   doNavigate(cmd) {
@@ -206,18 +196,6 @@ export default {
 .spacer { height: 20px; }
 .scroll-inner { margin-top: 0; padding: 0 6px 20px 6px; flex-direction: column; }
 
-/* 确认弹窗 */
-.confirm-overlay { position: absolute; left: 0; top: 0; width: 336px; height: 480px; background-color: rgba(0,0,0,0.88); flex-direction: column; align-items: center; justify-content: center; }
-.confirm-box { width: 280px; height: 260px; background-color: #1a1a1a; border-radius: 36px; border-width: 2px; border-color: #ff4444; flex-direction: column; align-items: center; padding: 24px 16px; }
-.confirm-title { font-size: 34px; color: #ff4444; font-weight: bold; margin-bottom: 12px; }
-.confirm-cmd { font-size: 26px; color: #ffffff; font-weight: bold; margin-bottom: 8px; background-color: #000000; padding: 6px 16px; border-radius: 16px; }
-.confirm-warn { font-size: 22px; color: rgba(255,255,255,0.5); text-align: center; margin-bottom: 16px; lines: 2; }
-.confirm-btns { flex-direction: row; width: 240px; justify-content: space-between; }
-.confirm-btn { width: 108px; height: 52px; border-radius: 24px; flex-direction: row; align-items: center; justify-content: center; }
-.confirm-cancel { background-color: #333333; }
-.confirm-ok { background-color: #cc0000; }
-.confirm-btn-text { font-size: 26px; font-weight: bold; color: #ffffff; }
-
 @media (shape: rect) {
   .scroll-inner { margin-top: -15px; }
 }
@@ -235,14 +213,6 @@ export default {
   .card-label { font-size: 28px; line-height: 34px; }
   .card-sub { font-size: 24px; line-height: 30px; margin-top: 4px; }
   .spacer { height: 16px; }
-  .confirm-overlay { width: 192px; height: 490px; }
-  .confirm-box { width: 168px; height: 230px; border-radius: 27px; padding: 16px 10px; }
-  .confirm-title { font-size: 26px; margin-bottom: 8px; }
-  .confirm-cmd { font-size: 20px; padding: 4px 10px; }
-  .confirm-warn { font-size: 18px; margin-bottom: 12px; }
-  .confirm-btns { width: 148px; }
-  .confirm-btn { width: 66px; height: 42px; border-radius: 18px; }
-  .confirm-btn-text { font-size: 20px; }
 }
 @media (shape: pill-shaped) and (min-width: 101) {
   .page { width: 212px; height: 520px; }
@@ -258,13 +228,5 @@ export default {
   .card-label { font-size: 28px; line-height: 34px; }
   .card-sub { font-size: 24px; line-height: 30px; margin-top: 4px; }
   .spacer { height: 16px; }
-  .confirm-overlay { width: 212px; height: 520px; }
-  .confirm-box { width: 188px; height: 240px; border-radius: 27px; padding: 16px 10px; }
-  .confirm-title { font-size: 26px; margin-bottom: 8px; }
-  .confirm-cmd { font-size: 20px; padding: 4px 10px; }
-  .confirm-warn { font-size: 18px; margin-bottom: 12px; }
-  .confirm-btns { width: 164px; }
-  .confirm-btn { width: 74px; height: 44px; border-radius: 20px; }
-  .confirm-btn-text { font-size: 22px; }
 }
 </style>
