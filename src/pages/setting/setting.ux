@@ -16,38 +16,10 @@
 
       <div class="scroll-inner">
 
-        <div class="card card-primary" onclick="goCategory('命令模板')">
+        <div class="card {{ $item.cardClass }}" for="{{categories}}" tid="id" onclick="goCategory($item.id)">
           <div class="card-left">
-            <text class="card-label">命令模板</text>
-            <text class="card-sub">ls · cat · uname · ps 等完整命令</text>
-          </div>
-        </div>
-
-        <div class="card" onclick="goCategory('文件')">
-          <div class="card-left">
-            <text class="card-label">文件</text>
-            <text class="card-sub">ls · cat · cp · mv · rm · mkdir · pwd · dd</text>
-          </div>
-        </div>
-
-        <div class="card" onclick="goCategory('系统')">
-          <div class="card-left">
-            <text class="card-label">系统</text>
-            <text class="card-sub">uname · uptime · date · dmesg · reboot · free</text>
-          </div>
-        </div>
-
-        <div class="card" onclick="goCategory('进程')">
-          <div class="card-left">
-            <text class="card-label">进程</text>
-            <text class="card-sub">ps · kill · sleep · usleep</text>
-          </div>
-        </div>
-
-        <div class="card" onclick="goCategory('网络')">
-          <div class="card-left">
-            <text class="card-label">网络</text>
-            <text class="card-sub">ifconfig · ping · curl · nslookup</text>
+            <text class="card-label">{{ $item.title }}</text>
+            <text class="card-sub {{ $item.subClass }}">{{ $item.preview }}</text>
           </div>
         </div>
 
@@ -60,17 +32,42 @@
 <script>
 import router from "@system.router"
 
+/* 分类数据 */
+var CATEGORIES = [
+  { id: "templates",  titleKey: "category.templates",  previewKey: "category.templatesPreview" },
+  { id: "file",       titleKey: "category.file",       previewKey: "category.filePreview" },
+  { id: "system",     titleKey: "category.system",     previewKey: "category.systemPreview" },
+  { id: "process",    titleKey: "category.process",    previewKey: "category.processPreview" },
+  { id: "network",    titleKey: "category.network",    previewKey: "category.networkPreview" }
+]
+
 export default {
+  protected: { entry: "" },
+
   private: {
     nowTime: "00:00",
     timer: null,
-    showToolbar: true
+    showToolbar: true,
+    categories: []
   },
 
   onInit() {
     var self = this
     self.updateTime()
     self.timer = setInterval(function() { self.updateTime() }, 1000)
+
+    var cats = []
+    for (var i = 0; i < CATEGORIES.length; i++) {
+      var c = CATEGORIES[i]
+      cats.push({
+        id: c.id,
+        title: self.$t(c.titleKey),
+        preview: self.$t(c.previewKey),
+        cardClass: c.id === 'templates' ? 'card-primary' : '',
+        subClass: c.id === 'templates' ? 'card-sub-primary' : ''
+      })
+    }
+    self.categories = cats
   },
 
   onDestroy() {
@@ -82,11 +79,13 @@ export default {
     this.nowTime = ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2)
   },
 
-  goCategory(cat) {
-    router.push({ uri: "/pages/info", params: { category: cat } })
+  goCategory(catId) {
+    router.push({ uri: "/pages/info", params: { category: catId, entry: this.entry } })
   },
 
-  goBack() { router.back() }
+  goBack() {
+    router.back()
+  }
 }
 </script>
 
@@ -99,14 +98,18 @@ export default {
 .hd-title { position: absolute; left: 78px; top: 35px; width: 180px; height: 42px; text-align: center; font-size: 32px; font-weight: bold; color: #ffffff; }
 .hd-back { position: absolute; left: 6px; top: 6px; width: 72px; height: 72px; }
 .pill-header { display: none; }
-.scroll-inner { margin-top: -7px; padding: 0 6px 20px 6px; flex-direction: column; }
+.scroll-inner { margin-top: 0; padding: 0 6px 20px 6px; flex-direction: column; }
 .card { width: 324px; height: 112px; margin-top: 8px; background-color: #262626; border-radius: 36px; flex-direction: row; align-items: center; padding-left: 20px; padding-right: 20px; flex-shrink: 0; }
 .card-left { flex-direction: column; flex: 1; }
 .card-label { font-size: 32px; line-height: 40px; font-weight: bold; color: #ffffff; lines: 1; }
 .card-sub { font-size: 28px; line-height: 37px; font-weight: bold; color: rgba(255,255,255,0.6); margin-top: 4px; lines: 1; }
 .card-primary { background-color: #0D6EFF; }
-.card-primary .card-sub { color: rgba(255,255,255,0.7); }
+.card-sub-primary { color: rgba(255,255,255,0.7); }
 .spacer { height: 20px; }
+/* 336x480 rect-screen offset */
+@media (shape: rect) {
+  .scroll-inner { margin-top: -15px; }
+}
 @media (shape: pill-shaped) and (max-width: 100) {
   .page { width: 192px; height: 490px; }
   .content-full { width: 192px; flex: 1; flex-direction: column; }

@@ -30,7 +30,8 @@
     "entry": "pages/index",
     "pages": {
       "pages/index": {
-        "component": "index"
+        "component": "index",
+        "launchMode": "singleTask"
       },
       "pages/detail": {
         "component": "detail"
@@ -45,7 +46,8 @@
         "component": "setting"
       },
       "pages/terminal": {
-        "component": "terminal"
+        "component": "terminal",
+        "launchMode": "clearTask"
       },
       "pages/about": {
         "component": "about"

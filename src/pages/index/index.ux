@@ -64,13 +64,28 @@ export default {
     var self = this
     self.updateTime()
     self.timer = setInterval(function() { self.updateTime() }, 1000)
+  },
+
+  onShow() {
+    var self = this
     self.checkConn()
-    self.sysTimer = setInterval(function() { self.checkConn() }, 5000)
+    if (!self.sysTimer) {
+      self.sysTimer = setInterval(function() { self.checkConn() }, 5000)
+    }
+  },
+
+  onHide() {
+    if (this.sysTimer) {
+      clearInterval(this.sysTimer)
+      this.sysTimer = null
+    }
   },
 
   onDestroy() {
     clearInterval(this.timer)
-    clearInterval(this.sysTimer)
+    if (this.sysTimer) {
+      clearInterval(this.sysTimer)
+    }
   },
 
   updateTime() {
@@ -91,18 +106,22 @@ export default {
           }
           /* 检查心跳是否超时（超过 15 秒视为断开） */
           if (json.timestamp) {
-            var now = new Date()
-            var parts = json.timestamp.split(":")
-            var ts = new Date()
-            ts.setHours(parseInt(parts[0]), parseInt(parts[1]), parseInt(parts[2]), 0)
-            var diff = (now.getTime() - ts.getTime()) / 1000
-            if (diff > 15) {
+            var now = Math.floor(Date.now() / 1000)
+            var ts = parseInt(json.timestamp)
+            if (isNaN(ts)) {
+              self.statusText = self.$t("index.disconnected")
+              return
+            }
+            if (now - ts > 15) {
               self.statusText = self.$t("index.disconnected")
               return
             }
           }
           self.statusText = self.$t("index.connected")
-        } catch(e) {}
+        } catch(e) {
+          /* 心跳文件损坏或格式异常 */
+          self.statusText = self.$t("index.disconnected")
+        }
       },
       fail: function() {
         self.statusText = self.$t("index.disconnected")
@@ -127,7 +146,7 @@ export default {
 .hd-time { position: absolute; left: 78px; top: 7px; width: 180px; height: 32px; text-align: center; font-size: 24px; font-weight: bold; color: rgba(255,255,255,0.6); }
 .hd-more { position: absolute; left: 258px; top: 6px; width: 72px; height: 72px; }
 .pill-header { display: none; }
-.scroll-inner { margin-top: -7px; padding: 0 6px 20px 6px; flex-direction: column; }
+.scroll-inner { margin-top: 0; padding: 0 6px 20px 6px; flex-direction: column; }
 .card { width: 324px; height: 112px; margin-top: 8px; background-color: #262626; border-radius: 36px; flex-direction: row; align-items: center; padding-left: 20px; padding-right: 20px; }
 .card-left { flex-direction: column; flex: 1; }
 .card-label { font-size: 32px; line-height: 40px; font-weight: bold; color: #ffffff; lines: 1; }
@@ -136,6 +155,9 @@ export default {
 .card-sub-primary { color: rgba(255,255,255,0.7); }
 .spacer { height: 20px; }
 
+@media (shape: rect) {
+  .scroll-inner { margin-top: -15px; }
+}
 @media (shape: pill-shaped) and (max-width: 100) {
   .page { width: 192px; height: 490px; }
   .content-full { width: 192px; height: 490px; }

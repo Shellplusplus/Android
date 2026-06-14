@@ -4,7 +4,7 @@
       <div class="header-area">
         <img src="/common/hd.png" class="header-bg" />
         <text class="hd-time">{{ nowTime }}</text>
-        <text class="hd-title">{{ category }}</text>
+        <text class="hd-title">{{ categoryTitle }}</text>
         <img src="/common/back.png" @click="goBack" class="hd-back" />
       </div>
       <div class="pill-header">
@@ -14,126 +14,136 @@
       </div>
       <div class="scroll-inner">
 
-        <!-- ===== 命令模板 ===== -->
-        <div class="card" if="{{category === '命令模板'}}" onclick="sendCmd('ls -l /')">
-          <div class="card-left"><text class="card-label">ls -l /</text><text class="card-sub">根目录文件列表</text></div>
-        </div>
-        <div class="card" if="{{category === '命令模板'}}" onclick="sendCmd('ls -la /data')">
-          <div class="card-left"><text class="card-label">ls -la /data</text><text class="card-sub">数据目录文件列表</text></div>
-        </div>
-        <div class="card" if="{{category === '命令模板'}}" onclick="sendCmd('ps')">
-          <div class="card-left"><text class="card-label">ps</text><text class="card-sub">进程列表</text></div>
-        </div>
-        <div class="card" if="{{category === '命令模板'}}" onclick="sendCmd('free')">
-          <div class="card-left"><text class="card-label">free</text><text class="card-sub">内存使用情况</text></div>
-        </div>
-        <div class="card" if="{{category === '命令模板'}}" onclick="sendCmd('df')">
-          <div class="card-left"><text class="card-label">df</text><text class="card-sub">磁盘使用情况</text></div>
-        </div>
-        <div class="card" if="{{category === '命令模板'}}" onclick="sendCmd('uname -a')">
-          <div class="card-left"><text class="card-label">uname -a</text><text class="card-sub">系统版本信息</text></div>
-        </div>
-        <div class="card" if="{{category === '命令模板'}}" onclick="sendCmd('dmesg')">
-          <div class="card-left"><text class="card-label">dmesg</text><text class="card-sub">内核日志</text></div>
-        </div>
-        <div class="card" if="{{category === '命令模板'}}" onclick="sendCmd('uptime')">
-          <div class="card-left"><text class="card-label">uptime</text><text class="card-sub">系统运行时间</text></div>
-        </div>
-        <div class="card" if="{{category === '命令模板'}}" onclick="sendCmd('ifconfig')">
-          <div class="card-left"><text class="card-label">ifconfig</text><text class="card-sub">网络接口信息</text></div>
-        </div>
-        <div class="card" if="{{category === '命令模板'}}" onclick="sendCmd('help')">
-          <div class="card-left"><text class="card-label">help</text><text class="card-sub">所有可用命令</text></div>
-        </div>
-
-        <!-- ===== 文件 ===== -->
-        <div class="card" if="{{category === '文件'}}" onclick="sendCmd('ls')">
-          <div class="card-left"><text class="card-label">ls</text><text class="card-sub">列出目录内容</text></div>
-        </div>
-        <div class="card" if="{{category === '文件'}}" onclick="sendCmd('cat')">
-          <div class="card-left"><text class="card-label">cat</text><text class="card-sub">查看文件内容</text></div>
-        </div>
-        <div class="card" if="{{category === '文件'}}" onclick="sendCmd('cp')">
-          <div class="card-left"><text class="card-label">cp</text><text class="card-sub">复制文件</text></div>
-        </div>
-        <div class="card" if="{{category === '文件'}}" onclick="sendCmd('mv')">
-          <div class="card-left"><text class="card-label">mv</text><text class="card-sub">移动/重命名文件</text></div>
-        </div>
-        <div class="card" if="{{category === '文件'}}" onclick="sendCmd('rm')">
-          <div class="card-left"><text class="card-label">rm</text><text class="card-sub">删除文件</text></div>
-        </div>
-        <div class="card" if="{{category === '文件'}}" onclick="sendCmd('mkdir')">
-          <div class="card-left"><text class="card-label">mkdir</text><text class="card-sub">创建目录</text></div>
-        </div>
-        <div class="card" if="{{category === '文件'}}" onclick="sendCmd('pwd')">
-          <div class="card-left"><text class="card-label">pwd</text><text class="card-sub">显示当前路径</text></div>
-        </div>
-        <div class="card" if="{{category === '文件'}}" onclick="sendCmd('dd')">
-          <div class="card-left"><text class="card-label">dd</text><text class="card-sub">数据拷贝/转换</text></div>
-        </div>
-
-        <!-- ===== 系统 ===== -->
-        <div class="card" if="{{category === '系统'}}" onclick="sendCmd('uname')">
-          <div class="card-left"><text class="card-label">uname</text><text class="card-sub">系统名称与版本</text></div>
-        </div>
-        <div class="card" if="{{category === '系统'}}" onclick="sendCmd('uptime')">
-          <div class="card-left"><text class="card-label">uptime</text><text class="card-sub">系统运行时间</text></div>
-        </div>
-        <div class="card" if="{{category === '系统'}}" onclick="sendCmd('date')">
-          <div class="card-left"><text class="card-label">date</text><text class="card-sub">当前日期时间</text></div>
-        </div>
-        <div class="card" if="{{category === '系统'}}" onclick="sendCmd('dmesg')">
-          <div class="card-left"><text class="card-label">dmesg</text><text class="card-sub">内核日志</text></div>
-        </div>
-        <div class="card" if="{{category === '系统'}}" onclick="sendCmd('free')">
-          <div class="card-left"><text class="card-label">free</text><text class="card-sub">内存使用情况</text></div>
-        </div>
-        <div class="card" if="{{category === '系统'}}" onclick="sendCmd('reboot')">
-          <div class="card-left"><text class="card-label">reboot</text><text class="card-sub">重启系统</text></div>
-        </div>
-
-        <!-- ===== 进程 ===== -->
-        <div class="card" if="{{category === '进程'}}" onclick="sendCmd('ps')">
-          <div class="card-left"><text class="card-label">ps</text><text class="card-sub">进程列表</text></div>
-        </div>
-        <div class="card" if="{{category === '进程'}}" onclick="sendCmd('sleep')">
-          <div class="card-left"><text class="card-label">sleep</text><text class="card-sub">休眠指定秒数</text></div>
-        </div>
-        <div class="card" if="{{category === '进程'}}" onclick="sendCmd('kill')">
-          <div class="card-left"><text class="card-label">kill</text><text class="card-sub">终止进程</text></div>
-        </div>
-
-        <!-- ===== 网络 ===== -->
-        <div class="card" if="{{category === '网络'}}" onclick="sendCmd('ifconfig')">
-          <div class="card-left"><text class="card-label">ifconfig</text><text class="card-sub">网络接口信息</text></div>
-        </div>
-        <div class="card" if="{{category === '网络'}}" onclick="sendCmd('ping')">
-          <div class="card-left"><text class="card-label">ping</text><text class="card-sub">网络连通测试</text></div>
-        </div>
-        <div class="card" if="{{category === '网络'}}" onclick="sendCmd('curl')">
-          <div class="card-left"><text class="card-label">curl</text><text class="card-sub">HTTP 请求</text></div>
-        </div>
-        <div class="card" if="{{category === '网络'}}" onclick="sendCmd('nslookup')">
-          <div class="card-left"><text class="card-label">nslookup</text><text class="card-sub">DNS 查询</text></div>
+        <div class="card" for="{{cmds}}" tid="id" onclick="sendCmd($item.cmd, $item.danger)">
+          <div class="card-left">
+            <text class="card-label {{ $item.labelClass }}">{{ $item.label }}</text>
+            <text class="card-sub">{{ $item.desc }}</text>
+          </div>
         </div>
 
         <div class="spacer"></div>
       </div>
     </scroll>
+
+    <!-- 危险命令确认弹窗 -->
+    <div show="{{showConfirm}}" class="confirm-overlay">
+      <div class="confirm-box">
+        <text class="confirm-title">{{ $t("confirm.title") }}</text>
+        <text class="confirm-cmd">{{ confirmCmd }}</text>
+        <text class="confirm-warn">{{ $t("confirm.warn") }}</text>
+        <div class="confirm-btns">
+          <div class="confirm-btn confirm-cancel" onclick="cancelDanger">
+            <text class="confirm-btn-text">{{ $t("confirm.cancel") }}</text>
+          </div>
+          <div class="confirm-btn confirm-ok" onclick="confirmDanger">
+            <text class="confirm-btn-text">{{ $t("confirm.ok") }}</text>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script>
 import router from "@system.router"
+import vibrator from "@system.vibrator"
+
+/* 命令数据：分类 ID → { i18nKey, items } */
+var COMMAND_DATA = {
+  templates: {
+    i18nKey: "category.templates",
+    items: [
+      { cmd: "ls -l /",       label: "cmd.lsRoot",     desc: "cmd.lsRootDesc" },
+      { cmd: "ls -la /data",  label: "cmd.lsData",     desc: "cmd.lsDataDesc" },
+      { cmd: "ps",            label: "cmd.ps",         desc: "cmd.psDesc" },
+      { cmd: "free",          label: "cmd.free",       desc: "cmd.freeDesc" },
+      { cmd: "df",            label: "cmd.df",         desc: "cmd.dfDesc" },
+      { cmd: "uname -a",      label: "cmd.unameA",     desc: "cmd.unameADesc" },
+      { cmd: "dmesg",         label: "cmd.dmesg",      desc: "cmd.dmesgDesc" },
+      { cmd: "uptime",        label: "cmd.uptime",     desc: "cmd.uptimeDesc" },
+      { cmd: "ifconfig",      label: "cmd.ifconfig",   desc: "cmd.ifconfigDesc" },
+      { cmd: "help",          label: "cmd.help",       desc: "cmd.helpDesc" }
+    ]
+  },
+  file: {
+    i18nKey: "category.file",
+    items: [
+      { cmd: "ls",      label: "cmd.ls",      desc: "cmd.lsDesc" },
+      { cmd: "cat",     label: "cmd.cat",     desc: "cmd.catDesc" },
+      { cmd: "cp",      label: "cmd.cp",      desc: "cmd.cpDesc" },
+      { cmd: "mv",      label: "cmd.mv",      desc: "cmd.mvDesc" },
+      { cmd: "rm",      label: "cmd.rm",      desc: "cmd.rmDesc",      danger: true },
+      { cmd: "mkdir",   label: "cmd.mkdir",   desc: "cmd.mkdirDesc" },
+      { cmd: "pwd",     label: "cmd.pwd",     desc: "cmd.pwdDesc" },
+      { cmd: "dd",      label: "cmd.dd",      desc: "cmd.ddDesc",      danger: true }
+    ]
+  },
+  system: {
+    i18nKey: "category.system",
+    items: [
+      { cmd: "uname",   label: "cmd.uname",   desc: "cmd.unameDesc" },
+      { cmd: "uptime",  label: "cmd.uptime",  desc: "cmd.uptimeDesc" },
+      { cmd: "date",    label: "cmd.date",    desc: "cmd.dateDesc" },
+      { cmd: "dmesg",   label: "cmd.dmesg",   desc: "cmd.dmesgDesc" },
+      { cmd: "free",    label: "cmd.free",    desc: "cmd.freeDesc" },
+      { cmd: "reboot",  label: "cmd.reboot",  desc: "cmd.rebootDesc",  danger: true }
+    ]
+  },
+  process: {
+    i18nKey: "category.process",
+    items: [
+      { cmd: "ps",      label: "cmd.ps",      desc: "cmd.psDesc" },
+      { cmd: "sleep",   label: "cmd.sleep",   desc: "cmd.sleepDesc" },
+      { cmd: "kill",    label: "cmd.kill",    desc: "cmd.killDesc",    danger: true }
+    ]
+  },
+  network: {
+    i18nKey: "category.network",
+    items: [
+      { cmd: "ifconfig",  label: "cmd.ifconfig",  desc: "cmd.ifconfigDesc" },
+      { cmd: "ping",      label: "cmd.ping",      desc: "cmd.pingDesc" },
+      { cmd: "curl",      label: "cmd.curl",      desc: "cmd.curlDesc" },
+      { cmd: "nslookup",  label: "cmd.nslookup",  desc: "cmd.nslookupDesc" }
+    ]
+  }
+}
 
 export default {
-  protected: { category: "" },
-  private: { nowTime: "00:00", timer: null },
+  protected: { category: "", entry: "" },
+
+  private: {
+    nowTime: "00:00",
+    timer: null,
+    cmds: [],
+    categoryTitle: "",
+    showConfirm: false,
+    confirmCmd: ""
+  },
 
   onInit() {
     var self = this
     self.updateTime()
     self.timer = setInterval(function() { self.updateTime() }, 1000)
+
+    var catData = COMMAND_DATA[self.category]
+    if (catData) {
+      self.categoryTitle = self.$t(catData.i18nKey)
+      var items = []
+      for (var i = 0; i < catData.items.length; i++) {
+        var item = catData.items[i]
+        items.push({
+          cmd: item.cmd,
+          label: self.$t(item.label),
+          desc: self.$t(item.desc),
+          danger: item.danger || false,
+          labelClass: item.danger ? 'text-danger' : ''
+        })
+      }
+      self.cmds = items
+    } else {
+      self.categoryTitle = self.category || ""
+      self.cmds = []
+    }
   },
 
   onDestroy() { clearInterval(this.timer) },
@@ -143,8 +153,36 @@ export default {
     this.nowTime = ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2)
   },
 
-  sendCmd(cmd) {
-    router.push({ uri: "/pages/terminal", params: { cmd: cmd } })
+  sendCmd(cmd, danger) {
+    var self = this
+    if (danger) {
+      vibrator.vibrate({ duration: 80 })
+      self.confirmCmd = cmd
+      self.showConfirm = true
+      return
+    }
+    self.doNavigate(cmd)
+  },
+
+  confirmDanger() {
+    var cmd = this.confirmCmd
+    this.showConfirm = false
+    this.confirmCmd = ""
+    this.doNavigate(cmd)
+  },
+
+  cancelDanger() {
+    this.showConfirm = false
+    this.confirmCmd = ""
+  },
+
+  doNavigate(cmd) {
+    var route = { uri: "/pages/terminal", params: { cmd: cmd } }
+    if (this.entry === "terminal") {
+      router.replace(route)
+      return
+    }
+    router.push(route)
   },
 
   goBack() { router.back() }
@@ -164,8 +202,25 @@ export default {
 .card-left { flex-direction: column; flex: 1; }
 .card-label { font-size: 32px; line-height: 40px; font-weight: bold; color: #ffffff; lines: 1; }
 .card-sub { font-size: 28px; line-height: 37px; font-weight: bold; color: rgba(255,255,255,0.6); margin-top: 4px; lines: 1; }
+.text-danger { color: #ff4444; }
 .spacer { height: 20px; }
-.scroll-inner { margin-top: -7px; padding: 0 6px 20px 6px; flex-direction: column; }
+.scroll-inner { margin-top: 0; padding: 0 6px 20px 6px; flex-direction: column; }
+
+/* 确认弹窗 */
+.confirm-overlay { position: absolute; left: 0; top: 0; width: 336px; height: 480px; background-color: rgba(0,0,0,0.88); flex-direction: column; align-items: center; justify-content: center; }
+.confirm-box { width: 280px; height: 260px; background-color: #1a1a1a; border-radius: 36px; border-width: 2px; border-color: #ff4444; flex-direction: column; align-items: center; padding: 24px 16px; }
+.confirm-title { font-size: 34px; color: #ff4444; font-weight: bold; margin-bottom: 12px; }
+.confirm-cmd { font-size: 26px; color: #ffffff; font-weight: bold; margin-bottom: 8px; background-color: #000000; padding: 6px 16px; border-radius: 16px; }
+.confirm-warn { font-size: 22px; color: rgba(255,255,255,0.5); text-align: center; margin-bottom: 16px; lines: 2; }
+.confirm-btns { flex-direction: row; width: 240px; justify-content: space-between; }
+.confirm-btn { width: 108px; height: 52px; border-radius: 24px; flex-direction: row; align-items: center; justify-content: center; }
+.confirm-cancel { background-color: #333333; }
+.confirm-ok { background-color: #cc0000; }
+.confirm-btn-text { font-size: 26px; font-weight: bold; color: #ffffff; }
+
+@media (shape: rect) {
+  .scroll-inner { margin-top: -15px; }
+}
 @media (shape: pill-shaped) and (max-width: 100) {
   .page { width: 192px; height: 490px; }
   .content-full { width: 192px; height: 490px; }
@@ -180,6 +235,14 @@ export default {
   .card-label { font-size: 28px; line-height: 34px; }
   .card-sub { font-size: 24px; line-height: 30px; margin-top: 4px; }
   .spacer { height: 16px; }
+  .confirm-overlay { width: 192px; height: 490px; }
+  .confirm-box { width: 168px; height: 230px; border-radius: 27px; padding: 16px 10px; }
+  .confirm-title { font-size: 26px; margin-bottom: 8px; }
+  .confirm-cmd { font-size: 20px; padding: 4px 10px; }
+  .confirm-warn { font-size: 18px; margin-bottom: 12px; }
+  .confirm-btns { width: 148px; }
+  .confirm-btn { width: 66px; height: 42px; border-radius: 18px; }
+  .confirm-btn-text { font-size: 20px; }
 }
 @media (shape: pill-shaped) and (min-width: 101) {
   .page { width: 212px; height: 520px; }
@@ -195,5 +258,13 @@ export default {
   .card-label { font-size: 28px; line-height: 34px; }
   .card-sub { font-size: 24px; line-height: 30px; margin-top: 4px; }
   .spacer { height: 16px; }
+  .confirm-overlay { width: 212px; height: 520px; }
+  .confirm-box { width: 188px; height: 240px; border-radius: 27px; padding: 16px 10px; }
+  .confirm-title { font-size: 26px; margin-bottom: 8px; }
+  .confirm-cmd { font-size: 20px; padding: 4px 10px; }
+  .confirm-warn { font-size: 18px; margin-bottom: 12px; }
+  .confirm-btns { width: 164px; }
+  .confirm-btn { width: 74px; height: 44px; border-radius: 20px; }
+  .confirm-btn-text { font-size: 22px; }
 }
 </style>

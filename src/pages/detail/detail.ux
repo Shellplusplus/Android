@@ -67,13 +67,28 @@ export default {
     var self = this
     self.updateTime()
     self.timer = setInterval(function() { self.updateTime() }, 1000)
+  },
+
+  onShow() {
+    var self = this
     self.refresh()
-    self.refreshTimer = setInterval(function() { self.refresh() }, 2000)
+    if (!self.refreshTimer) {
+      self.refreshTimer = setInterval(function() { self.refresh() }, 2000)
+    }
+  },
+
+  onHide() {
+    if (this.refreshTimer) {
+      clearInterval(this.refreshTimer)
+      this.refreshTimer = null
+    }
   },
 
   onDestroy() {
     clearInterval(this.timer)
-    clearInterval(this.refreshTimer)
+    if (this.refreshTimer) {
+      clearInterval(this.refreshTimer)
+    }
   },
 
   updateTime() {
@@ -94,20 +109,33 @@ export default {
             return
           }
           if (json.timestamp) {
-            var now = new Date()
-            var parts = json.timestamp.split(":")
-            var ts = new Date()
-            ts.setHours(parseInt(parts[0]), parseInt(parts[1]), parseInt(parts[2]), 0)
-            var diff = (now.getTime() - ts.getTime()) / 1000
-            if (diff > 15) {
+            var now = Math.floor(Date.now() / 1000)
+            var ts = parseInt(json.timestamp)
+            if (isNaN(ts)) {
+              self.luaConnected = false
+              self.lastHeartbeat = ""
+              return
+            }
+            if (now - ts > 15) {
               self.luaConnected = false
               self.lastHeartbeat = json.timestamp + " (超时)"
               return
             }
           }
+          /* Unix 时间戳转为可读格式 */
           self.luaConnected = true
-          self.lastHeartbeat = json.timestamp || "未知"
-        } catch(e) {}
+          var ht = parseInt(json.timestamp)
+          if (!isNaN(ht)) {
+            var d = new Date(ht * 1000)
+            self.lastHeartbeat = ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2) + ":" + ("0" + d.getSeconds()).slice(-2)
+          } else {
+            self.lastHeartbeat = json.timestamp || "未知"
+          }
+        } catch(e) {
+          /* 心跳文件损坏或格式异常 */
+          self.luaConnected = false
+          self.lastHeartbeat = ""
+        }
       },
       fail: function() {
         self.luaConnected = false
@@ -130,10 +158,14 @@ export default {
 .hd-back { position: absolute; left: 6px; top: 6px; width: 72px; height: 72px; }
 .pill-header { display: none; }
 @import '../../common/card.css';
-.scroll-inner { margin-top: -7px; padding: 0 6px 20px 6px; flex-direction: column; }
+.scroll-inner { margin-top: 0; padding: 0 6px 20px 6px; flex-direction: column; }
 .text-green { color: #00ff00; }
 .text-red { color: #ff3333; }
 
+/* 336x480 rect screen offset */
+@media (shape: rect) {
+  .scroll-inner { margin-top: -15px; }
+}
 @media (shape: pill-shaped) and (max-width: 100) {
   .page { width: 192px; height: 490px; }
   .content-full { width: 192px; height: 490px; }
