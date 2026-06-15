@@ -82,6 +82,8 @@ export default {
     previewMode: "real",
     hasShots: false,
     shotItems: [],
+    followLatest: true,
+    selectedPreviewFile: "",
     quickAppDebugEnabled: false,
     samplePath: "",
     sampleLabel: "",
@@ -101,6 +103,7 @@ export default {
 
   onShow() {
     var self = this
+    self.loadPreviewState()
     self.refreshAll()
     self.loadQuickAppDebugMode()
     if (!self.pollTimer) {
@@ -143,24 +146,34 @@ export default {
         try {
           var json = JSON.parse(data.text)
           self.previewMode = json.mode === "sample" ? "sample" : "real"
+          self.followLatest = json.followLatest !== false
+          self.selectedPreviewFile = json.selectedFile || ""
         } catch (e) {
           self.previewMode = "real"
+          self.followLatest = true
+          self.selectedPreviewFile = ""
         }
         self.applyPreviewMode()
         self.loadHistory()
       },
       fail: function() {
         self.previewMode = "real"
+        self.followLatest = true
+        self.selectedPreviewFile = ""
         self.applyPreviewMode()
         self.loadHistory()
       }
     })
   },
 
-  writePreviewState(mode) {
+  writePreviewState(mode, followLatest, selectedFile) {
     file.writeText({
       uri: PREVIEW_STATE_FILE,
-      text: JSON.stringify({ mode: mode }),
+      text: JSON.stringify({
+        mode: mode,
+        followLatest: followLatest !== false,
+        selectedFile: selectedFile || ""
+      }),
       append: false
     })
   },
@@ -169,6 +182,8 @@ export default {
     if (this.previewMode !== "sample" || !this.samplePath) {
       return
     }
+    this.followLatest = false
+    this.selectedPreviewFile = ""
     this.previewPath = this.samplePath
     this.previewIndex = 999
     this.previewTime = this.$t("screenshot.sampleTimePrefix") + this.sampleLabel
@@ -329,30 +344,36 @@ export default {
           }
         } catch (e) {}
         var realItems = self.normalizeShots(list)
-        self.shotItems = self.buildShotItems(realItems)
-        self.hasShots = self.shotItems.length > 0
         if (self.previewMode === "sample") {
+          self.shotItems = self.buildShotItems(realItems)
+          self.hasShots = self.shotItems.length > 0
           self.applyPreviewMode()
           return
         }
         if (realItems.length > 0) {
-          var selected = null
-          for (var i = 0; i < realItems.length; i++) {
-            if (realItems[i].file === self.previewPath) {
-              selected = realItems[i]
-              break
+          var latest = realItems[0]
+          var previewItem = latest
+          if (!self.followLatest && self.selectedPreviewFile) {
+            for (var i = 0; i < realItems.length; i++) {
+              if (realItems[i].file === self.selectedPreviewFile) {
+                previewItem = realItems[i]
+                break
+              }
             }
           }
-          var latest = selected || realItems[0]
-          self.previewPath = latest.file
-          self.previewIndex = latest.index
-          self.previewTime = latest.timeText
+          self.previewPath = previewItem.file
+          self.previewIndex = previewItem.index
+          self.previewTime = previewItem.timeText
           self.hasPreview = true
+          self.shotItems = self.buildShotItems(realItems, previewItem.file)
+          self.hasShots = self.shotItems.length > 0
         } else {
           self.previewPath = ""
           self.previewIndex = 0
           self.previewTime = ""
           self.hasPreview = false
+          self.shotItems = self.buildShotItems([])
+          self.hasShots = false
         }
       },
       fail: function() {
@@ -370,8 +391,17 @@ export default {
     })
   },
 
-  buildShotItems(realItems) {
-    return realItems.slice(0)
+  buildShotItems(realItems, excludeFile) {
+    if (!excludeFile) {
+      return realItems.slice(0)
+    }
+    var items = []
+    for (var i = 0; i < realItems.length; i++) {
+      if (realItems[i].file !== excludeFile) {
+        items.push(realItems[i])
+      }
+    }
+    return items
   },
 
   requestScreenshot() {
@@ -381,6 +411,9 @@ export default {
       return
     }
     shotSeq++
+    self.followLatest = true
+    self.selectedPreviewFile = ""
+    self.writePreviewState("real", true, "")
     file.writeText({
       uri: REQUEST_FILE,
       text: JSON.stringify({
@@ -402,7 +435,9 @@ export default {
 
   selectShot(filePath, index, timeText) {
     this.previewMode = "real"
-    this.writePreviewState("real")
+    this.followLatest = false
+    this.selectedPreviewFile = filePath || ""
+    this.writePreviewState("real", false, this.selectedPreviewFile)
     this.previewPath = filePath
     this.previewIndex = index
     this.previewTime = timeText
@@ -416,6 +451,9 @@ export default {
 
   resetPreview() {
     this.previewMode = "real"
+    this.followLatest = true
+    this.selectedPreviewFile = ""
+    this.writePreviewState("real", true, "")
     if (this.shotItems.length > 0) {
       var latest = this.shotItems[0]
       this.previewPath = latest.file
