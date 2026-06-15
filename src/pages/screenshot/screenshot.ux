@@ -315,19 +315,29 @@ export default {
 
   normalizeShots(items) {
     var normalized = []
+    var seenFiles = {}
     if (!(items instanceof Array)) return normalized
     for (var i = 0; i < items.length; i++) {
       var item = items[i]
       if (!item || !item.file) continue
+       if (seenFiles[item.file]) continue
+      seenFiles[item.file] = true
       normalized.push({
         id: "shot-" + i,
         type: "real",
         label: "#" + (item.index || (i + 1)),
         index: item.index || (i + 1),
         file: item.file,
-        timeText: item.capturedAt || this.$t("screenshot.unknownTime")
+        timeText: item.capturedAt || this.$t("screenshot.unknownTime"),
+        capturedAtUnix: item.capturedAtUnix || 0
       })
     }
+    normalized.sort(function(a, b) {
+      if (b.index !== a.index) {
+        return b.index - a.index
+      }
+      return (b.capturedAtUnix || 0) - (a.capturedAtUnix || 0)
+    })
     return normalized
   },
 
