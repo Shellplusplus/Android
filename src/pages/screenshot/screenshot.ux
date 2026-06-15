@@ -32,6 +32,9 @@
           <image class="preview-image" style="{{ previewImageStyle }}" src="{{ previewPath }}"></image>
           <text class="preview-title">#{{ previewIndex }}</text>
           <text class="preview-sub">{{ previewTime }}</text>
+          <div if="{{previewMode !== 'sample' || previewDeleteButtonEnabled}}" class="preview-actions">
+            <text class="delete-btn" onclick="deleteCurrentShot">{{ $t("screenshot.delete") }}</text>
+          </div>
         </div>
 
         <div if="{{!hasPreview}}" class="card">
@@ -85,6 +88,7 @@ export default {
     followLatest: true,
     selectedPreviewFile: "",
     quickAppDebugEnabled: false,
+    previewDeleteButtonEnabled: false,
     samplePath: "",
     sampleLabel: "",
     previewImageStyle: "height: 180px;",
@@ -240,8 +244,10 @@ export default {
         try {
           var json = JSON.parse(data.text)
           self.quickAppDebugEnabled = json.enabled === true
+          self.previewDeleteButtonEnabled = json.showDeleteButton === true
         } catch (e) {
           self.quickAppDebugEnabled = false
+          self.previewDeleteButtonEnabled = false
         }
         if (!self.quickAppDebugEnabled && self.previewMode === "sample") {
           self.resetPreview()
@@ -250,6 +256,7 @@ export default {
       },
       fail: function() {
         self.quickAppDebugEnabled = false
+        self.previewDeleteButtonEnabled = false
         if (self.previewMode === "sample") {
           self.resetPreview()
         }
@@ -459,6 +466,87 @@ export default {
     this.selectShot(item.file, item.index, item.timeText)
   },
 
+  deleteCurrentShot() {
+    var self = this
+    if (!self.previewPath || self.previewMode === "sample") {
+      return
+    }
+    if (self.isBusy) {
+      prompt.showToast({ message: self.statusText || self.$t("screenshot.busyDesc") })
+      return
+    }
+    var targetFile = self.previewPath
+    file.readText({
+      uri: HISTORY_FILE,
+      success: function(data) {
+        var store = []
+        try {
+          store = JSON.parse(data.text)
+        } catch (e) {}
+        self.removeScreenshotFile(targetFile, function() {
+          self.writeHistoryAfterDelete(store, targetFile)
+        })
+      },
+      fail: function() {
+        self.removeScreenshotFile(targetFile, function() {
+          self.writeHistoryAfterDelete([], targetFile)
+        })
+      }
+    })
+  },
+
+  removeScreenshotFile(filePath, done) {
+    file.delete({
+      uri: filePath,
+      success: function() {
+        done()
+      },
+      fail: function() {
+        done()
+      }
+    })
+  },
+
+  writeHistoryAfterDelete(store, targetFile) {
+    var self = this
+    var items = store
+    if (store && store.items instanceof Array) {
+      items = store.items
+    }
+    if (!(items instanceof Array)) {
+      items = []
+    }
+    var filtered = []
+    for (var i = 0; i < items.length; i++) {
+      if (items[i] && items[i].file && items[i].file !== targetFile) {
+        filtered.push(items[i])
+      }
+    }
+    var payload = filtered
+    if (store && store.items instanceof Array) {
+      payload = {
+        items: filtered,
+        nextIndex: store.nextIndex || 1,
+        lastItem: filtered.length > 0 ? filtered[0] : null
+      }
+    }
+    file.writeText({
+      uri: HISTORY_FILE,
+      text: JSON.stringify(payload),
+      append: false,
+      success: function() {
+        self.followLatest = true
+        self.selectedPreviewFile = ""
+        self.writePreviewState("real", true, "")
+        self.refreshAll()
+        prompt.showToast({ message: self.$t("screenshot.deleteDone") })
+      },
+      fail: function() {
+        prompt.showToast({ message: self.$t("screenshot.deleteFail") })
+      }
+    })
+  },
+
   resetPreview() {
     this.previewMode = "real"
     this.followLatest = true
@@ -519,6 +607,23 @@ export default {
   color: rgba(255,255,255,0.6);
   font-weight: bold;
 }
+.preview-actions {
+  width: 300px;
+  margin-top: 12px;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+.delete-btn {
+  width: 60px;
+  height: 36px;
+  border-radius: 18px;
+  background-color: #D93A2F;
+  text-align: center;
+  font-size: 24px;
+  color: #ffffff;
+  font-weight: bold;
+  line-height: 36px;
+}
 
 @media (shape: rect) {
   .scroll-inner { margin-top: -15px; }
@@ -544,6 +649,13 @@ export default {
     font-size: 20px;
     line-height: 24px;
   }
+  .preview-actions {
+    width: 164px;
+  }
+  .delete-btn {
+    width: 52px;
+    font-size: 20px;
+  }
 }
 
 @media (shape: pill-shaped) and (min-width: 101) {
@@ -565,6 +677,9 @@ export default {
   .preview-sub {
     font-size: 20px;
     line-height: 24px;
+  }
+  .preview-actions {
+    width: 184px;
   }
 }
 </style>

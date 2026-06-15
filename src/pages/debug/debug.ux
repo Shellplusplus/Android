@@ -14,6 +14,7 @@
       </div>
 
       <div class="scroll-inner">
+        <text class="section-title">{{ $t("debug.modeGroup") }}</text>
         <div class="card" onclick="toggleSystemDebug">
           <div class="card-left">
             <text class="card-label">{{ $t("debug.systemTitle") }}</text>
@@ -28,10 +29,18 @@
           </div>
         </div>
 
+        <text class="section-title">{{ $t("debug.screenshotGroup") }}</text>
         <div class="card" onclick="showSamplePreview">
           <div class="card-left">
             <text class="card-label">{{ $t("debug.previewSampleTitle") }}</text>
             <text class="card-sub">{{ $t("debug.previewSampleDesc") }}</text>
+          </div>
+        </div>
+
+        <div class="card" onclick="togglePreviewDeleteButton">
+          <div class="card-left">
+            <text class="card-label">{{ $t("debug.previewDeleteTitle") }}</text>
+            <text class="card-sub">{{ previewDeleteButtonText }}</text>
           </div>
         </div>
 
@@ -63,8 +72,10 @@ export default {
     timer: null,
     debugEnabled: false,
     quickAppDebugEnabled: false,
+    previewDeleteButtonEnabled: false,
     systemDebugText: "",
     quickAppDebugText: "",
+    previewDeleteButtonText: "",
     pendingEnable: false
   },
 
@@ -103,6 +114,12 @@ export default {
     this.quickAppDebugText = this.quickAppDebugEnabled ? this.$t("debug.quickAppOn") : this.$t("debug.quickAppOff")
   },
 
+  updatePreviewDeleteButtonText() {
+    this.previewDeleteButtonText = this.previewDeleteButtonEnabled
+      ? this.$t("debug.previewDeleteOn")
+      : this.$t("debug.previewDeleteOff")
+  },
+
   loadDebugMode() {
     var self = this
     file.readText({
@@ -131,14 +148,19 @@ export default {
         try {
           var json = JSON.parse(data.text)
           self.quickAppDebugEnabled = json.enabled === true
+          self.previewDeleteButtonEnabled = json.showDeleteButton === true
         } catch (e) {
           self.quickAppDebugEnabled = false
+          self.previewDeleteButtonEnabled = false
         }
         self.updateQuickAppDebugText()
+        self.updatePreviewDeleteButtonText()
       },
       fail: function() {
         self.quickAppDebugEnabled = false
+        self.previewDeleteButtonEnabled = false
         self.updateQuickAppDebugText()
+        self.updatePreviewDeleteButtonText()
       }
     })
   },
@@ -159,15 +181,20 @@ export default {
     })
   },
 
-  writeQuickAppDebugMode(enabled) {
+  writeQuickAppDebugMode(enabled, showDeleteButton) {
     var self = this
     file.writeText({
       uri: QUICKAPP_DEBUG_FILE,
-      text: JSON.stringify({ enabled: enabled }),
+      text: JSON.stringify({
+        enabled: enabled,
+        showDeleteButton: showDeleteButton === true
+      }),
       append: false,
       success: function() {
         self.quickAppDebugEnabled = enabled
+        self.previewDeleteButtonEnabled = showDeleteButton === true
         self.updateQuickAppDebugText()
+        self.updatePreviewDeleteButtonText()
         prompt.showToast({
           message: enabled ? self.$t("debug.quickAppEnabledToast") : self.$t("debug.quickAppDisabledToast")
         })
@@ -192,7 +219,15 @@ export default {
   },
 
   onQuickAppDebug() {
-    this.writeQuickAppDebugMode(!this.quickAppDebugEnabled)
+    var enabled = !this.quickAppDebugEnabled
+    this.writeQuickAppDebugMode(enabled, enabled ? this.previewDeleteButtonEnabled : false)
+  },
+
+  togglePreviewDeleteButton() {
+    if (!this.quickAppDebugEnabled) {
+      return
+    }
+    this.writeQuickAppDebugMode(true, !this.previewDeleteButtonEnabled)
   },
 
   showSamplePreview() {
@@ -240,14 +275,34 @@ export default {
 @import '../../common/card.css';
 
 .scroll-inner { margin-top: 0; padding: 0 6px 20px 6px; flex-direction: column; }
+.section-title {
+  width: 324px;
+  margin: 12px 6px 0 12px;
+  font-size: 22px;
+  line-height: 28px;
+  color: rgba(255,255,255,0.55);
+  font-weight: bold;
+}
 
 @media (shape: rect) {
   .scroll-inner { margin-top: -15px; }
 }
 @media (shape: pill-shaped) and (max-width: 100) {
   .scroll-inner { padding: 0 4px 16px 4px; }
+  .section-title {
+    width: 184px;
+    margin: 12px 4px 0 8px;
+    font-size: 18px;
+    line-height: 22px;
+  }
 }
 @media (shape: pill-shaped) and (min-width: 101) {
   .scroll-inner { padding: 0 4px 16px 4px; }
+  .section-title {
+    width: 204px;
+    margin: 12px 4px 0 8px;
+    font-size: 18px;
+    line-height: 22px;
+  }
 }
 </style>
