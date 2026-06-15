@@ -3,3 +3,6 @@
 /node_modules
 /sign
 .husky/
+build/
+dist/
+*.rpk
