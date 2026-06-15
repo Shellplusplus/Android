@@ -1,0 +1,522 @@
+<template>
+  <div class="page">
+    <scroll class="content-full" scroll-y="true" bounces="true">
+      <div class="header-area">
+        <img src="/common/hd.png" class="header-bg" />
+        <text class="hd-time">{{ nowTime }}</text>
+        <text class="hd-title">{{ $t("screenshot.title") }}</text>
+        <img src="/common/back.png" @click="goBack" class="hd-back" />
+      </div>
+      <div class="pill-header">
+        <div class="pill-more-wrap" @click="goBack">
+          <div class="pill-more"></div>
+        </div>
+      </div>
+
+      <div class="scroll-inner">
+        <div class="card card-primary" onclick="requestScreenshot">
+          <div class="card-left">
+            <text class="card-label">{{ $t("screenshot.startTitle") }}</text>
+            <text class="card-sub card-sub-primary">{{ isBusy ? $t("screenshot.busyDesc") : $t("screenshot.startDesc") }}</text>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-left">
+            <text class="card-label">{{ $t("screenshot.statusTitle") }}</text>
+            <text class="card-sub status-sub">{{ statusText }}</text>
+          </div>
+        </div>
+
+        <div if="{{hasPreview}}" class="preview-card">
+          <image class="preview-image" style="{{ previewImageStyle }}" src="{{ previewPath }}"></image>
+          <text class="preview-title">#{{ previewIndex }}</text>
+          <text class="preview-sub">{{ previewTime }}</text>
+        </div>
+
+        <div if="{{!hasPreview}}" class="card">
+          <div class="card-left">
+            <text class="card-label">{{ $t("screenshot.emptyTitle") }}</text>
+            <text class="card-sub">{{ $t("screenshot.emptyDesc") }}</text>
+          </div>
+        </div>
+
+        <div if="{{hasShots}}" class="card" for="{{shotItems}}" tid="id" onclick="onShotItemClick($item)">
+          <div class="card-left">
+            <text class="card-label">{{ $item.label }}</text>
+            <text class="card-sub">{{ $item.timeText }}</text>
+          </div>
+        </div>
+
+        <div class="spacer"></div>
+      </div>
+    </scroll>
+  </div>
+</template>
+
+<script>
+import router from "@system.router"
+import file from "@system.file"
+import prompt from "@system.prompt"
+import device from "@system.device"
+
+var REQUEST_FILE = "internal://files/screenshot_request.json"
+var RESULT_FILE = "internal://files/screenshot_result.json"
+var HISTORY_FILE = "internal://files/screenshot_history.json"
+var BRIDGE_STATE_FILE = "internal://files/bridge_state.json"
+var QUICKAPP_DEBUG_FILE = "internal://files/quickapp_debug.json"
+var PREVIEW_STATE_FILE = "internal://files/screenshot_preview_state.json"
+var shotSeq = Date.now()
+
+export default {
+  private: {
+    nowTime: "00:00",
+    timer: null,
+    pollTimer: null,
+    statusText: "",
+    isBusy: false,
+    hasPreview: false,
+    previewPath: "",
+    previewIndex: 0,
+    previewTime: "",
+    previewMode: "real",
+    hasShots: false,
+    shotItems: [],
+    quickAppDebugEnabled: false,
+    samplePath: "",
+    sampleLabel: "",
+    previewImageStyle: "height: 180px;",
+    screenWidth: 336,
+    screenHeight: 480
+  },
+
+  onInit() {
+    var self = this
+    self.updateTime()
+    self.statusText = self.$t("screenshot.idle")
+    self.timer = setInterval(function() { self.updateTime() }, 1000)
+    self.resolveSamplePath()
+    self.loadPreviewState()
+  },
+
+  onShow() {
+    var self = this
+    self.refreshAll()
+    self.loadQuickAppDebugMode()
+    if (!self.pollTimer) {
+      self.pollTimer = setInterval(function() {
+        self.refreshAll()
+        self.loadQuickAppDebugMode()
+      }, 1000)
+    }
+  },
+
+  onHide() {
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer)
+      this.pollTimer = null
+    }
+  },
+
+  onDestroy() {
+    clearInterval(this.timer)
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer)
+    }
+  },
+
+  updateTime() {
+    var d = new Date()
+    this.nowTime = ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2)
+  },
+
+  refreshAll() {
+    this.loadState()
+    this.loadHistory()
+  },
+
+  loadPreviewState() {
+    var self = this
+    file.readText({
+      uri: PREVIEW_STATE_FILE,
+      success: function(data) {
+        try {
+          var json = JSON.parse(data.text)
+          self.previewMode = json.mode === "sample" ? "sample" : "real"
+        } catch (e) {
+          self.previewMode = "real"
+        }
+        self.applyPreviewMode()
+        self.loadHistory()
+      },
+      fail: function() {
+        self.previewMode = "real"
+        self.applyPreviewMode()
+        self.loadHistory()
+      }
+    })
+  },
+
+  writePreviewState(mode) {
+    file.writeText({
+      uri: PREVIEW_STATE_FILE,
+      text: JSON.stringify({ mode: mode }),
+      append: false
+    })
+  },
+
+  applyPreviewMode() {
+    if (this.previewMode !== "sample" || !this.samplePath) {
+      return
+    }
+    this.previewPath = this.samplePath
+    this.previewIndex = 999
+    this.previewTime = this.$t("screenshot.sampleTimePrefix") + this.sampleLabel
+    this.hasPreview = true
+  },
+
+  resolveSamplePath() {
+    var self = this
+    device.getInfo({
+      success: function(ret) {
+        var width = ret.screenWidth || 336
+        var height = ret.screenHeight || 480
+        self.screenWidth = width
+        self.screenHeight = height
+        if (width <= 192) {
+          self.samplePath = "/common/Debug_192.png"
+          self.sampleLabel = "192"
+        } else if (width <= 212) {
+          self.samplePath = "/common/Debug_212.png"
+          self.sampleLabel = "212"
+        } else {
+          self.samplePath = "/common/Debug_336.png"
+          self.sampleLabel = "336"
+        }
+        self.updatePreviewImageStyle()
+      },
+      fail: function() {
+        self.screenWidth = 336
+        self.screenHeight = 480
+        self.samplePath = "/common/Debug_336.png"
+        self.sampleLabel = "336"
+        self.updatePreviewImageStyle()
+      }
+    })
+  },
+
+  updatePreviewImageStyle() {
+    var width = 300
+    if (this.screenWidth <= 192) {
+      width = 164
+    } else if (this.screenWidth <= 212) {
+      width = 184
+    }
+    var ratio = this.screenHeight / this.screenWidth
+    var height = Math.round(width * ratio)
+    this.previewImageStyle = "height: " + height + "px;"
+  },
+
+  loadQuickAppDebugMode() {
+    var self = this
+    file.readText({
+      uri: QUICKAPP_DEBUG_FILE,
+      success: function(data) {
+        try {
+          var json = JSON.parse(data.text)
+          self.quickAppDebugEnabled = json.enabled === true
+        } catch (e) {
+          self.quickAppDebugEnabled = false
+        }
+        if (!self.quickAppDebugEnabled && self.previewMode === "sample") {
+          self.resetPreview()
+        }
+        self.loadHistory()
+      },
+      fail: function() {
+        self.quickAppDebugEnabled = false
+        if (self.previewMode === "sample") {
+          self.resetPreview()
+        }
+        self.loadHistory()
+      }
+    })
+  },
+
+  loadState() {
+    var self = this
+    file.readText({
+      uri: BRIDGE_STATE_FILE,
+      success: function(data) {
+        try {
+          var state = JSON.parse(data.text)
+          self.isBusy = state.busy === true
+          if (self.isBusy) {
+            if (state.mode === "screenshot" && state.message) {
+              self.statusText = state.message
+            } else {
+              self.statusText = self.$t("screenshot.bridgeBusy")
+            }
+            return
+          }
+          self.loadResultState()
+        } catch (e) {
+          self.isBusy = false
+          self.loadResultState()
+        }
+      },
+      fail: function() {
+        self.isBusy = false
+        self.loadResultState()
+      }
+    })
+  },
+
+  loadResultState() {
+    var self = this
+    file.readText({
+      uri: RESULT_FILE,
+      success: function(data) {
+        try {
+          var result = JSON.parse(data.text)
+          if (result.status === "done") {
+            self.statusText = self.$t("screenshot.done")
+          } else if (result.status === "error") {
+            self.statusText = result.message || self.$t("screenshot.error")
+          } else if (result.status === "waiting_screen_on" || result.status === "capturing") {
+            self.statusText = result.message || self.$t("screenshot.preparing")
+          } else {
+            self.statusText = self.$t("screenshot.idle")
+          }
+        } catch (e) {
+          self.statusText = self.$t("screenshot.idle")
+        }
+      },
+      fail: function() {
+        self.statusText = self.$t("screenshot.idle")
+      }
+    })
+  },
+
+  normalizeShots(items) {
+    var normalized = []
+    if (!(items instanceof Array)) return normalized
+    for (var i = 0; i < items.length; i++) {
+      var item = items[i]
+      if (!item || !item.file) continue
+      normalized.push({
+        id: "shot-" + i,
+        type: "real",
+        label: "#" + (item.index || (i + 1)),
+        index: item.index || (i + 1),
+        file: item.file,
+        timeText: item.capturedAt || this.$t("screenshot.unknownTime")
+      })
+    }
+    return normalized
+  },
+
+  loadHistory() {
+    var self = this
+    file.readText({
+      uri: HISTORY_FILE,
+      success: function(data) {
+        var list = []
+        try {
+          list = JSON.parse(data.text)
+          if (list && list.items instanceof Array) {
+            list = list.items
+          }
+        } catch (e) {}
+        var realItems = self.normalizeShots(list)
+        self.shotItems = self.buildShotItems(realItems)
+        self.hasShots = self.shotItems.length > 0
+        if (self.previewMode === "sample") {
+          self.applyPreviewMode()
+          return
+        }
+        if (realItems.length > 0) {
+          var selected = null
+          for (var i = 0; i < realItems.length; i++) {
+            if (realItems[i].file === self.previewPath) {
+              selected = realItems[i]
+              break
+            }
+          }
+          var latest = selected || realItems[0]
+          self.previewPath = latest.file
+          self.previewIndex = latest.index
+          self.previewTime = latest.timeText
+          self.hasPreview = true
+        } else {
+          self.previewPath = ""
+          self.previewIndex = 0
+          self.previewTime = ""
+          self.hasPreview = false
+        }
+      },
+      fail: function() {
+        self.shotItems = self.buildShotItems([])
+        self.hasShots = self.shotItems.length > 0
+        if (self.previewMode === "sample") {
+          self.applyPreviewMode()
+          return
+        }
+        self.previewPath = ""
+        self.previewIndex = 0
+        self.previewTime = ""
+        self.hasPreview = false
+      }
+    })
+  },
+
+  buildShotItems(realItems) {
+    return realItems.slice(0)
+  },
+
+  requestScreenshot() {
+    var self = this
+    if (self.isBusy) {
+      prompt.showToast({ message: self.statusText || self.$t("screenshot.busyDesc") })
+      return
+    }
+    shotSeq++
+    file.writeText({
+      uri: REQUEST_FILE,
+      text: JSON.stringify({
+        seq: shotSeq,
+        type: "screenshot",
+        timestamp: Math.floor(Date.now() / 1000)
+      }),
+      append: false,
+      success: function() {
+        self.isBusy = true
+        self.statusText = self.$t("screenshot.preparing")
+      },
+      fail: function() {
+        self.statusText = self.$t("screenshot.error")
+        prompt.showToast({ message: self.$t("screenshot.error") })
+      }
+    })
+  },
+
+  selectShot(filePath, index, timeText) {
+    this.previewMode = "real"
+    this.writePreviewState("real")
+    this.previewPath = filePath
+    this.previewIndex = index
+    this.previewTime = timeText
+    this.hasPreview = !!filePath
+  },
+
+  onShotItemClick(item) {
+    if (!item) return
+    this.selectShot(item.file, item.index, item.timeText)
+  },
+
+  resetPreview() {
+    this.previewMode = "real"
+    if (this.shotItems.length > 0) {
+      var latest = this.shotItems[0]
+      this.previewPath = latest.file
+      this.previewIndex = latest.index
+      this.previewTime = latest.timeText
+      this.hasPreview = true
+    } else {
+      this.previewPath = ""
+      this.previewIndex = 0
+      this.previewTime = ""
+      this.hasPreview = false
+    }
+  },
+
+  goBack() {
+    router.back()
+  }
+}
+</script>
+
+<style>
+@import '../../common/back-page.css';
+@import '../../common/card.css';
+
+.scroll-inner { margin-top: 0; padding: 0 6px 20px 6px; flex-direction: column; }
+.status-sub { lines: 2; }
+.preview-card {
+  width: 324px;
+  margin: 8px 6px 0 6px;
+  padding: 12px;
+  border-radius: 36px;
+  background-color: #262626;
+  flex-direction: column;
+}
+.preview-image {
+  width: 300px;
+  height: 180px;
+  border-radius: 24px;
+  background-color: #111111;
+  object-fit: contain;
+}
+.preview-title {
+  margin-top: 12px;
+  font-size: 28px;
+  line-height: 34px;
+  font-weight: bold;
+  color: #ffffff;
+}
+.preview-sub {
+  margin-top: 4px;
+  font-size: 24px;
+  line-height: 30px;
+  color: rgba(255,255,255,0.6);
+  font-weight: bold;
+}
+
+@media (shape: rect) {
+  .scroll-inner { margin-top: -15px; }
+}
+
+@media (shape: pill-shaped) and (max-width: 100) {
+  .preview-card {
+    width: 184px;
+    margin: 8px 4px 0 4px;
+    padding: 10px;
+    border-radius: 27px;
+  }
+  .preview-image {
+    width: 164px;
+    height: 98px;
+    border-radius: 20px;
+  }
+  .preview-title {
+    font-size: 24px;
+    line-height: 30px;
+  }
+  .preview-sub {
+    font-size: 20px;
+    line-height: 24px;
+  }
+}
+
+@media (shape: pill-shaped) and (min-width: 101) {
+  .preview-card {
+    width: 204px;
+    margin: 8px 4px 0 4px;
+    padding: 10px;
+    border-radius: 27px;
+  }
+  .preview-image {
+    width: 184px;
+    height: 110px;
+    border-radius: 20px;
+  }
+  .preview-title {
+    font-size: 24px;
+    line-height: 30px;
+  }
+  .preview-sub {
+    font-size: 20px;
+    line-height: 24px;
+  }
+}
+</style>

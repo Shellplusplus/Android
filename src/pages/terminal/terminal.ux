@@ -67,11 +67,13 @@
 import router from "@system.router"
 import file from "@system.file"
 import device from "@system.device"
+import prompt from "@system.prompt"
 
 var CMD_FILE = "internal://files/cmd_request.json"
 var RESULT_FILE = "internal://files/cmd_result.json"
 var HISTORY_FILE = "internal://files/cmd_history.json"
 var HISTORY_CONFIG_FILE = "internal://files/history_config.json"
+var BRIDGE_STATE_FILE = "internal://files/bridge_state.json"
 var cmdSeq = Date.now()
 var lastResultSeq = -1
 var lastSentSeq = -1
@@ -237,17 +239,57 @@ export default {
     })
   },
 
+  readBridgeState(done) {
+    file.readText({
+      uri: BRIDGE_STATE_FILE,
+      success: function(data) {
+        try {
+          done(JSON.parse(data.text))
+        } catch (e) {
+          done(null)
+        }
+      },
+      fail: function() {
+        done(null)
+      }
+    })
+  },
+
+  ensureBridgeIdle(onReady) {
+    var self = this
+    self.readBridgeState(function(state) {
+      if (state && state.busy) {
+        var message = state.mode === "screenshot"
+          ? self.$t("terminal.screenshotBusy")
+          : self.$t("terminal.bridgeBusy")
+        self.outputText = message
+        prompt.showToast({ message: message })
+        return
+      }
+      onReady()
+    })
+  },
+
   /* ====== 发送命令 ====== */
   sendBuffer() {
     if (!this.cmdBuffer) return
+    var self = this
     var cmd = this.cmdBuffer
-    this.sendCommand(cmd, true)
-    this.cmdBuffer = ""
-    this.showKeyboard = false
+    this.ensureBridgeIdle(function() {
+      self.sendCommand(cmd, true, true)
+      self.cmdBuffer = ""
+      self.showKeyboard = false
+    })
   },
 
-  sendCommand(cmd, shouldRecord) {
+  sendCommand(cmd, shouldRecord, skipBusyCheck) {
     var self = this
+    if (!skipBusyCheck) {
+      self.ensureBridgeIdle(function() {
+        self.sendCommand(cmd, shouldRecord, true)
+      })
+      return
+    }
     cmdSeq++
     lastSentSeq = cmdSeq
     self.hasFullOutput = false

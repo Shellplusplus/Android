@@ -63,13 +63,19 @@
       },
       "pages/settings": {
         "component": "settings"
+      },
+      "pages/debug": {
+        "component": "debug"
+      },
+      "pages/screenshot": {
+        "component": "screenshot"
       }
     }
   },
   "minAPILevel": 1,
   "packageInfo": {
     "toolkit": "2.0.5",
-    "timeStamp": "2026-06-14T16:08:13.380Z",
+    "timeStamp": "2026-06-15T13:47:14.005Z",
     "node": "v20.18.3",
     "platform": "linux",
     "arch": "x64",

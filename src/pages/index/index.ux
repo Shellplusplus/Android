@@ -32,6 +32,14 @@
           </div>
         </div>
 
+        <!-- 截图查看 -->
+        <div class="card" onclick="goScreenshot">
+          <div class="card-left">
+            <text class="card-label">{{ $t("index.screenshot") }}</text>
+            <text class="card-sub">{{ $t("index.screenshotDesc") }}</text>
+          </div>
+        </div>
+
         <!-- 设置 -->
         <div class="card" onclick="goSettings">
           <div class="card-left">
@@ -49,10 +57,8 @@
 <script>
 import router from "@system.router"
 import file from "@system.file"
-import prompt from "@system.prompt"
 
 var SYSINFO_FILE = "internal://files/system_info.json"
-var DEBUG_FILE = "internal://files/debug_mode.json"
 
 export default {
   private: {
@@ -60,8 +66,6 @@ export default {
     timer: null,
     sysTimer: null,
     statusText: "",
-    debugEnabled: false,
-    pendingEnable: false,
     titleTapCount: 0,
     titleTapTimer: null
   },
@@ -71,17 +75,10 @@ export default {
     self.updateTime()
     self.statusText = self.$t("index.waitingConnection")
     self.timer = setInterval(function() { self.updateTime() }, 1000)
-    self.loadDebugMode()
   },
 
   onShow() {
     var self = this
-    if (self.pendingEnable) {
-      self.pendingEnable = false
-      self.writeDebugMode(true)
-    } else {
-      self.loadDebugMode()
-    }
     self.checkConn()
     if (!self.sysTimer) {
       self.sysTimer = setInterval(function() { self.checkConn() }, 5000)
@@ -110,39 +107,6 @@ export default {
     this.nowTime = ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2)
   },
 
-  loadDebugMode() {
-    var self = this
-    file.readText({
-      uri: DEBUG_FILE,
-      success: function(data) {
-        try {
-          var json = JSON.parse(data.text)
-          self.debugEnabled = json.enabled === true
-        } catch (e) {
-          self.debugEnabled = false
-        }
-      },
-      fail: function() {
-        self.debugEnabled = false
-      }
-    })
-  },
-
-  writeDebugMode(enabled) {
-    var self = this
-    file.writeText({
-      uri: DEBUG_FILE,
-      text: JSON.stringify({ enabled: enabled }),
-      append: false,
-      success: function() {
-        self.debugEnabled = enabled
-        prompt.showToast({
-          message: enabled ? self.$t("index.debugEnabledToast") : self.$t("index.debugDisabledToast")
-        })
-      }
-    })
-  },
-
   resetTitleTap() {
     this.titleTapCount = 0
     if (this.titleTapTimer) {
@@ -164,18 +128,7 @@ export default {
       return
     }
     self.resetTitleTap()
-    if (self.debugEnabled) {
-      self.writeDebugMode(false)
-      return
-    }
-    self.pendingEnable = true
-    router.push({
-      uri: "/pages/log",
-      params: {
-        content: self.$t("settings.disclaimer"),
-        title: self.$t("settings.disclaimerTitle")
-      }
-    })
+    router.push({ uri: "/pages/debug" })
   },
 
   checkConn() {
@@ -215,6 +168,7 @@ export default {
   },
 
   goTerminal() { router.push({ uri: "/pages/terminal" }) },
+  goScreenshot() { router.push({ uri: "/pages/screenshot" }) },
   goDetail()   { router.push({ uri: "/pages/detail" }) },
   goSettings() { router.push({ uri: "/pages/settings" }) },
   goAbout()    { router.push({ uri: "/pages/about" }) },

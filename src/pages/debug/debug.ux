@@ -1,0 +1,253 @@
+<template>
+  <div class="page">
+    <scroll class="content-full" scroll-y="true" bounces="true">
+      <div class="header-area">
+        <img src="/common/hd.png" class="header-bg" />
+        <text class="hd-time">{{ nowTime }}</text>
+        <text class="hd-title">{{ $t("debug.title") }}</text>
+        <img src="/common/back.png" @click="goBack" class="hd-back" />
+      </div>
+      <div class="pill-header">
+        <div class="pill-more-wrap" @click="goBack">
+          <div class="pill-more"></div>
+        </div>
+      </div>
+
+      <div class="scroll-inner">
+        <div class="card" onclick="toggleSystemDebug">
+          <div class="card-left">
+            <text class="card-label">{{ $t("debug.systemTitle") }}</text>
+            <text class="card-sub">{{ systemDebugText }}</text>
+          </div>
+        </div>
+
+        <div class="card" onclick="onQuickAppDebug">
+          <div class="card-left">
+            <text class="card-label">{{ $t("debug.quickAppTitle") }}</text>
+            <text class="card-sub">{{ quickAppDebugText }}</text>
+          </div>
+        </div>
+
+        <div class="card" onclick="showSamplePreview">
+          <div class="card-left">
+            <text class="card-label">{{ $t("debug.previewSampleTitle") }}</text>
+            <text class="card-sub">{{ $t("debug.previewSampleDesc") }}</text>
+          </div>
+        </div>
+
+        <div class="card" onclick="resetScreenshotPreview">
+          <div class="card-left">
+            <text class="card-label">{{ $t("debug.previewResetTitle") }}</text>
+            <text class="card-sub">{{ $t("debug.previewResetDesc") }}</text>
+          </div>
+        </div>
+
+        <div class="spacer"></div>
+      </div>
+    </scroll>
+  </div>
+</template>
+
+<script>
+import router from "@system.router"
+import file from "@system.file"
+import prompt from "@system.prompt"
+
+var DEBUG_FILE = "internal://files/debug_mode.json"
+var QUICKAPP_DEBUG_FILE = "internal://files/quickapp_debug.json"
+var PREVIEW_STATE_FILE = "internal://files/screenshot_preview_state.json"
+
+export default {
+  private: {
+    nowTime: "00:00",
+    timer: null,
+    debugEnabled: false,
+    quickAppDebugEnabled: false,
+    systemDebugText: "",
+    quickAppDebugText: "",
+    pendingEnable: false
+  },
+
+  onInit() {
+    var self = this
+    self.updateTime()
+    self.timer = setInterval(function() { self.updateTime() }, 1000)
+    self.loadDebugMode()
+    self.loadQuickAppDebugMode()
+  },
+
+  onShow() {
+    if (this.pendingEnable) {
+      this.pendingEnable = false
+      this.writeDebugMode(true)
+      return
+    }
+    this.loadDebugMode()
+    this.loadQuickAppDebugMode()
+  },
+
+  onDestroy() {
+    clearInterval(this.timer)
+  },
+
+  updateTime() {
+    var d = new Date()
+    this.nowTime = ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2)
+  },
+
+  updateSystemDebugText() {
+    this.systemDebugText = this.debugEnabled ? this.$t("debug.systemOn") : this.$t("debug.systemOff")
+  },
+
+  updateQuickAppDebugText() {
+    this.quickAppDebugText = this.quickAppDebugEnabled ? this.$t("debug.quickAppOn") : this.$t("debug.quickAppOff")
+  },
+
+  loadDebugMode() {
+    var self = this
+    file.readText({
+      uri: DEBUG_FILE,
+      success: function(data) {
+        try {
+          var json = JSON.parse(data.text)
+          self.debugEnabled = json.enabled === true
+        } catch (e) {
+          self.debugEnabled = false
+        }
+        self.updateSystemDebugText()
+      },
+      fail: function() {
+        self.debugEnabled = false
+        self.updateSystemDebugText()
+      }
+    })
+  },
+
+  loadQuickAppDebugMode() {
+    var self = this
+    file.readText({
+      uri: QUICKAPP_DEBUG_FILE,
+      success: function(data) {
+        try {
+          var json = JSON.parse(data.text)
+          self.quickAppDebugEnabled = json.enabled === true
+        } catch (e) {
+          self.quickAppDebugEnabled = false
+        }
+        self.updateQuickAppDebugText()
+      },
+      fail: function() {
+        self.quickAppDebugEnabled = false
+        self.updateQuickAppDebugText()
+      }
+    })
+  },
+
+  writeDebugMode(enabled) {
+    var self = this
+    file.writeText({
+      uri: DEBUG_FILE,
+      text: JSON.stringify({ enabled: enabled }),
+      append: false,
+      success: function() {
+        self.debugEnabled = enabled
+        self.updateSystemDebugText()
+        prompt.showToast({
+          message: enabled ? self.$t("index.debugEnabledToast") : self.$t("index.debugDisabledToast")
+        })
+      }
+    })
+  },
+
+  writeQuickAppDebugMode(enabled) {
+    var self = this
+    file.writeText({
+      uri: QUICKAPP_DEBUG_FILE,
+      text: JSON.stringify({ enabled: enabled }),
+      append: false,
+      success: function() {
+        self.quickAppDebugEnabled = enabled
+        self.updateQuickAppDebugText()
+        prompt.showToast({
+          message: enabled ? self.$t("debug.quickAppEnabledToast") : self.$t("debug.quickAppDisabledToast")
+        })
+      }
+    })
+  },
+
+  toggleSystemDebug() {
+    var self = this
+    if (self.debugEnabled) {
+      self.writeDebugMode(false)
+      return
+    }
+    self.pendingEnable = true
+    router.push({
+      uri: "/pages/log",
+      params: {
+        content: self.$t("settings.disclaimer"),
+        title: self.$t("settings.disclaimerTitle")
+      }
+    })
+  },
+
+  onQuickAppDebug() {
+    this.writeQuickAppDebugMode(!this.quickAppDebugEnabled)
+  },
+
+  showSamplePreview() {
+    var self = this
+    if (!self.quickAppDebugEnabled) {
+      prompt.showToast({
+        message: self.$t("debug.quickAppOff")
+      })
+      return
+    }
+    file.writeText({
+      uri: PREVIEW_STATE_FILE,
+      text: JSON.stringify({ mode: "sample" }),
+      append: false,
+      success: function() {
+        prompt.showToast({
+          message: self.$t("debug.previewSampleToast")
+        })
+      }
+    })
+  },
+
+  resetScreenshotPreview() {
+    var self = this
+    file.writeText({
+      uri: PREVIEW_STATE_FILE,
+      text: JSON.stringify({ mode: "real" }),
+      append: false,
+      success: function() {
+        prompt.showToast({
+          message: self.$t("debug.previewResetToast")
+        })
+      }
+    })
+  },
+
+  goBack() {
+    router.back()
+  }
+}
+</script>
+
+<style>
+@import '../../common/back-page.css';
+@import '../../common/card.css';
+
+.scroll-inner { margin-top: 0; padding: 0 6px 20px 6px; flex-direction: column; }
+
+@media (shape: rect) {
+  .scroll-inner { margin-top: -15px; }
+}
+@media (shape: pill-shaped) and (max-width: 100) {
+  .scroll-inner { padding: 0 4px 16px 4px; }
+}
+@media (shape: pill-shaped) and (min-width: 101) {
+  .scroll-inner { padding: 0 4px 16px 4px; }
+}
+</style>

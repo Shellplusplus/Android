@@ -63,6 +63,12 @@
       },
       "pages/settings": {
         "component": "settings"
+      },
+      "pages/debug": {
+        "component": "debug"
+      },
+      "pages/screenshot": {
+        "component": "screenshot"
       }
     }
   }
