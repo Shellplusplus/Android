@@ -389,19 +389,32 @@ export default {
     return fallbackFile || ""
   },
 
-  buildDebugHistoryItem() {
+  buildDebugHistoryItems() {
     if (!this.quickAppDebugEnabled || !this.previewHistoryEnabled || !this.samplePath) {
-      return null
+      return []
     }
-    return {
-      id: "shot-debug-history",
-      type: "debug",
-      label: this.$t("screenshot.debugHistoryLabel"),
-      shotId: "debug-history-" + this.sampleLabel,
-      index: -1,
-      file: this.samplePath,
-      timeText: this.$t("screenshot.debugHistoryTime")
-    }
+    return [
+      {
+        id: "shot-debug-history-1",
+        type: "debug",
+        label: "20260616002803#1",
+        shotId: "20260616002803#1",
+        index: 1,
+        file: this.samplePath,
+        timeText: "2026-06-16 00:28:03",
+        capturedAtUnix: 1781540883
+      },
+      {
+        id: "shot-debug-history-2",
+        type: "debug",
+        label: "20260616002815#2",
+        shotId: "20260616002815#2",
+        index: 2,
+        file: this.samplePath,
+        timeText: "2026-06-16 00:28:15",
+        capturedAtUnix: 1781540895
+      }
+    ]
   },
 
   renderPreview(path, indexText, timeText) {
@@ -445,9 +458,9 @@ export default {
           }
         } catch (e) {}
         var realItems = self.normalizeShots(list)
-        var debugItem = self.buildDebugHistoryItem()
-        if (debugItem) {
-          realItems.push(debugItem)
+        var debugItems = self.buildDebugHistoryItems()
+        for (var j = 0; j < debugItems.length; j++) {
+          realItems.push(debugItems[j])
         }
         if (self.previewMode === "sample") {
           self.shotItems = self.buildShotItems(realItems)
@@ -485,9 +498,9 @@ export default {
         self.shotItems = self.buildShotItems([])
         self.hasShots = self.shotItems.length > 0
         if (self.previewMode === "sample") {
-          var debugItem = self.buildDebugHistoryItem()
-          if (debugItem) {
-            self.shotItems = self.buildShotItems([debugItem])
+          var debugItems = self.buildDebugHistoryItems()
+          if (debugItems.length > 0) {
+            self.shotItems = self.buildShotItems(debugItems)
             self.hasShots = self.shotItems.length > 0
             self.showHistoryDivider = self.hasShots
           }

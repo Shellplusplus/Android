@@ -1,6 +1,10 @@
 <template>
   <div class="page">
     <scroll class="content-full" scroll-y="true" bounces="true">
+      <div class="header-area">
+        <img src="/common/hd.png" class="header-bg" />
+        <text class="hd-time">{{ nowTime }}</text>
+      </div>
       <img src="/common/About_336.png" class="about-bg about-336" />
       <img src="/common/About_192.png" class="about-bg about-192" />
       <img src="/common/About_212.png" class="about-bg about-212" />
@@ -18,6 +22,28 @@
 import router from "@system.router"
 
 export default {
+  private: {
+    nowTime: "00:00",
+    timer: null
+  },
+
+  onInit() {
+    var self = this
+    self.updateTime()
+    self.timer = setInterval(function() { self.updateTime() }, 1000)
+  },
+
+  onDestroy() {
+    if (this.timer) {
+      clearInterval(this.timer)
+    }
+  },
+
+  updateTime() {
+    var d = new Date()
+    this.nowTime = ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2)
+  },
+
   goBack() {
     router.back()
   }
@@ -29,10 +55,11 @@ export default {
 
 .page { position: relative; }
 .about-bg { display: none; }
-.about-336 { display: flex; width: 336px; }
+.about-336 { display: flex; width: 336px; margin-top: -102px; }
 .about-192 { width: 192px; }
 .about-212 { width: 212px; }
 @media (shape: pill-shaped) and (max-width: 100) {
+  .header-area { display: none; }
   .about-336 { display: none; }
   .about-192 { display: flex; }
   .about-212 { display: none; }
@@ -40,6 +67,7 @@ export default {
   .pill-header { position: absolute; top: 0; left: 0; }
 }
 @media (shape: pill-shaped) and (min-width: 101) {
+  .header-area { display: none; }
   .about-336 { display: none; }
   .about-192 { display: none; }
   .about-212 { display: flex; }
