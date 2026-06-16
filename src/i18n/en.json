@@ -87,6 +87,10 @@
     "previewResetTitle": "Reset Screenshot Preview",
     "previewResetDesc": "Restore real screenshot display",
     "previewResetToast": "Screenshot preview reset",
+    "clearShotsTitle": "Delete All Screenshots",
+    "clearShotsDesc": "Delete all screenshot files in the directory",
+    "clearShotsDone": "All screenshots deleted",
+    "clearShotsFail": "Delete failed",
     "quickAppPending": "Not available yet"
   },
   "history": {

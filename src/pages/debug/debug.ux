@@ -58,6 +58,13 @@
           </div>
         </div>
 
+        <div class="card" onclick="clearAllScreenshots">
+          <div class="card-left">
+            <text class="card-label">{{ $t("debug.clearShotsTitle") }}</text>
+            <text class="card-sub">{{ $t("debug.clearShotsDesc") }}</text>
+          </div>
+        </div>
+
         <div class="spacer"></div>
       </div>
     </scroll>
@@ -72,6 +79,7 @@ import prompt from "@system.prompt"
 var DEBUG_FILE = "internal://files/debug_mode.json"
 var QUICKAPP_DEBUG_FILE = "internal://files/quickapp_debug.json"
 var PREVIEW_STATE_FILE = "internal://files/screenshot_preview_state.json"
+var HISTORY_FILE = "internal://files/screenshot_history.json"
 
 export default {
   private: {
@@ -293,6 +301,75 @@ export default {
       success: function() {
         prompt.showToast({
           message: self.$t("debug.previewResetToast")
+        })
+      }
+    })
+  },
+
+  clearAllScreenshots() {
+    var self = this
+    file.readText({
+      uri: HISTORY_FILE,
+      success: function(data) {
+        var store = {}
+        var items = []
+        try {
+          store = JSON.parse(data.text)
+          items = store && store.items instanceof Array ? store.items : (store instanceof Array ? store : [])
+        } catch (e) {}
+        self.deleteScreenshotFiles(items, 0, function() {
+          self.writeEmptyScreenshotHistory()
+        })
+      },
+      fail: function() {
+        self.writeEmptyScreenshotHistory()
+      }
+    })
+  },
+
+  deleteScreenshotFiles(items, index, done) {
+    var self = this
+    if (!(items instanceof Array) || index >= items.length) {
+      done()
+      return
+    }
+    var item = items[index]
+    var next = function() {
+      self.deleteScreenshotFiles(items, index + 1, done)
+    }
+    if (!item || !item.file) {
+      next()
+      return
+    }
+    file.delete({
+      uri: item.file,
+      success: function() {
+        next()
+      },
+      fail: function() {
+        next()
+      }
+    })
+  },
+
+  writeEmptyScreenshotHistory() {
+    var self = this
+    file.writeText({
+      uri: HISTORY_FILE,
+      text: JSON.stringify({
+        items: [],
+        nextIndex: 1,
+        lastItem: null
+      }),
+      append: false,
+      success: function() {
+        prompt.showToast({
+          message: self.$t("debug.clearShotsDone")
+        })
+      },
+      fail: function() {
+        prompt.showToast({
+          message: self.$t("debug.clearShotsFail")
         })
       }
     })

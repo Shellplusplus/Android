@@ -87,6 +87,10 @@
     "previewResetTitle": "重置截图预览",
     "previewResetDesc": "恢复为真实截图显示",
     "previewResetToast": "截图预览已重置",
+    "clearShotsTitle": "删除全部截图",
+    "clearShotsDesc": "删除目录中的全部截图文件",
+    "clearShotsDone": "已删除全部截图",
+    "clearShotsFail": "删除失败",
     "quickAppPending": "暂未开放"
   },
   "history": {
