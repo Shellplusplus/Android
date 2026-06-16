@@ -336,13 +336,14 @@ export default {
       var shotId = item.shotId || this.buildShotId(item, i + 1)
       if (seenIds[shotId]) continue
       seenIds[shotId] = true
+      var filePath = this.buildShotFilePath(shotId, item.file)
       normalized.push({
         id: "shot-" + shotId,
         type: "real",
         label: shotId,
         shotId: shotId,
         index: item.index || (i + 1),
-        file: item.file,
+        file: filePath,
         timeText: item.capturedAt || this.$t("screenshot.unknownTime"),
         capturedAtUnix: item.capturedAtUnix || 0
       })
@@ -366,6 +367,13 @@ export default {
       timePart = "00000000000000"
     }
     return timePart + "#" + (item && item.index ? item.index : fallbackIndex)
+  },
+
+  buildShotFilePath(shotId, fallbackFile) {
+    if (shotId) {
+      return "internal://files/screenshots/" + shotId.replace("#", "_") + ".png"
+    }
+    return fallbackFile || ""
   },
 
   loadHistory() {
