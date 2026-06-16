@@ -30,7 +30,7 @@
 
         <div if="{{hasPreview}}" class="preview-card">
           <image class="preview-image" style="{{ previewImageStyle }}" src="{{ previewPath }}"></image>
-          <text class="preview-title">#{{ previewIndex }}</text>
+          <text class="preview-title">{{ previewIndex }}</text>
           <text class="preview-sub">{{ previewTime }}</text>
           <div if="{{previewMode !== 'sample' || previewDeleteButtonEnabled}}" class="preview-actions">
             <text class="delete-btn" onclick="deleteCurrentShot">{{ $t("screenshot.delete") }}</text>
@@ -87,6 +87,7 @@ export default {
     shotItems: [],
     followLatest: true,
     selectedPreviewFile: "",
+    selectedPreviewId: "",
     quickAppDebugEnabled: false,
     previewDeleteButtonEnabled: false,
     samplePath: "",
@@ -152,10 +153,12 @@ export default {
           self.previewMode = json.mode === "sample" ? "sample" : "real"
           self.followLatest = json.followLatest !== false
           self.selectedPreviewFile = json.selectedFile || ""
+          self.selectedPreviewId = json.selectedId || ""
         } catch (e) {
           self.previewMode = "real"
           self.followLatest = true
           self.selectedPreviewFile = ""
+          self.selectedPreviewId = ""
         }
         self.applyPreviewMode()
         self.loadHistory()
@@ -164,19 +167,21 @@ export default {
         self.previewMode = "real"
         self.followLatest = true
         self.selectedPreviewFile = ""
+        self.selectedPreviewId = ""
         self.applyPreviewMode()
         self.loadHistory()
       }
     })
   },
 
-  writePreviewState(mode, followLatest, selectedFile) {
+  writePreviewState(mode, followLatest, selectedFile, selectedId) {
     file.writeText({
       uri: PREVIEW_STATE_FILE,
       text: JSON.stringify({
         mode: mode,
         followLatest: followLatest !== false,
-        selectedFile: selectedFile || ""
+        selectedFile: selectedFile || "",
+        selectedId: selectedId || ""
       }),
       append: false
     })
@@ -188,8 +193,9 @@ export default {
     }
     this.followLatest = false
     this.selectedPreviewFile = ""
+    this.selectedPreviewId = ""
     this.previewPath = this.samplePath
-    this.previewIndex = 999
+    this.previewIndex = this.$t("screenshot.sampleIndex")
     this.previewTime = this.$t("screenshot.sampleTimePrefix") + this.sampleLabel
     this.hasPreview = true
   },
@@ -322,17 +328,19 @@ export default {
 
   normalizeShots(items) {
     var normalized = []
-    var seenFiles = {}
+    var seenIds = {}
     if (!(items instanceof Array)) return normalized
     for (var i = 0; i < items.length; i++) {
       var item = items[i]
       if (!item || !item.file) continue
-       if (seenFiles[item.file]) continue
-      seenFiles[item.file] = true
+      var shotId = item.shotId || this.buildShotId(item, i + 1)
+      if (seenIds[shotId]) continue
+      seenIds[shotId] = true
       normalized.push({
-        id: "shot-" + i,
+        id: "shot-" + shotId,
         type: "real",
-        label: "#" + (item.index || (i + 1)),
+        label: shotId,
+        shotId: shotId,
         index: item.index || (i + 1),
         file: item.file,
         timeText: item.capturedAt || this.$t("screenshot.unknownTime"),
@@ -346,6 +354,18 @@ export default {
       return (b.capturedAtUnix || 0) - (a.capturedAtUnix || 0)
     })
     return normalized
+  },
+
+  buildShotId(item, fallbackIndex) {
+    if (item && item.shotId) {
+      return item.shotId
+    }
+    var raw = item && item.capturedAt ? item.capturedAt : ""
+    var timePart = raw ? raw.replace(/[-:\s]/g, "") : ""
+    if (!timePart) {
+      timePart = "00000000000000"
+    }
+    return timePart + "#" + (item && item.index ? item.index : fallbackIndex)
   },
 
   loadHistory() {
@@ -370,19 +390,22 @@ export default {
         if (realItems.length > 0) {
           var latest = realItems[0]
           var previewItem = latest
-          if (!self.followLatest && self.selectedPreviewFile) {
+          if (!self.followLatest && (self.selectedPreviewId || self.selectedPreviewFile)) {
             for (var i = 0; i < realItems.length; i++) {
-              if (realItems[i].file === self.selectedPreviewFile) {
+              if (
+                (self.selectedPreviewId && realItems[i].shotId === self.selectedPreviewId) ||
+                (!self.selectedPreviewId && realItems[i].file === self.selectedPreviewFile)
+              ) {
                 previewItem = realItems[i]
                 break
               }
             }
           }
           self.previewPath = previewItem.file
-          self.previewIndex = previewItem.index
+          self.previewIndex = previewItem.shotId
           self.previewTime = previewItem.timeText
           self.hasPreview = true
-          self.shotItems = self.buildShotItems(realItems, previewItem.file)
+          self.shotItems = self.buildShotItems(realItems, previewItem.shotId)
           self.hasShots = self.shotItems.length > 0
         } else {
           self.previewPath = ""
@@ -408,13 +431,13 @@ export default {
     })
   },
 
-  buildShotItems(realItems, excludeFile) {
-    if (!excludeFile) {
+  buildShotItems(realItems, excludeShotId) {
+    if (!excludeShotId) {
       return realItems.slice(0)
     }
     var items = []
     for (var i = 0; i < realItems.length; i++) {
-      if (realItems[i].file !== excludeFile) {
+      if (realItems[i].shotId !== excludeShotId) {
         items.push(realItems[i])
       }
     }
@@ -430,7 +453,8 @@ export default {
     shotSeq++
     self.followLatest = true
     self.selectedPreviewFile = ""
-    self.writePreviewState("real", true, "")
+    self.selectedPreviewId = ""
+    self.writePreviewState("real", true, "", "")
     file.writeText({
       uri: REQUEST_FILE,
       text: JSON.stringify({
@@ -450,25 +474,30 @@ export default {
     })
   },
 
-  selectShot(filePath, index, timeText) {
+  selectShot(item) {
+    if (!item) return
     this.previewMode = "real"
     this.followLatest = false
-    this.selectedPreviewFile = filePath || ""
-    this.writePreviewState("real", false, this.selectedPreviewFile)
-    this.previewPath = filePath
-    this.previewIndex = index
-    this.previewTime = timeText
-    this.hasPreview = !!filePath
+    this.selectedPreviewFile = item.file || ""
+    this.selectedPreviewId = item.shotId || ""
+    this.writePreviewState("real", false, this.selectedPreviewFile, this.selectedPreviewId)
+    this.previewPath = item.file || ""
+    this.previewIndex = item.shotId || ""
+    this.previewTime = item.timeText || ""
+    this.hasPreview = !!item.file
   },
 
   onShotItemClick(item) {
     if (!item) return
-    this.selectShot(item.file, item.index, item.timeText)
+    this.selectShot(item)
   },
 
   deleteCurrentShot() {
     var self = this
-    if (!self.previewPath || self.previewMode === "sample") {
+    if (!self.previewPath) {
+      return
+    }
+    if (self.previewMode === "sample") {
       return
     }
     if (self.isBusy) {
@@ -476,6 +505,7 @@ export default {
       return
     }
     var targetFile = self.previewPath
+    var targetShotId = self.previewIndex
     file.readText({
       uri: HISTORY_FILE,
       success: function(data) {
@@ -484,12 +514,12 @@ export default {
           store = JSON.parse(data.text)
         } catch (e) {}
         self.removeScreenshotFile(targetFile, function() {
-          self.writeHistoryAfterDelete(store, targetFile)
+          self.writeHistoryAfterDelete(store, targetFile, targetShotId)
         })
       },
       fail: function() {
         self.removeScreenshotFile(targetFile, function() {
-          self.writeHistoryAfterDelete([], targetFile)
+          self.writeHistoryAfterDelete([], targetFile, targetShotId)
         })
       }
     })
@@ -507,7 +537,7 @@ export default {
     })
   },
 
-  writeHistoryAfterDelete(store, targetFile) {
+  writeHistoryAfterDelete(store, targetFile, targetShotId) {
     var self = this
     var items = store
     if (store && store.items instanceof Array) {
@@ -518,9 +548,11 @@ export default {
     }
     var filtered = []
     for (var i = 0; i < items.length; i++) {
-      if (items[i] && items[i].file && items[i].file !== targetFile) {
+      var item = items[i]
+      if (!item || !item.file) continue
+      if (item.shotId && targetShotId && item.shotId === targetShotId) continue
+      if (item.file === targetFile) continue
         filtered.push(items[i])
-      }
     }
     var payload = filtered
     if (store && store.items instanceof Array) {
@@ -537,7 +569,8 @@ export default {
       success: function() {
         self.followLatest = true
         self.selectedPreviewFile = ""
-        self.writePreviewState("real", true, "")
+        self.selectedPreviewId = ""
+        self.writePreviewState("real", true, "", "")
         self.refreshAll()
         prompt.showToast({ message: self.$t("screenshot.deleteDone") })
       },
@@ -551,11 +584,12 @@ export default {
     this.previewMode = "real"
     this.followLatest = true
     this.selectedPreviewFile = ""
-    this.writePreviewState("real", true, "")
+    this.selectedPreviewId = ""
+    this.writePreviewState("real", true, "", "")
     if (this.shotItems.length > 0) {
       var latest = this.shotItems[0]
       this.previewPath = latest.file
-      this.previewIndex = latest.index
+      this.previewIndex = latest.shotId
       this.previewTime = latest.timeText
       this.hasPreview = true
     } else {
