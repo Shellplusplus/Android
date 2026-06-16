@@ -66,6 +66,7 @@
     "title": "Debug Modes",
     "modeGroup": "Modes",
     "screenshotGroup": "Screenshot UI",
+    "logGroup": "Logs",
     "systemTitle": "System Debug Mode",
     "systemOn": "Enabled, tap to turn off",
     "systemOff": "Read disclaimer and enable",
@@ -91,6 +92,13 @@
     "clearShotsDesc": "Delete all screenshot files in the directory",
     "clearShotsDone": "All screenshots deleted",
     "clearShotsFail": "Delete failed",
+    "logRecordTitle": "Enable Log Recording",
+    "logRecordOn": "Enabled, Lua and quick app logs will be saved",
+    "logRecordOff": "Disabled, tap to enable",
+    "logRecordEnabledToast": "Log recording enabled",
+    "logRecordDisabledToast": "Log recording disabled",
+    "logHistoryTitle": "View Log History",
+    "logHistoryDesc": "View saved Lua and quick app logs",
     "quickAppPending": "Not available yet"
   },
   "history": {
@@ -101,7 +109,15 @@
   },
   "log": {
     "title": "Full output",
-    "empty": "No content"
+    "empty": "No content",
+    "historyTitle": "Log History",
+    "emptyHistoryTitle": "No logs yet",
+    "emptyHistoryDesc": "New logs will appear here after recording is enabled",
+    "sourceLua": "Lua",
+    "sourceQuickApp": "Quick App",
+    "unknownTime": "Unknown time",
+    "luaViewerTitle": "Lua Log",
+    "quickAppViewerTitle": "Quick App Log"
   },
   "detail": {
     "title": "Connection",

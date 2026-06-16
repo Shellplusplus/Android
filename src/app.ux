@@ -1,18 +1,161 @@
 <script>
 import file from "@system.file"
 import shellData from "./common/scripts/shellData.js"
+import logData from "./common/scripts/logData.js"
 
 export default {
   shellData: shellData,
+  logData: logData,
+
+  readLogEnabled(done) {
+    file.readText({
+      uri: logData.logConfigFile,
+      success: function(data) {
+        var json = logData.safeParse(data.text, {})
+        done(json && json.enabled === true)
+      },
+      fail: function() {
+        done(false)
+      }
+    })
+  },
+
+  writeRuntimeState(running, enabled) {
+    file.writeText({
+      uri: logData.quickAppRuntimeFile,
+      text: JSON.stringify({
+        running: running === true,
+        logEnabled: enabled === true,
+        startedAtUnix: Math.floor(Date.now() / 1000),
+        updatedAtUnix: Math.floor(Date.now() / 1000)
+      }),
+      append: false
+    })
+  },
+
+  markAppStop() {
+    var self = this
+    self.readLogEnabled(function(enabled) {
+      file.writeText({
+        uri: logData.quickAppRuntimeFile,
+        text: JSON.stringify({
+          running: false,
+          logEnabled: enabled === true,
+          updatedAtUnix: Math.floor(Date.now() / 1000)
+        }),
+        append: false
+      })
+    })
+  },
+
+  appendQuickAppCrashLog(previousState) {
+    var self = this
+    file.readText({
+      uri: logData.quickAppLogHistoryFile,
+      success: function(data) {
+        var store = logData.normalizeLogStore(logData.safeParse(data.text, {}), "quickapp")
+        self.writeQuickAppCrashLog(store, previousState)
+      },
+      fail: function() {
+        self.writeQuickAppCrashLog({
+          items: [],
+          nextIndex: 1,
+          lastItem: null
+        }, previousState)
+      }
+    })
+  },
+
+  writeQuickAppCrashLog(store, previousState) {
+    var index = parseInt(store.nextIndex, 10) || 1
+    var capturedAtUnix = Math.floor(Date.now() / 1000)
+    var capturedAt = logData.formatDisplayTime(capturedAtUnix)
+    var logId = logData.buildLogId(index, capturedAtUnix)
+    var fileUri = logData.buildLogFileUri("quickapp", logId)
+    var startedAt = previousState && previousState.startedAtUnix
+      ? logData.formatDisplayTime(previousState.startedAtUnix)
+      : "-"
+    var content = ""
+    content += "快应用异常退出\n\n"
+    content += "编号: " + logId + "\n"
+    content += "记录时间: " + capturedAt + "\n"
+    content += "上次启动: " + startedAt + "\n"
+    content += "说明: 上次会话没有正常结束，可能是崩溃、OOM 或被系统回收。\n"
+
+    var item = {
+      index: index,
+      logId: logId,
+      file: fileUri,
+      name: logData.buildLogFileName("quickapp", logId),
+      capturedAt: capturedAt,
+      capturedAtUnix: capturedAtUnix,
+      source: "quickapp",
+      title: "快应用异常退出",
+      summary: "疑似崩溃或 OOM"
+    }
+
+    var self = this
+    file.writeText({
+      uri: fileUri,
+      text: content,
+      append: false,
+      success: function() {
+        store.items.unshift(item)
+        while (store.items.length > logData.defaultLogHistoryLimit) {
+          store.items.pop()
+        }
+        store.lastItem = store.items[0] || null
+        store.nextIndex = index + 1
+        file.writeText({
+          uri: logData.quickAppLogHistoryFile,
+          text: JSON.stringify(store),
+          append: false,
+          success: function() {
+            self.writeRuntimeState(true, true)
+          },
+          fail: function() {
+            self.writeRuntimeState(true, true)
+          }
+        })
+      },
+      fail: function() {
+        self.writeRuntimeState(true, true)
+      }
+    })
+  },
+
+  markAppStart() {
+    var self = this
+    self.readLogEnabled(function(enabled) {
+      file.readText({
+        uri: logData.quickAppRuntimeFile,
+        success: function(data) {
+          var previousState = logData.safeParse(data.text, {})
+          if (enabled && previousState && previousState.running === true && previousState.logEnabled === true) {
+            self.appendQuickAppCrashLog(previousState)
+            return
+          }
+          self.writeRuntimeState(true, enabled)
+        },
+        fail: function() {
+          self.writeRuntimeState(true, enabled)
+        }
+      })
+    })
+  },
+
   onCreate() {
+    var self = this
     file.writeText({
       uri: "internal://files/cmd_result.json",
       text: '{"seq":-1}',
       append: false
     })
+    self.markAppStart()
     console.log("Shell++ project created")
   },
   onDestroy() {
+    this.markAppStop()
     console.log("Shell++ project destroyed")
   }
 }

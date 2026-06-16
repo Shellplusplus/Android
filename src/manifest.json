@@ -42,6 +42,9 @@
       "pages/log": {
         "component": "log"
       },
+      "pages/loghistory": {
+        "component": "loghistory"
+      },
       "pages/info": {
         "component": "info"
       },

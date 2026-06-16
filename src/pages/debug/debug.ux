@@ -65,6 +65,21 @@
           </div>
         </div>
 
+        <text class="section-title">{{ $t("debug.logGroup") }}</text>
+        <div class="card" onclick="toggleLogRecording">
+          <div class="card-left">
+            <text class="card-label">{{ $t("debug.logRecordTitle") }}</text>
+            <text class="card-sub">{{ logRecordingText }}</text>
+          </div>
+        </div>
+
+        <div class="card" onclick="goLogHistory">
+          <div class="card-left">
+            <text class="card-label">{{ $t("debug.logHistoryTitle") }}</text>
+            <text class="card-sub">{{ $t("debug.logHistoryDesc") }}</text>
+          </div>
+        </div>
+
         <div class="spacer"></div>
       </div>
     </scroll>
@@ -75,11 +90,13 @@
 import router from "@system.router"
 import file from "@system.file"
 import prompt from "@system.prompt"
+import logData from "../../common/scripts/logData.js"
 
 var DEBUG_FILE = "internal://files/debug_mode.json"
 var QUICKAPP_DEBUG_FILE = "internal://files/quickapp_debug.json"
 var PREVIEW_STATE_FILE = "internal://files/screenshot_preview_state.json"
 var HISTORY_FILE = "internal://files/screenshot_history.json"
+var LOG_CONFIG_FILE = logData.logConfigFile
 
 export default {
   private: {
@@ -93,6 +110,8 @@ export default {
     quickAppDebugText: "",
     previewDeleteButtonText: "",
     previewHistoryText: "",
+    logRecordingEnabled: false,
+    logRecordingText: "",
     pendingEnable: false
   },
 
@@ -102,6 +121,7 @@ export default {
     self.timer = setInterval(function() { self.updateTime() }, 1000)
     self.loadDebugMode()
     self.loadQuickAppDebugMode()
+    self.loadLogConfig()
   },
 
   onShow() {
@@ -112,6 +132,7 @@ export default {
     }
     this.loadDebugMode()
     this.loadQuickAppDebugMode()
+    this.loadLogConfig()
   },
 
   onDestroy() {
@@ -141,6 +162,12 @@ export default {
     this.previewHistoryText = this.previewHistoryEnabled
       ? this.$t("debug.previewHistoryOn")
       : this.$t("debug.previewHistoryOff")
+  },
+
+  updateLogRecordingText() {
+    this.logRecordingText = this.logRecordingEnabled
+      ? this.$t("debug.logRecordOn")
+      : this.$t("debug.logRecordOff")
   },
 
   loadDebugMode() {
@@ -193,6 +220,26 @@ export default {
     })
   },
 
+  loadLogConfig() {
+    var self = this
+    file.readText({
+      uri: LOG_CONFIG_FILE,
+      success: function(data) {
+        try {
+          var json = JSON.parse(data.text)
+          self.logRecordingEnabled = json.enabled === true
+        } catch (e) {
+          self.logRecordingEnabled = false
+        }
+        self.updateLogRecordingText()
+      },
+      fail: function() {
+        self.logRecordingEnabled = false
+        self.updateLogRecordingText()
+      }
+    })
+  },
+
   writeDebugMode(enabled) {
     var self = this
     file.writeText({
@@ -228,6 +275,31 @@ export default {
         self.updatePreviewHistoryText()
         prompt.showToast({
           message: enabled ? self.$t("debug.quickAppEnabledToast") : self.$t("debug.quickAppDisabledToast")
+        })
+      }
+    })
+  },
+
+  writeLogConfig(enabled) {
+    var self = this
+    file.writeText({
+      uri: LOG_CONFIG_FILE,
+      text: JSON.stringify({ enabled: enabled === true }),
+      append: false,
+      success: function() {
+        file.writeText({
+          uri: logData.quickAppRuntimeFile,
+          text: JSON.stringify({
+            running: true,
+            logEnabled: enabled === true,
+            updatedAtUnix: Math.floor(Date.now() / 1000)
+          }),
+          append: false
+        })
+        self.logRecordingEnabled = enabled === true
+        self.updateLogRecordingText()
+        prompt.showToast({
+          message: enabled ? self.$t("debug.logRecordEnabledToast") : self.$t("debug.logRecordDisabledToast")
         })
       }
     })
@@ -304,6 +376,14 @@ export default {
         })
       }
     })
+  },
+
+  toggleLogRecording() {
+    this.writeLogConfig(!this.logRecordingEnabled)
+  },
+
+  goLogHistory() {
+    router.push({ uri: "/pages/loghistory" })
   },
 
   clearAllScreenshots() {

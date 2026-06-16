@@ -1,0 +1,177 @@
+<template>
+  <div class="page">
+    <scroll class="content-full" scroll-y="true" bounces="true">
+      <div class="header-area">
+        <img src="/common/hd.png" class="header-bg" />
+        <text class="hd-time">{{ nowTime }}</text>
+        <text class="hd-title">{{ $t("log.historyTitle") }}</text>
+        <img src="/common/back.png" @click="goBack" class="hd-back" />
+      </div>
+      <div class="pill-header">
+        <div class="pill-more-wrap" @click="goBack">
+          <div class="pill-more"></div>
+        </div>
+      </div>
+
+      <div class="scroll-inner">
+        <div class="card">
+          <div class="card-left">
+            <text class="card-label">{{ $t("debug.logRecordTitle") }}</text>
+            <text class="card-sub">{{ logStatusText }}</text>
+          </div>
+        </div>
+
+        <div if="{{!hasLogs}}" class="card">
+          <div class="card-left">
+            <text class="card-label">{{ $t("log.emptyHistoryTitle") }}</text>
+            <text class="card-sub">{{ $t("log.emptyHistoryDesc") }}</text>
+          </div>
+        </div>
+
+        <div if="{{hasLogs}}" class="card" for="{{logItems}}" tid="id" onclick="openLogItem($item)">
+          <div class="card-left">
+            <text class="card-label">{{ $item.label }}</text>
+            <text class="card-sub">{{ $item.sub }}</text>
+          </div>
+        </div>
+
+        <div class="spacer"></div>
+      </div>
+    </scroll>
+  </div>
+</template>
+
+<script>
+import router from "@system.router"
+import file from "@system.file"
+import logData from "../../common/scripts/logData.js"
+
+export default {
+  private: {
+    nowTime: "00:00",
+    timer: null,
+    logItems: [],
+    hasLogs: false,
+    logStatusText: ""
+  },
+
+  onInit() {
+    var self = this
+    self.updateTime()
+    self.timer = setInterval(function() { self.updateTime() }, 1000)
+    self.loadAll()
+  },
+
+  onShow() {
+    this.loadAll()
+  },
+
+  onDestroy() {
+    clearInterval(this.timer)
+  },
+
+  updateTime() {
+    var d = new Date()
+    this.nowTime = ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2)
+  },
+
+  loadAll() {
+    this.loadLogConfig()
+    this.loadLogHistory()
+  },
+
+  loadLogConfig() {
+    var self = this
+    file.readText({
+      uri: logData.logConfigFile,
+      success: function(data) {
+        var json = logData.safeParse(data.text, {})
+        self.logStatusText = json && json.enabled === true
+          ? self.$t("debug.logRecordOn")
+          : self.$t("debug.logRecordOff")
+      },
+      fail: function() {
+        self.logStatusText = self.$t("debug.logRecordOff")
+      }
+    })
+  },
+
+  loadLogHistory() {
+    var self = this
+    file.readText({
+      uri: logData.quickAppLogHistoryFile,
+      success: function(quickData) {
+        var quickStore = logData.normalizeLogStore(logData.safeParse(quickData.text, {}), "quickapp")
+        self.loadLuaLogHistory(quickStore.items)
+      },
+      fail: function() {
+        self.loadLuaLogHistory([])
+      }
+    })
+  },
+
+  loadLuaLogHistory(quickItems) {
+    var self = this
+    file.readText({
+      uri: logData.luaLogHistoryFile,
+      success: function(luaData) {
+        var luaStore = logData.normalizeLogStore(logData.safeParse(luaData.text, {}), "lua")
+        self.renderLogHistory((quickItems || []).concat(luaStore.items || []))
+      },
+      fail: function() {
+        self.renderLogHistory(quickItems || [])
+      }
+    })
+  },
+
+  renderLogHistory(items) {
+    items = logData.normalizeLogItems(items || [])
+    for (var i = 0; i < items.length; i++) {
+      items[i].label = items[i].logId
+      items[i].sub = this.buildItemSub(items[i])
+    }
+    this.logItems = items
+    this.hasLogs = items.length > 0
+  },
+
+  buildItemSub(item) {
+    var sourceText = item.source === "lua" ? this.$t("log.sourceLua") : this.$t("log.sourceQuickApp")
+    var timeText = item.capturedAt || this.$t("log.unknownTime")
+    return sourceText + " · " + timeText
+  },
+
+  openLogItem(item) {
+    if (!item || !item.file) {
+      return
+    }
+    router.push({
+      uri: "/pages/log",
+      params: {
+        title: item.source === "lua" ? this.$t("log.luaViewerTitle") : this.$t("log.quickAppViewerTitle"),
+        fileUri: item.file
+      }
+    })
+  },
+
+  goBack() {
+    router.back()
+  }
+}
+</script>
+
+<style>
+@import '../../common/back-page.css';
+@import '../../common/card.css';
+
+.scroll-inner { margin-top: 0; padding: 0 6px 20px 6px; flex-direction: column; }
+
+@media (shape: rect) {
+  .scroll-inner { margin-top: -15px; }
+}
+@media (shape: pill-shaped) and (max-width: 100) {
+  .scroll-inner { padding: 0 4px 16px 4px; }
+}
+@media (shape: pill-shaped) and (min-width: 101) {
+  .scroll-inner { padding: 0 4px 16px 4px; }
+}
+</style>

@@ -25,7 +25,7 @@ import router from "@system.router"
 import file from "@system.file"
 
 export default {
-  protected: { content: "", title: "" },
+  protected: { content: "", title: "", fileUri: "" },
 
   private: {
     nowTime: "00:00",
@@ -40,6 +40,22 @@ export default {
     self.updateTime()
     self.timer = setInterval(function() { self.updateTime() }, 1000)
     self.logTitle = self.title || self.$t("log.title")
+    if (this.fileUri) {
+      file.readText({
+        uri: this.fileUri,
+        success: function(data) {
+          if (data.text) {
+            self.logText = data.text
+          } else {
+            self.logText = self.$t("log.empty")
+          }
+        },
+        fail: function() {
+          self.logText = self.$t("log.empty")
+        }
+      })
+      return
+    }
     /* 优先从文件读取完整输出，其次从路由参数 */
     if (this.content) {
       self.logText = this.content

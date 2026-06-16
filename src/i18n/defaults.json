@@ -66,6 +66,7 @@
     "title": "Debug",
     "modeGroup": "模式",
     "screenshotGroup": "截图调试",
+    "logGroup": "日志",
     "systemTitle": "系统调试模式",
     "systemOn": "已开启，点击关闭",
     "systemOff": "无描述",
@@ -87,6 +88,17 @@
     "previewResetTitle": "重置截图预览",
     "previewResetDesc": "恢复为真实截图显示",
     "previewResetToast": "截图预览已重置",
+    "clearShotsTitle": "删除全部截图",
+    "clearShotsDesc": "删除目录中的全部截图文件",
+    "clearShotsDone": "已删除全部截图",
+    "clearShotsFail": "删除失败",
+    "logRecordTitle": "开启日志记录",
+    "logRecordOn": "已开启，Lua 和快应用会记录日志",
+    "logRecordOff": "已关闭，点击开启",
+    "logRecordEnabledToast": "日志记录已开启",
+    "logRecordDisabledToast": "日志记录已关闭",
+    "logHistoryTitle": "查看历史日志",
+    "logHistoryDesc": "查看 Lua 和快应用保存的日志",
     "quickAppPending": "NaN"
   },
   "history": {
@@ -97,7 +109,15 @@
   },
   "log": {
     "title": "完整输出",
-    "empty": "无内容"
+    "empty": "无内容",
+    "historyTitle": "日志历史",
+    "emptyHistoryTitle": "暂无历史日志",
+    "emptyHistoryDesc": "开启记录后，新的日志会显示在这里",
+    "sourceLua": "Lua",
+    "sourceQuickApp": "快应用",
+    "unknownTime": "时间未知",
+    "luaViewerTitle": "Lua 日志",
+    "quickAppViewerTitle": "快应用日志"
   },
   "detail": {
     "title": "连接详情",
