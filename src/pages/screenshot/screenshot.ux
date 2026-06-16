@@ -37,6 +37,8 @@
           </div>
         </div>
 
+        <div if="{{showHistoryDivider}}" class="history-divider"></div>
+
         <div if="{{!hasPreview}}" class="card">
           <div class="card-left">
             <text class="card-label">{{ $t("screenshot.emptyTitle") }}</text>
@@ -85,12 +87,14 @@ export default {
     previewTime: "",
     previewMode: "real",
     hasShots: false,
+    showHistoryDivider: false,
     shotItems: [],
     followLatest: true,
     selectedPreviewFile: "",
     selectedPreviewId: "",
     quickAppDebugEnabled: false,
     previewDeleteButtonEnabled: false,
+    previewHistoryEnabled: false,
     samplePath: "",
     sampleLabel: "",
     previewImageStyle: "height: 180px;",
@@ -257,9 +261,11 @@ export default {
           var json = JSON.parse(data.text)
           self.quickAppDebugEnabled = json.enabled === true
           self.previewDeleteButtonEnabled = json.showDeleteButton === true
+          self.previewHistoryEnabled = json.showHistorySample === true
         } catch (e) {
           self.quickAppDebugEnabled = false
           self.previewDeleteButtonEnabled = false
+          self.previewHistoryEnabled = false
         }
         if (!self.quickAppDebugEnabled && self.previewMode === "sample") {
           self.resetPreview()
@@ -269,6 +275,7 @@ export default {
       fail: function() {
         self.quickAppDebugEnabled = false
         self.previewDeleteButtonEnabled = false
+        self.previewHistoryEnabled = false
         if (self.previewMode === "sample") {
           self.resetPreview()
         }
@@ -382,6 +389,21 @@ export default {
     return fallbackFile || ""
   },
 
+  buildDebugHistoryItem() {
+    if (!this.quickAppDebugEnabled || !this.previewHistoryEnabled || !this.samplePath) {
+      return null
+    }
+    return {
+      id: "shot-debug-history",
+      type: "debug",
+      label: this.$t("screenshot.debugHistoryLabel"),
+      shotId: "debug-history-" + this.sampleLabel,
+      index: -1,
+      file: this.samplePath,
+      timeText: this.$t("screenshot.debugHistoryTime")
+    }
+  },
+
   renderPreview(path, indexText, timeText) {
     var self = this
     var nextPath = path || ""
@@ -423,9 +445,14 @@ export default {
           }
         } catch (e) {}
         var realItems = self.normalizeShots(list)
+        var debugItem = self.buildDebugHistoryItem()
+        if (debugItem) {
+          realItems.push(debugItem)
+        }
         if (self.previewMode === "sample") {
           self.shotItems = self.buildShotItems(realItems)
           self.hasShots = self.shotItems.length > 0
+          self.showHistoryDivider = self.hasShots
           self.applyPreviewMode()
           return
         }
@@ -446,20 +473,29 @@ export default {
           self.renderPreview(previewItem.file, previewItem.shotId, previewItem.timeText)
           self.shotItems = self.buildShotItems(realItems, previewItem.shotId)
           self.hasShots = self.shotItems.length > 0
+          self.showHistoryDivider = self.hasShots
         } else {
           self.renderPreview("", "", "")
           self.shotItems = self.buildShotItems([])
           self.hasShots = false
+          self.showHistoryDivider = false
         }
       },
       fail: function() {
         self.shotItems = self.buildShotItems([])
         self.hasShots = self.shotItems.length > 0
         if (self.previewMode === "sample") {
+          var debugItem = self.buildDebugHistoryItem()
+          if (debugItem) {
+            self.shotItems = self.buildShotItems([debugItem])
+            self.hasShots = self.shotItems.length > 0
+            self.showHistoryDivider = self.hasShots
+          }
           self.applyPreviewMode()
           return
         }
         self.renderPreview("", "", "")
+        self.showHistoryDivider = false
       }
     })
   },
@@ -671,6 +707,13 @@ export default {
   flex-direction: row;
   justify-content: flex-end;
 }
+.history-divider {
+  width: 300px;
+  height: 2px;
+  margin: 12px 18px 4px 18px;
+  background-color: rgba(255,255,255,0.14);
+  border-radius: 1px;
+}
 .delete-btn {
   width: 60px;
   height: 36px;
@@ -710,6 +753,10 @@ export default {
   .preview-actions {
     width: 164px;
   }
+  .history-divider {
+    width: 164px;
+    margin: 12px 14px 4px 14px;
+  }
   .delete-btn {
     width: 52px;
     font-size: 20px;
@@ -738,6 +785,10 @@ export default {
   }
   .preview-actions {
     width: 184px;
+  }
+  .history-divider {
+    width: 184px;
+    margin: 12px 14px 4px 14px;
   }
 }
 </style>

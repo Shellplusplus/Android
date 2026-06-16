@@ -32,7 +32,7 @@
           </div>
         </div>
 
-        <!-- 截图查看 -->
+        <!-- 截图 -->
         <div class="card" onclick="goScreenshot">
           <div class="card-left">
             <text class="card-label">{{ $t("index.screenshot") }}</text>

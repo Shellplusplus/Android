@@ -37,6 +37,13 @@
           </div>
         </div>
 
+        <div class="card" onclick="togglePreviewHistorySample">
+          <div class="card-left">
+            <text class="card-label">{{ $t("debug.previewHistoryTitle") }}</text>
+            <text class="card-sub">{{ previewHistoryText }}</text>
+          </div>
+        </div>
+
         <div class="card" onclick="togglePreviewDeleteButton">
           <div class="card-left">
             <text class="card-label">{{ $t("debug.previewDeleteTitle") }}</text>
@@ -73,9 +80,11 @@ export default {
     debugEnabled: false,
     quickAppDebugEnabled: false,
     previewDeleteButtonEnabled: false,
+    previewHistoryEnabled: false,
     systemDebugText: "",
     quickAppDebugText: "",
     previewDeleteButtonText: "",
+    previewHistoryText: "",
     pendingEnable: false
   },
 
@@ -120,6 +129,12 @@ export default {
       : this.$t("debug.previewDeleteOff")
   },
 
+  updatePreviewHistoryText() {
+    this.previewHistoryText = this.previewHistoryEnabled
+      ? this.$t("debug.previewHistoryOn")
+      : this.$t("debug.previewHistoryOff")
+  },
+
   loadDebugMode() {
     var self = this
     file.readText({
@@ -149,18 +164,23 @@ export default {
           var json = JSON.parse(data.text)
           self.quickAppDebugEnabled = json.enabled === true
           self.previewDeleteButtonEnabled = json.showDeleteButton === true
+          self.previewHistoryEnabled = json.showHistorySample === true
         } catch (e) {
           self.quickAppDebugEnabled = false
           self.previewDeleteButtonEnabled = false
+          self.previewHistoryEnabled = false
         }
         self.updateQuickAppDebugText()
         self.updatePreviewDeleteButtonText()
+        self.updatePreviewHistoryText()
       },
       fail: function() {
         self.quickAppDebugEnabled = false
         self.previewDeleteButtonEnabled = false
+        self.previewHistoryEnabled = false
         self.updateQuickAppDebugText()
         self.updatePreviewDeleteButtonText()
+        self.updatePreviewHistoryText()
       }
     })
   },
@@ -181,20 +201,23 @@ export default {
     })
   },
 
-  writeQuickAppDebugMode(enabled, showDeleteButton) {
+  writeQuickAppDebugMode(enabled, showDeleteButton, showHistorySample) {
     var self = this
     file.writeText({
       uri: QUICKAPP_DEBUG_FILE,
       text: JSON.stringify({
         enabled: enabled,
-        showDeleteButton: showDeleteButton === true
+        showDeleteButton: showDeleteButton === true,
+        showHistorySample: showHistorySample === true
       }),
       append: false,
       success: function() {
         self.quickAppDebugEnabled = enabled
         self.previewDeleteButtonEnabled = showDeleteButton === true
+        self.previewHistoryEnabled = showHistorySample === true
         self.updateQuickAppDebugText()
         self.updatePreviewDeleteButtonText()
+        self.updatePreviewHistoryText()
         prompt.showToast({
           message: enabled ? self.$t("debug.quickAppEnabledToast") : self.$t("debug.quickAppDisabledToast")
         })
@@ -220,14 +243,25 @@ export default {
 
   onQuickAppDebug() {
     var enabled = !this.quickAppDebugEnabled
-    this.writeQuickAppDebugMode(enabled, enabled ? this.previewDeleteButtonEnabled : false)
+    this.writeQuickAppDebugMode(
+      enabled,
+      enabled ? this.previewDeleteButtonEnabled : false,
+      enabled ? this.previewHistoryEnabled : false
+    )
   },
 
   togglePreviewDeleteButton() {
     if (!this.quickAppDebugEnabled) {
       return
     }
-    this.writeQuickAppDebugMode(true, !this.previewDeleteButtonEnabled)
+    this.writeQuickAppDebugMode(true, !this.previewDeleteButtonEnabled, this.previewHistoryEnabled)
+  },
+
+  togglePreviewHistorySample() {
+    if (!this.quickAppDebugEnabled) {
+      return
+    }
+    this.writeQuickAppDebugMode(true, this.previewDeleteButtonEnabled, !this.previewHistoryEnabled)
   },
 
   showSamplePreview() {

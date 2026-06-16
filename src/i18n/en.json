@@ -57,6 +57,8 @@
     "delete": "Delete",
     "deleteDone": "Screenshot deleted",
     "deleteFail": "Delete failed",
+    "debugHistoryLabel": "Debug History Photo",
+    "debugHistoryTime": "Reuse sample image",
     "sampleIndex": "Sample",
     "sampleTimePrefix": "Sample size "
   },
@@ -76,6 +78,9 @@
     "previewDeleteTitle": "Show Delete Button",
     "previewDeleteOn": "Enabled, sample preview shows delete button",
     "previewDeleteOff": "Disabled, tap to enable",
+    "previewHistoryTitle": "Show Debug History Photo",
+    "previewHistoryOn": "Enabled, history item and divider will show",
+    "previewHistoryOff": "Disabled, tap to enable",
     "previewSampleTitle": "Show Debug Sample",
     "previewSampleDesc": "Enter sample preview in screenshot view",
     "previewSampleToast": "Sample preview enabled",

@@ -10,7 +10,7 @@
     "disconnected": "未连接",
     "terminal": "终端",
     "terminalDesc": "执行命令",
-    "screenshot": "截图查看",
+    "screenshot": "截图",
     "screenshotDesc": "查看和发起截图",
     "settings": "设置",
     "settingsDesc": "设置",
@@ -37,7 +37,7 @@
     "screenshotBusy": "截图进行中，请稍后"
   },
   "screenshot": {
-    "title": "截图查看",
+    "title": "截图",
     "startTitle": "开始截图",
     "startDesc": "熄屏再亮屏后保存截图",
     "busyDesc": "当前正在截图",
@@ -57,6 +57,8 @@
     "delete": "删除",
     "deleteDone": "截图已删除",
     "deleteFail": "删除失败",
+    "debugHistoryLabel": "调试历史照片",
+    "debugHistoryTime": "复用示例图",
     "sampleIndex": "示例",
     "sampleTimePrefix": "示例分辨率 "
   },
@@ -76,6 +78,9 @@
     "previewDeleteTitle": "显示删除按钮",
     "previewDeleteOn": "已开启，示例图显示删除按钮",
     "previewDeleteOff": "已关闭，点击开启",
+    "previewHistoryTitle": "显示调试历史照片",
+    "previewHistoryOn": "已开启，历史项和分界线会显示",
+    "previewHistoryOff": "已关闭，点击开启",
     "previewSampleTitle": "显示调试示例图",
     "previewSampleDesc": "在截图页进入示例图预览",
     "previewSampleToast": "示例图预览已开启",
