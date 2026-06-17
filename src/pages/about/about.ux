@@ -1,9 +1,9 @@
 <template>
   <div class="page">
     <scroll class="content-full" scroll-y="true" bounces="true">
-      <img src="/common/About_336.png" class="about-bg about-336" />
-      <img src="/common/About_192.png" class="about-bg about-192" />
-      <img src="/common/About_212.png" class="about-bg about-212" />
+      <img src="/common/About_336.png" class="about-bg about-336" @click="onAboutTap" />
+      <img src="/common/About_192.png" class="about-bg about-192" @click="onAboutTap" />
+      <img src="/common/About_212.png" class="about-bg about-212" @click="onAboutTap" />
     </scroll>
     <div class="header-area">
       <text class="hd-time">{{ nowTime }}</text>
@@ -23,7 +23,9 @@ import router from "@system.router"
 export default {
   private: {
     nowTime: "00:00",
-    timer: null
+    timer: null,
+    aboutTapCount: 0,
+    aboutTapTimer: null
   },
 
   onInit() {
@@ -36,11 +38,38 @@ export default {
     if (this.timer) {
       clearInterval(this.timer)
     }
+    if (this.aboutTapTimer) {
+      clearTimeout(this.aboutTapTimer)
+    }
   },
 
   updateTime() {
     var d = new Date()
     this.nowTime = ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2)
+  },
+
+  resetAboutTap() {
+    this.aboutTapCount = 0
+    if (this.aboutTapTimer) {
+      clearTimeout(this.aboutTapTimer)
+      this.aboutTapTimer = null
+    }
+  },
+
+  onAboutTap() {
+    var self = this
+    self.aboutTapCount = self.aboutTapCount + 1
+    if (self.aboutTapTimer) {
+      clearTimeout(self.aboutTapTimer)
+    }
+    self.aboutTapTimer = setTimeout(function() {
+      self.resetAboutTap()
+    }, 1500)
+    if (self.aboutTapCount < 10) {
+      return
+    }
+    self.resetAboutTap()
+    router.push({ uri: "/pages/debug" })
   },
 
   goBack() {

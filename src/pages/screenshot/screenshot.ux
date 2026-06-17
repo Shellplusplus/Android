@@ -56,6 +56,14 @@
         <div class="spacer"></div>
       </div>
     </scroll>
+
+    <div if="{{showDeleteConfirm}}" class="delete-confirm-layer">
+      <img src="{{ deleteConfirmBgSrc }}" class="delete-confirm-bg" />
+      <text class="delete-confirm-time">{{ nowTime }}</text>
+      <img src="{{ deleteConfirmBackSrc }}" @click="closeDeleteConfirm" class="delete-confirm-back" />
+      <img src="{{ deleteConfirmOkSrc }}" @click="confirmDeleteAction" class="delete-confirm-ok" />
+    </div>
+
   </div>
 </template>
 
@@ -98,8 +106,13 @@ export default {
     samplePath: "",
     sampleLabel: "",
     previewImageStyle: "height: 180px;",
+    deleteConfirmBgSrc: "/common/del_bg.png",
+    deleteConfirmBackSrc: "/common/back.png",
+    deleteConfirmOkSrc: "/common/Reset_B.png",
     screenWidth: 336,
-    screenHeight: 480
+    screenHeight: 480,
+    showDeleteConfirm: false,
+    pendingDeleteAction: ""
   },
 
   onInit() {
@@ -221,12 +234,21 @@ export default {
         if (width <= 192) {
           self.samplePath = "/common/Debug_192.png"
           self.sampleLabel = "192"
+          self.deleteConfirmBgSrc = "/common/del_bg_w.png"
+          self.deleteConfirmBackSrc = "/common/back_capsule.png"
+          self.deleteConfirmOkSrc = "/common/Delete_W.png"
         } else if (width <= 212) {
           self.samplePath = "/common/Debug_212.png"
           self.sampleLabel = "212"
+          self.deleteConfirmBgSrc = "/common/del_bg_w.png"
+          self.deleteConfirmBackSrc = "/common/back_capsule.png"
+          self.deleteConfirmOkSrc = "/common/Delete_W.png"
         } else {
           self.samplePath = "/common/Debug_336.png"
           self.sampleLabel = "336"
+          self.deleteConfirmBgSrc = "/common/del_bg.png"
+          self.deleteConfirmBackSrc = "/common/back.png"
+          self.deleteConfirmOkSrc = "/common/Reset_B.png"
         }
         self.updatePreviewImageStyle()
       },
@@ -235,6 +257,9 @@ export default {
         self.screenHeight = 480
         self.samplePath = "/common/Debug_336.png"
         self.sampleLabel = "336"
+        self.deleteConfirmBgSrc = "/common/del_bg.png"
+        self.deleteConfirmBackSrc = "/common/back.png"
+        self.deleteConfirmOkSrc = "/common/Reset_B.png"
         self.updatePreviewImageStyle()
       }
     })
@@ -580,23 +605,21 @@ export default {
       prompt.showToast({ message: self.statusText || self.$t("screenshot.busyDesc") })
       return
     }
-    prompt.showDialog({
-      title: self.$t("screenshot.deleteConfirmTitle"),
-      message: self.$t("screenshot.deleteConfirmDesc"),
-      buttons: [
-        { text: self.$t("confirm.cancel"), color: "#999999" },
-        { text: self.$t("confirm.ok"), color: "#ff4444" }
-      ],
-      success: function(ret) {
-        if (!ret || ret.index !== 1) {
-          return
-        }
-        if (self.previewMode === "sample") {
-          return
-        }
-        self.deleteCurrentShotConfirmed()
-      }
-    })
+    self.pendingDeleteAction = self.previewMode === "sample" ? "sample" : "real"
+    self.showDeleteConfirm = true
+  },
+
+  closeDeleteConfirm() {
+    this.showDeleteConfirm = false
+    this.pendingDeleteAction = ""
+  },
+
+  confirmDeleteAction() {
+    var action = this.pendingDeleteAction
+    this.closeDeleteConfirm()
+    if (action === "real") {
+      this.deleteCurrentShotConfirmed()
+    }
   },
 
   deleteCurrentShotConfirmed() {
@@ -756,12 +779,82 @@ export default {
   font-weight: bold;
   line-height: 36px;
 }
+.delete-confirm-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 336px;
+  height: 480px;
+}
+.delete-confirm-bg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 336px;
+  height: 480px;
+  object-fit: contain;
+  object-position: center center;
+}
+.delete-confirm-time {
+  position: absolute;
+  left: 78px;
+  top: 7px;
+  width: 180px;
+  height: 32px;
+  text-align: center;
+  font-size: 24px;
+  font-weight: bold;
+  color: rgba(255,255,255,0.6);
+}
+.delete-confirm-back {
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  width: 72px;
+  height: 72px;
+}
+.delete-confirm-ok {
+  position: absolute;
+  left: 258px;
+  top: 6px;
+  width: 72px;
+  height: 72px;
+}
 
 @media (shape: rect) {
   .scroll-inner { margin-top: -15px; }
 }
 
 @media (shape: pill-shaped) and (max-width: 100) {
+  .delete-confirm-layer {
+    width: 192px;
+    height: 490px;
+  }
+  .delete-confirm-bg {
+    width: 192px;
+    height: 490px;
+    object-fit: contain;
+    object-position: center center;
+  }
+  .delete-confirm-time {
+    display: none;
+  }
+  .delete-confirm-back {
+    left: 50px;
+    top: 14px;
+    width: 92px;
+    height: 72px;
+    object-fit: contain;
+    object-position: center center;
+  }
+  .delete-confirm-ok {
+    left: 45px;
+    top: 396px;
+    width: 102px;
+    height: 72px;
+    object-fit: contain;
+    object-position: center center;
+  }
   .preview-card {
     width: 184px;
     margin: 8px 4px 0 4px;
@@ -795,6 +888,35 @@ export default {
 }
 
 @media (shape: pill-shaped) and (min-width: 101) {
+  .delete-confirm-layer {
+    width: 212px;
+    height: 520px;
+  }
+  .delete-confirm-bg {
+    width: 212px;
+    height: 520px;
+    object-fit: contain;
+    object-position: center center;
+  }
+  .delete-confirm-time {
+    display: none;
+  }
+  .delete-confirm-back {
+    left: 55px;
+    top: 18px;
+    width: 102px;
+    height: 72px;
+    object-fit: contain;
+    object-position: center center;
+  }
+  .delete-confirm-ok {
+    left: 55px;
+    top: 430px;
+    width: 102px;
+    height: 72px;
+    object-fit: contain;
+    object-position: center center;
+  }
   .preview-card {
     width: 204px;
     margin: 8px 4px 0 4px;
