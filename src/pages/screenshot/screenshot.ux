@@ -1060,38 +1060,57 @@ export default {
 }
 
 .sync-action-bar {
-  width: 300px;
-  margin: 8px 6px 0 6px;
-  padding: 10px 12px;
-  border-radius: 24px;
-  background-color: #2a2a2a;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
+  position: relative;
+  width: 324px;
+  margin-top: 8px;
+  height: 62px;
+  border-radius: 36px;
+  opacity: 1;
+  background-color: #186939;
 }
 
 .sync-select-all {
-  font-size: 22px;
-  color: #4fc3f7;
+  position: absolute;
+  left: 16px;
+  top: 0;
+  width: 86px;
+  height: 62px;
+  line-height: 62px;
+  text-align: left;
+  font-size: 24px;
+  color: #ffffff;
+  font-weight: bold;
 }
 
 .sync-selected-count {
-  font-size: 20px;
-  color: rgba(255,255,255,0.6);
+  position: absolute;
+  left: 86px;
+  right: 86px;
+  top: 0;
+  height: 62px;
+  line-height: 62px;
+  text-align: center;
+  font-size: 22px;
+  color: rgba(255,255,255,0.65);
+  font-weight: bold;
 }
 
 .sync-send-btn {
-  padding: 6px 16px;
-  border-radius: 16px;
-  background-color: #4fc3f7;
-  font-size: 22px;
-  color: #000000;
+  position: absolute;
+  right: 16px;
+  top: 0;
+  width: 86px;
+  height: 62px;
+  line-height: 62px;
+  text-align: right;
+  background-color: transparent;
+  font-size: 24px;
+  color: #ffffff;
   font-weight: bold;
 }
 
 .sync-send-disabled {
-  background-color: #555555;
-  color: #999999;
+  color: rgba(255,255,255,0.42);
 }
 
 .card-checkbox {
@@ -1179,6 +1198,32 @@ export default {
     width: 52px;
     font-size: 20px;
   }
+  .sync-action-bar {
+    width: 184px;
+    height: 58px;
+    border-radius: 24px;
+  }
+  .sync-select-all {
+    left: 10px;
+    width: 48px;
+    height: 58px;
+    line-height: 58px;
+    font-size: 20px;
+  }
+  .sync-selected-count {
+    left: 50px;
+    right: 50px;
+    height: 58px;
+    line-height: 58px;
+    font-size: 18px;
+  }
+  .sync-send-btn {
+    right: 10px;
+    width: 48px;
+    height: 58px;
+    line-height: 58px;
+    font-size: 20px;
+  }
 }
 
 @media (shape: pill-shaped) and (min-width: 101) {
@@ -1236,6 +1281,32 @@ export default {
   .history-divider {
     width: 184px;
     margin: 12px 14px 4px 14px;
+  }
+  .sync-action-bar {
+    width: 204px;
+    height: 58px;
+    border-radius: 24px;
+  }
+  .sync-select-all {
+    left: 12px;
+    width: 56px;
+    height: 58px;
+    line-height: 58px;
+    font-size: 20px;
+  }
+  .sync-selected-count {
+    left: 58px;
+    right: 58px;
+    height: 58px;
+    line-height: 58px;
+    font-size: 18px;
+  }
+  .sync-send-btn {
+    right: 12px;
+    width: 56px;
+    height: 58px;
+    line-height: 58px;
+    font-size: 20px;
   }
 }
 </style>

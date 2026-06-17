@@ -79,8 +79,8 @@
     "syncFailed": "同步失败",
     "syncRejected": "手机端拒绝接收",
     "selectAll": "全选",
-    "deselectAll": "取消全选",
-    "selectedCount": "已选 {count} 张"
+    "deselectAll": "取消",
+    "selectedCount": "已选{count}张"
   },
   "debug": {
     "title": "调试模式",
