@@ -390,7 +390,7 @@ export default {
   },
 
   buildDebugHistoryItems() {
-    if (!this.quickAppDebugEnabled || !this.previewHistoryEnabled || !this.samplePath) {
+    if (!this.quickAppDebugEnabled || !this.previewHistoryEnabled || !this.samplePath || this.previewMode !== "sample") {
       return []
     }
     return [
@@ -583,6 +583,24 @@ export default {
       prompt.showToast({ message: self.statusText || self.$t("screenshot.busyDesc") })
       return
     }
+    prompt.showDialog({
+      title: self.$t("screenshot.deleteConfirmTitle"),
+      message: self.$t("screenshot.deleteConfirmDesc"),
+      buttons: [
+        { text: self.$t("confirm.cancel"), color: "#999999" },
+        { text: self.$t("confirm.ok"), color: "#ff4444" }
+      ],
+      success: function(ret) {
+        if (!ret || ret.index !== 1) {
+          return
+        }
+        self.deleteCurrentShotConfirmed()
+      }
+    })
+  },
+
+  deleteCurrentShotConfirmed() {
+    var self = this
     var targetFile = self.previewPath
     var targetShotId = self.previewIndex
     file.readText({

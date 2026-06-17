@@ -29,36 +29,29 @@
           </div>
         </div>
 
-        <text class="section-title">{{ $t("debug.screenshotGroup") }}</text>
-        <div class="card" onclick="showSamplePreview">
+        <text if="{{quickAppDebugEnabled}}" class="section-title">{{ $t("debug.screenshotGroup") }}</text>
+        <div if="{{quickAppDebugEnabled}}" class="card" onclick="showSamplePreview">
           <div class="card-left">
             <text class="card-label">{{ $t("debug.previewSampleTitle") }}</text>
             <text class="card-sub">{{ $t("debug.previewSampleDesc") }}</text>
           </div>
         </div>
 
-        <div class="card" onclick="togglePreviewHistorySample">
+        <div if="{{quickAppDebugEnabled}}" class="card" onclick="togglePreviewHistorySample">
           <div class="card-left">
             <text class="card-label">{{ $t("debug.previewHistoryTitle") }}</text>
             <text class="card-sub">{{ previewHistoryText }}</text>
           </div>
         </div>
 
-        <div class="card" onclick="togglePreviewDeleteButton">
-          <div class="card-left">
-            <text class="card-label">{{ $t("debug.previewDeleteTitle") }}</text>
-            <text class="card-sub">{{ previewDeleteButtonText }}</text>
-          </div>
-        </div>
-
-        <div class="card" onclick="resetScreenshotPreview">
+        <div if="{{quickAppDebugEnabled}}" class="card" onclick="resetScreenshotPreview">
           <div class="card-left">
             <text class="card-label">{{ $t("debug.previewResetTitle") }}</text>
             <text class="card-sub">{{ $t("debug.previewResetDesc") }}</text>
           </div>
         </div>
 
-        <div class="card" onclick="clearAllScreenshots">
+        <div if="{{quickAppDebugEnabled}}" class="card" onclick="clearAllScreenshots">
           <div class="card-left">
             <text class="card-label">{{ $t("debug.clearShotsTitle") }}</text>
             <text class="card-sub">{{ $t("debug.clearShotsDesc") }}</text>
@@ -104,11 +97,9 @@ export default {
     timer: null,
     debugEnabled: false,
     quickAppDebugEnabled: false,
-    previewDeleteButtonEnabled: false,
     previewHistoryEnabled: false,
     systemDebugText: "",
     quickAppDebugText: "",
-    previewDeleteButtonText: "",
     previewHistoryText: "",
     logRecordingEnabled: false,
     logRecordingText: "",
@@ -152,12 +143,6 @@ export default {
     this.quickAppDebugText = this.quickAppDebugEnabled ? this.$t("debug.quickAppOn") : this.$t("debug.quickAppOff")
   },
 
-  updatePreviewDeleteButtonText() {
-    this.previewDeleteButtonText = this.previewDeleteButtonEnabled
-      ? this.$t("debug.previewDeleteOn")
-      : this.$t("debug.previewDeleteOff")
-  },
-
   updatePreviewHistoryText() {
     this.previewHistoryText = this.previewHistoryEnabled
       ? this.$t("debug.previewHistoryOn")
@@ -198,23 +183,18 @@ export default {
         try {
           var json = JSON.parse(data.text)
           self.quickAppDebugEnabled = json.enabled === true
-          self.previewDeleteButtonEnabled = json.showDeleteButton === true
           self.previewHistoryEnabled = json.showHistorySample === true
         } catch (e) {
           self.quickAppDebugEnabled = false
-          self.previewDeleteButtonEnabled = false
           self.previewHistoryEnabled = false
         }
         self.updateQuickAppDebugText()
-        self.updatePreviewDeleteButtonText()
         self.updatePreviewHistoryText()
       },
       fail: function() {
         self.quickAppDebugEnabled = false
-        self.previewDeleteButtonEnabled = false
         self.previewHistoryEnabled = false
         self.updateQuickAppDebugText()
-        self.updatePreviewDeleteButtonText()
         self.updatePreviewHistoryText()
       }
     })
@@ -258,20 +238,19 @@ export default {
 
   writeQuickAppDebugMode(enabled, showDeleteButton, showHistorySample) {
     var self = this
+    var historyEnabled = showHistorySample === true
     file.writeText({
       uri: QUICKAPP_DEBUG_FILE,
       text: JSON.stringify({
         enabled: enabled,
-        showDeleteButton: showDeleteButton === true,
-        showHistorySample: showHistorySample === true
+        showDeleteButton: historyEnabled,
+        showHistorySample: historyEnabled
       }),
       append: false,
       success: function() {
         self.quickAppDebugEnabled = enabled
-        self.previewDeleteButtonEnabled = showDeleteButton === true
-        self.previewHistoryEnabled = showHistorySample === true
+        self.previewHistoryEnabled = historyEnabled
         self.updateQuickAppDebugText()
-        self.updatePreviewDeleteButtonText()
         self.updatePreviewHistoryText()
         prompt.showToast({
           message: enabled ? self.$t("debug.quickAppEnabledToast") : self.$t("debug.quickAppDisabledToast")
@@ -287,20 +266,47 @@ export default {
       text: JSON.stringify({ enabled: enabled === true }),
       append: false,
       success: function() {
-        file.writeText({
-          uri: logData.quickAppRuntimeFile,
-          text: JSON.stringify({
-            running: true,
-            logEnabled: enabled === true,
-            updatedAtUnix: Math.floor(Date.now() / 1000)
-          }),
-          append: false
+        self.syncRuntimeLogState(enabled, function() {
+          self.logRecordingEnabled = enabled === true
+          self.updateLogRecordingText()
+          prompt.showToast({
+            message: enabled ? self.$t("debug.logRecordEnabledToast") : self.$t("debug.logRecordDisabledToast")
+          })
         })
-        self.logRecordingEnabled = enabled === true
-        self.updateLogRecordingText()
-        prompt.showToast({
-          message: enabled ? self.$t("debug.logRecordEnabledToast") : self.$t("debug.logRecordDisabledToast")
-        })
+      }
+    })
+  },
+
+  syncRuntimeLogState(enabled, done) {
+    var self = this
+    file.readText({
+      uri: logData.quickAppRuntimeFile,
+      success: function(data) {
+        var json = logData.safeParse(data.text, {})
+        self.writeRuntimeLogState(json, enabled, done)
+      },
+      fail: function() {
+        self.writeRuntimeLogState({}, enabled, done)
+      }
+    })
+  },
+
+  writeRuntimeLogState(runtimeState, enabled, done) {
+    var nowUnix = Math.floor(Date.now() / 1000)
+    file.writeText({
+      uri: logData.quickAppRuntimeFile,
+      text: JSON.stringify({
+        running: runtimeState && runtimeState.running === false ? false : true,
+        logEnabled: enabled === true,
+        startedAtUnix: runtimeState && runtimeState.startedAtUnix ? runtimeState.startedAtUnix : nowUnix,
+        updatedAtUnix: nowUnix
+      }),
+      append: false,
+      success: function() {
+        if (done) done()
+      },
+      fail: function() {
+        if (done) done()
       }
     })
   },
@@ -325,23 +331,17 @@ export default {
     var enabled = !this.quickAppDebugEnabled
     this.writeQuickAppDebugMode(
       enabled,
-      enabled ? this.previewDeleteButtonEnabled : false,
+      enabled ? this.previewHistoryEnabled : false,
       enabled ? this.previewHistoryEnabled : false
     )
-  },
-
-  togglePreviewDeleteButton() {
-    if (!this.quickAppDebugEnabled) {
-      return
-    }
-    this.writeQuickAppDebugMode(true, !this.previewDeleteButtonEnabled, this.previewHistoryEnabled)
   },
 
   togglePreviewHistorySample() {
     if (!this.quickAppDebugEnabled) {
       return
     }
-    this.writeQuickAppDebugMode(true, this.previewDeleteButtonEnabled, !this.previewHistoryEnabled)
+    var enabled = !this.previewHistoryEnabled
+    this.writeQuickAppDebugMode(true, enabled, enabled)
   },
 
   showSamplePreview() {
@@ -388,6 +388,24 @@ export default {
 
   clearAllScreenshots() {
     var self = this
+    prompt.showDialog({
+      title: self.$t("debug.clearShotsConfirmTitle"),
+      message: self.$t("debug.clearShotsConfirmDesc"),
+      buttons: [
+        { text: self.$t("confirm.cancel"), color: "#999999" },
+        { text: self.$t("confirm.ok"), color: "#ff4444" }
+      ],
+      success: function(ret) {
+        if (!ret || ret.index !== 1) {
+          return
+        }
+        self.clearAllScreenshotsConfirmed()
+      }
+    })
+  },
+
+  clearAllScreenshotsConfirmed() {
+    var self = this
     file.readText({
       uri: HISTORY_FILE,
       success: function(data) {
@@ -398,8 +416,23 @@ export default {
           items = store && store.items instanceof Array ? store.items : (store instanceof Array ? store : [])
         } catch (e) {}
         self.deleteScreenshotFiles(items, 0, function() {
-          self.writeEmptyScreenshotHistory()
+          self.finishClearAllScreenshots()
         })
+      },
+      fail: function() {
+        self.finishClearAllScreenshots()
+      }
+    })
+  },
+
+  finishClearAllScreenshots() {
+    var self = this
+    file.writeText({
+      uri: PREVIEW_STATE_FILE,
+      text: JSON.stringify({ mode: "real", followLatest: true, selectedFile: "", selectedId: "" }),
+      append: false,
+      success: function() {
+        self.writeEmptyScreenshotHistory()
       },
       fail: function() {
         self.writeEmptyScreenshotHistory()
