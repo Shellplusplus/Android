@@ -6,6 +6,7 @@
 build/
 dist/
 *.rpk
+*.apk
 **/.DS_Store
 
 # Claude Code

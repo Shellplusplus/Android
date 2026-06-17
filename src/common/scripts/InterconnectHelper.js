@@ -147,8 +147,9 @@ InterconnectHelper.prototype.send = function (type, payload) {
 
   var self = this
   return new Promise(function (resolve, reject) {
+    // 官方文档与 varclass 均要求 data 直接传对象（而非 JSON 字符串）
     self.conn.send({
-      data: JSON.stringify(data),
+      data: data,
       success: function () {
         resolve()
       },
@@ -198,7 +199,7 @@ InterconnectHelper.prototype.sendChunked = function (type, payload, chunkSize) {
       }
 
       self.conn.send({
-        data: JSON.stringify(chunk),
+        data: chunk,
         success: function () {
           sentCount++
           sendNext()
@@ -211,6 +212,28 @@ InterconnectHelper.prototype.sendChunked = function (type, payload, chunkSize) {
 
     sendNext()
   })
+}
+
+/**
+ * 字节数组(Uint8Array)转 Base64（用于发送二进制图片等数据，参考 varclass）
+ */
+InterconnectHelper.prototype.bytesToBase64 = function (bytes) {
+  var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+  var out = ""
+  var i = 0
+  var len = bytes.length
+  while (i < len) {
+    var b1 = bytes[i++]
+    var hasB2 = i < len
+    var b2 = hasB2 ? bytes[i++] : 0
+    var hasB3 = i < len
+    var b3 = hasB3 ? bytes[i++] : 0
+    out += chars.charAt(b1 >> 2)
+    out += chars.charAt(((b1 & 3) << 4) | (b2 >> 4))
+    out += hasB2 ? chars.charAt(((b2 & 15) << 2) | (b3 >> 6)) : "="
+    out += hasB3 ? chars.charAt(b3 & 63) : "="
+  }
+  return out
 }
 
 /**
@@ -317,8 +340,9 @@ InterconnectHelper.prototype.getReadyState = function () {
   var self = this
   return new Promise(function (resolve, reject) {
     self.conn.getReadyState({
+      // 官方返回 { status }，1：连接成功，2：连接断开
       success: function (data) {
-        resolve(data.readyState)
+        resolve(data && data.status)
       },
       fail: function (error) {
         reject(error)

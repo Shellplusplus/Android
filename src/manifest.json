@@ -25,6 +25,12 @@
       "name": "system.prompt"
     },
     {
+      "name": "system.storage"
+    },
+    {
+      "name": "system.app"
+    },
+    {
       "name": "system.interconnect"
     }
   ],

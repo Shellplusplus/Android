@@ -98,6 +98,8 @@ var BRIDGE_STATE_FILE = "internal://files/bridge_state.json"
 var QUICKAPP_DEBUG_FILE = "internal://files/quickapp_debug.json"
 var PREVIEW_STATE_FILE = "internal://files/screenshot_preview_state.json"
 var shotSeq = Date.now()
+// 单片原始字节数（3072 是 3 的倍数，base64 后无中间填充，拼接后仍是合法 base64）
+var CHUNK_RAW_SIZE = 3072
 
 export default {
   private: {
@@ -136,11 +138,17 @@ export default {
     isAllSelected: false,
     isSyncing: false,
     syncProgress: "",
-    interconnectReady: false
+    interconnectReady: false,
+    selectedIds: null,
+    syncImageCurrent: 0,
+    syncImageTotal: 0,
+    chunkAckTimer: null,
+    pendingChunkAck: null
   },
 
   onInit() {
     var self = this
+    self.selectedIds = {}
     self.updateTime()
     self.statusText = self.$t("screenshot.idle")
     self.timer = setInterval(function() { self.updateTime() }, 1000)
@@ -154,6 +162,7 @@ export default {
     self.loadPreviewState()
     self.refreshAll()
     self.loadQuickAppDebugMode()
+    self.refreshConnState()
     if (!self.pollTimer) {
       self.pollTimer = setInterval(function() {
         self.refreshAll()
@@ -564,15 +573,33 @@ export default {
   },
 
   buildShotItems(realItems, excludeShotId) {
+    var items
     if (!excludeShotId) {
-      return realItems.slice(0)
-    }
-    var items = []
-    for (var i = 0; i < realItems.length; i++) {
-      if (realItems[i].shotId !== excludeShotId) {
-        items.push(realItems[i])
+      items = realItems.slice(0)
+    } else {
+      items = []
+      for (var i = 0; i < realItems.length; i++) {
+        if (realItems[i].shotId !== excludeShotId) {
+          items.push(realItems[i])
+        }
       }
     }
+    // 1 秒轮询会重建列表，这里按 shotId 还原此前的选中状态，避免选择被清空
+    return this.applySelectionState(items)
+  },
+
+  applySelectionState(items) {
+    var ids = this.selectedIds || {}
+    var count = 0
+    for (var i = 0; i < items.length; i++) {
+      var sel = ids[items[i].shotId] === true
+      items[i].selected = sel
+      if (sel) {
+        count++
+      }
+    }
+    this.selectedCount = count
+    this.isAllSelected = items.length > 0 && count === items.length
     return items
   },
 
@@ -760,6 +787,9 @@ export default {
         interconnectHelper.addListener("screenshotSyncResult", function(payload) {
           self.onSyncResult(payload)
         })
+        interconnectHelper.addListener("screenshotChunkAck", function(payload) {
+          self.onChunkAck(payload)
+        })
         interconnectHelper.getReadyState().then(function(state) {
           self.interconnectReady = state === 1
         }).catch(function() {
@@ -771,6 +801,19 @@ export default {
     }
   },
 
+  refreshConnState() {
+    var self = this
+    if (!interconnectHelper) {
+      return
+    }
+    // 连接可能在进入页面之后才就绪，这里每次显示页面时主动复查一次状态
+    interconnectHelper.getReadyState().then(function(status) {
+      self.interconnectReady = status === 1
+    }).catch(function() {
+      self.interconnectReady = false
+    })
+  },
+
   toggleSyncMode() {
     this.isSyncMode = !this.isSyncMode
     if (!this.isSyncMode) {
@@ -779,6 +822,7 @@ export default {
   },
 
   clearSelection() {
+    this.selectedIds = {}
     for (var i = 0; i < this.shotItems.length; i++) {
       this.shotItems[i].selected = false
     }
@@ -788,28 +832,39 @@ export default {
 
   toggleSelectAll() {
     var select = !this.isAllSelected
+    if (!this.selectedIds) this.selectedIds = {}
     this.isAllSelected = select
     this.selectedCount = 0
     for (var i = 0; i < this.shotItems.length; i++) {
       this.shotItems[i].selected = select
       if (select) {
+        this.selectedIds[this.shotItems[i].shotId] = true
         this.selectedCount++
+      } else {
+        delete this.selectedIds[this.shotItems[i].shotId]
       }
     }
   },
 
   toggleShotSelection(item) {
     if (!item) return
-    item.selected = !item.selected
-    if (item.selected) {
-      this.selectedCount++
+    if (!this.selectedIds) this.selectedIds = {}
+    var sel = !item.selected
+    item.selected = sel
+    if (sel) {
+      this.selectedIds[item.shotId] = true
     } else {
-      this.selectedCount--
-      this.isAllSelected = false
+      delete this.selectedIds[item.shotId]
     }
-    if (this.selectedCount === this.shotItems.length) {
-      this.isAllSelected = true
+    // 直接按当前列表的选中态重新计数，保证与持久化的 selectedIds 一致
+    var count = 0
+    for (var i = 0; i < this.shotItems.length; i++) {
+      if (this.shotItems[i].selected) {
+        count++
+      }
     }
+    this.selectedCount = count
+    this.isAllSelected = this.shotItems.length > 0 && count === this.shotItems.length
   },
 
   getSelectedShots() {
@@ -878,37 +933,162 @@ export default {
       return
     }
     var shot = selected[index]
-    self.statusText = self.$t("screenshot.syncProgress", { current: index + 1, total: selected.length })
-    self.readFileAsBase64(shot.file, function(base64Data) {
-      if (!base64Data) {
+    self.syncImageCurrent = index + 1
+    self.syncImageTotal = selected.length
+    // 逐张图片走自有分片协议：start -> part*N -> finish，每步等对端 ACK
+    self.sendScreenshotChunked(shot, function(ok) {
+      if (!ok) {
+        // 单张失败：跳过这张，继续后面的，避免整体卡死
         self.sendNextScreenshot(index + 1)
         return
       }
-      var payload = {
-        shotId: shot.shotId,
-        capturedAt: shot.timeText,
-        imageData: base64Data
-      }
-      interconnectHelper.sendChunked("screenshotData", payload, 4096).then(function() {
-        self.sendNextScreenshot(index + 1)
-      }).catch(function(error) {
-        self.isSyncing = false
-        self.statusText = self.$t("screenshot.syncFailed")
-        prompt.showToast({ message: self.$t("screenshot.syncFailed") })
-      })
+      self.sendNextScreenshot(index + 1)
     })
   },
 
-  readFileAsBase64(filePath, callback) {
-    file.readText({
-      uri: filePath,
-      success: function(data) {
-        callback(data.text)
+  // ===== 截图二进制分片发送（自有协议，边读边发边等 ACK，避免一次性编码大图卡死）=====
+  // 手表 -> 手机 screenshotChunkStart  { sessionId, shotId, capturedAt, size, total }
+  // 手机 -> 手表 screenshotChunkAck    { sessionId, phase:'start', ok }
+  // 手表 -> 手机 screenshotChunkPart   { sessionId, index, total, d }   d=该片字节的 base64
+  // 手机 -> 手表 screenshotChunkAck    { sessionId, phase:'part', index, ok }
+  // 手表 -> 手机 screenshotChunkFinish { sessionId }
+  // 手机 -> 手表 screenshotChunkAck    { sessionId, phase:'finish', ok }
+  sendScreenshotChunked(shot, onDone) {
+    var self = this
+    var sessionId = shot.shotId + "-" + Date.now()
+    file.get({
+      uri: shot.file,
+      success: function(info) {
+        var size = info && info.length ? info.length : 0
+        if (size <= 0) {
+          onDone(false)
+          return
+        }
+        var total = Math.ceil(size / CHUNK_RAW_SIZE)
+        self.sendChunkAndWaitAck(
+          "screenshotChunkStart",
+          {
+            sessionId: sessionId,
+            shotId: shot.shotId,
+            capturedAt: shot.timeText,
+            size: size,
+            total: total
+          },
+          sessionId,
+          "start",
+          -1,
+          function(ok) {
+            if (!ok) {
+              onDone(false)
+              return
+            }
+            self.sendScreenshotParts(shot, sessionId, size, total, 0, onDone)
+          }
+        )
       },
       fail: function() {
-        callback(null)
+        onDone(false)
       }
     })
+  },
+
+  sendScreenshotParts(shot, sessionId, size, total, index, onDone) {
+    var self = this
+    if (index >= total) {
+      self.sendChunkAndWaitAck(
+        "screenshotChunkFinish",
+        { sessionId: sessionId, total: total },
+        sessionId,
+        "finish",
+        -1,
+        function(ok) {
+          onDone(ok)
+        }
+      )
+      return
+    }
+    var position = index * CHUNK_RAW_SIZE
+    var len = Math.min(CHUNK_RAW_SIZE, size - position)
+    self.statusText = self.$t("screenshot.syncProgress", {
+      current: self.syncImageCurrent,
+      total: self.syncImageTotal
+    })
+    // 只读取当前这一片字节（边读边发，内存恒定）
+    file.readArrayBuffer({
+      uri: shot.file,
+      position: position,
+      length: len,
+      success: function(data) {
+        var b64
+        try {
+          b64 = interconnectHelper.bytesToBase64(data.buffer)
+        } catch (e) {
+          onDone(false)
+          return
+        }
+        self.sendChunkAndWaitAck(
+          "screenshotChunkPart",
+          { sessionId: sessionId, index: index, total: total, d: b64 },
+          sessionId,
+          "part",
+          index,
+          function(ok) {
+            if (!ok) {
+              onDone(false)
+              return
+            }
+            self.sendScreenshotParts(shot, sessionId, size, total, index + 1, onDone)
+          }
+        )
+      },
+      fail: function() {
+        onDone(false)
+      }
+    })
+  },
+
+  // 发送一帧分片消息并等待对端 ACK；超时或发送失败都回调 false（避免永久卡死）
+  sendChunkAndWaitAck(type, payload, sessionId, phase, index, cb) {
+    var self = this
+    if (self.chunkAckTimer) {
+      clearTimeout(self.chunkAckTimer)
+      self.chunkAckTimer = null
+    }
+    var settled = false
+    var pending = {
+      sessionId: sessionId,
+      phase: phase,
+      index: index
+    }
+    var settle = function(ok) {
+      if (settled) return
+      settled = true
+      if (self.chunkAckTimer) {
+        clearTimeout(self.chunkAckTimer)
+        self.chunkAckTimer = null
+      }
+      self.pendingChunkAck = null
+      cb(ok)
+    }
+    pending.settle = settle
+    self.pendingChunkAck = pending
+    // 先挂超时再发送，避免对端 ACK 返回极快时的时序竞争；8 秒没回则判失败
+    self.chunkAckTimer = setTimeout(function() {
+      settle(false)
+    }, 8000)
+    interconnectHelper.send(type, payload).catch(function() {
+      settle(false)
+    })
+  },
+
+  onChunkAck(payload) {
+    var self = this
+    var pending = self.pendingChunkAck
+    if (!pending || !payload) return
+    if (payload.sessionId !== pending.sessionId) return
+    if (payload.phase !== pending.phase) return
+    if (pending.phase === "part" && Number(payload.index) !== pending.index) return
+    pending.settle(payload.ok !== false)
   },
 
   onDataAck(payload) {
