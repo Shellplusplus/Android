@@ -6,3 +6,30 @@
 build/
 dist/
 *.rpk
+
+# Claude Code
+CLAUDE.md
+.claude/
+
+# 参考资料
+/varclass
+/vela-quickapp-docs
+
+# Android
+android/*.iml
+android/.gradle
+android/local.properties
+android/.idea/caches
+android/.idea/libraries
+android/.idea/modules.xml
+android/.idea/workspace.xml
+android/.idea/navEditor.xml
+android/.idea/assetWizardSettings.xml
+android/.idea/shelf/
+android/.idea/workspace.xml
+android/.DS_Store
+android/build
+android/app/build
+android/captures
+android/.externalNativeBuild
+android/.cxx
