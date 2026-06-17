@@ -1,4 +1,4 @@
-package com.azuma.shellplus.ui.screenshot
+package com.shell.liangyi.ui.screenshot
 
 import android.app.Application
 import androidx.compose.runtime.getValue
@@ -6,9 +6,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.azuma.shellplus.core.ScreenshotReceiver
-import com.azuma.shellplus.model.Screenshot
-import com.azuma.shellplus.util.GallerySaver
+import com.shell.liangyi.core.ScreenshotReceiver
+import com.shell.liangyi.model.Screenshot
+import com.shell.liangyi.util.GallerySaver
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 

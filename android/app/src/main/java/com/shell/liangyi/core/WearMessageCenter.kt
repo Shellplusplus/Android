@@ -1,4 +1,4 @@
-package com.azuma.shellplus.core
+package com.shell.liangyi.core
 
 import android.content.Context
 import android.util.Base64

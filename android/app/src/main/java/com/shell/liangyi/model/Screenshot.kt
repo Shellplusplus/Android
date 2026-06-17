@@ -1,4 +1,4 @@
-package com.azuma.shellplus.model
+package com.shell.liangyi.model
 
 /**
  * 截图数据模型

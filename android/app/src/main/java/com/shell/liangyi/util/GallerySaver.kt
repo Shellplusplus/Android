@@ -1,4 +1,4 @@
-package com.azuma.shellplus.util
+package com.shell.liangyi.util
 
 import android.content.ContentValues
 import android.content.Context

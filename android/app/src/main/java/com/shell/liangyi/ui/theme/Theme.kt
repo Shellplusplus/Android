@@ -1,4 +1,4 @@
-package com.azuma.shellplus.ui.theme
+package com.shell.liangyi.ui.theme
 
 import android.app.Activity
 import android.os.Build

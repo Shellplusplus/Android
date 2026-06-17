@@ -1,4 +1,4 @@
-package com.azuma.shellplus.ui.screenshot
+package com.shell.liangyi.ui.screenshot
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -30,7 +30,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import com.azuma.shellplus.model.Screenshot
+import com.shell.liangyi.model.Screenshot
 
 @Composable
 fun ScreenshotPreviewDialog(

@@ -1,4 +1,4 @@
-package com.azuma.shellplus
+package com.shell.liangyi
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -7,9 +7,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
-import com.azuma.shellplus.core.WearMessageCenter
-import com.azuma.shellplus.ui.theme.ShellPlusTheme
-import com.azuma.shellplus.ui.screenshot.ScreenshotScreen
+import com.shell.liangyi.core.WearMessageCenter
+import com.shell.liangyi.ui.theme.ShellPlusTheme
+import com.shell.liangyi.ui.screenshot.ScreenshotScreen
 
 class MainActivity : ComponentActivity() {
 

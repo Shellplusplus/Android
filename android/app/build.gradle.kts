@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.azuma.shellplus"
+    namespace = "com.shell.liangyi"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.azuma.shellplus"
+        applicationId = "com.shell.liangyi"
         minSdk = 26
         targetSdk = 34
         versionCode = 1

@@ -1,8 +1,8 @@
-package com.azuma.shellplus.core
+package com.shell.liangyi.core
 
 import android.content.Context
 import android.util.Log
-import com.azuma.shellplus.model.Screenshot
+import com.shell.liangyi.model.Screenshot
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow

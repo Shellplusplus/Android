@@ -1,7 +1,7 @@
-package com.azuma.shellplus.ui.screenshot
+package com.shell.liangyi.ui.screenshot
 
 import android.widget.Toast
-import com.azuma.shellplus.core.ScreenshotReceiver
+import com.shell.liangyi.core.ScreenshotReceiver
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -48,7 +48,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import com.azuma.shellplus.model.Screenshot
+import com.shell.liangyi.model.Screenshot
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
