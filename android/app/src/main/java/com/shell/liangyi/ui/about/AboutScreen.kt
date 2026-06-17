@@ -28,7 +28,7 @@ import com.shell.liangyi.ui.components.InsetSection
 import com.shell.liangyi.ui.components.RowDivider
 import com.shell.liangyi.ui.theme.LocalIOSColors
 
-private val CONTRIBUTORS = listOf("@梁逸", "@IKUN-CXKPRO", "@无源流沙", "@NEORUAA")
+private val CONTRIBUTORS = listOf("@梁逸", "@IKUN-CXKPRO", "@无源流沙", "@NEORUAA", "@AzumaChiaki")
 
 @Composable
 fun AboutScreen(onBack: () -> Unit) {
@@ -81,12 +81,6 @@ fun AboutScreen(onBack: () -> Unit) {
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
-            Text(
-                text = "Shell++ · 小米 Vela 快应用终端前端",
-                color = c.tertiaryLabel,
-                fontSize = 12.sp
-            )
             Spacer(modifier = Modifier.height(24.dp))
         }
     }
