@@ -21,6 +21,19 @@
           </div>
         </div>
 
+        <div if="{{hasShots}}" class="card card-sync" onclick="toggleSyncMode">
+          <div class="card-left">
+            <text class="card-label">{{ isSyncMode ? $t("screenshot.syncCancel") : $t("screenshot.syncToPhone") }}</text>
+            <text class="card-sub card-sub-sync">{{ isSyncMode ? $t("screenshot.syncSelectDesc") : $t("screenshot.syncDesc") }}</text>
+          </div>
+        </div>
+
+        <div if="{{isSyncMode}}" class="sync-action-bar">
+          <text class="sync-select-all" onclick="toggleSelectAll">{{ isAllSelected ? $t("screenshot.deselectAll") : $t("screenshot.selectAll") }}</text>
+          <text class="sync-selected-count">{{ $t("screenshot.selectedCount", { count: selectedCount }) }}</text>
+          <text class="sync-send-btn {{ selectedCount > 0 ? '' : 'sync-send-disabled' }}" onclick="syncSelectedScreenshots">{{ $t("screenshot.syncSend") }}</text>
+        </div>
+
         <div class="card">
           <div class="card-left">
             <text class="card-label">{{ $t("screenshot.statusTitle") }}</text>
@@ -47,6 +60,9 @@
         </div>
 
         <div if="{{hasShots}}" class="card" for="{{shotItems}}" tid="id" onclick="onShotItemClick($item)">
+          <div if="{{isSyncMode}}" class="card-checkbox" onclick="toggleShotSelection($item)">
+            <div class="checkbox {{ $item.selected ? 'checkbox-checked' : '' }}"></div>
+          </div>
           <div class="card-left">
             <text class="card-label">{{ $item.label }}</text>
             <text class="card-sub">{{ $item.timeText }}</text>
@@ -72,6 +88,8 @@ import router from "@system.router"
 import file from "@system.file"
 import prompt from "@system.prompt"
 import device from "@system.device"
+
+var interconnectHelper = null
 
 var REQUEST_FILE = "internal://files/screenshot_request.json"
 var RESULT_FILE = "internal://files/screenshot_result.json"
@@ -112,7 +130,13 @@ export default {
     screenWidth: 336,
     screenHeight: 480,
     showDeleteConfirm: false,
-    pendingDeleteAction: ""
+    pendingDeleteAction: "",
+    isSyncMode: false,
+    selectedCount: 0,
+    isAllSelected: false,
+    isSyncing: false,
+    syncProgress: "",
+    interconnectReady: false
   },
 
   onInit() {
@@ -122,6 +146,7 @@ export default {
     self.timer = setInterval(function() { self.updateTime() }, 1000)
     self.resolveSamplePath()
     self.loadPreviewState()
+    self.initInterconnect()
   },
 
   onShow() {
@@ -714,6 +739,211 @@ export default {
     }
   },
 
+  initInterconnect() {
+    var self = this
+    try {
+      interconnectHelper = self.$app.$def.interconnectHelper
+      if (interconnectHelper) {
+        interconnectHelper.addEventListener(function(eventName) {
+          if (eventName === "open") {
+            self.interconnectReady = true
+          } else if (eventName === "close" || eventName === "error") {
+            self.interconnectReady = false
+          }
+        })
+        interconnectHelper.addListener("screenshotSyncAck", function(payload) {
+          self.onSyncAck(payload)
+        })
+        interconnectHelper.addListener("screenshotDataAck", function(payload) {
+          self.onDataAck(payload)
+        })
+        interconnectHelper.addListener("screenshotSyncResult", function(payload) {
+          self.onSyncResult(payload)
+        })
+        interconnectHelper.getReadyState().then(function(state) {
+          self.interconnectReady = state === 1
+        }).catch(function() {
+          self.interconnectReady = false
+        })
+      }
+    } catch (e) {
+      console.log("initInterconnect error: " + e.message)
+    }
+  },
+
+  toggleSyncMode() {
+    this.isSyncMode = !this.isSyncMode
+    if (!this.isSyncMode) {
+      this.clearSelection()
+    }
+  },
+
+  clearSelection() {
+    for (var i = 0; i < this.shotItems.length; i++) {
+      this.shotItems[i].selected = false
+    }
+    this.selectedCount = 0
+    this.isAllSelected = false
+  },
+
+  toggleSelectAll() {
+    var select = !this.isAllSelected
+    this.isAllSelected = select
+    this.selectedCount = 0
+    for (var i = 0; i < this.shotItems.length; i++) {
+      this.shotItems[i].selected = select
+      if (select) {
+        this.selectedCount++
+      }
+    }
+  },
+
+  toggleShotSelection(item) {
+    if (!item) return
+    item.selected = !item.selected
+    if (item.selected) {
+      this.selectedCount++
+    } else {
+      this.selectedCount--
+      this.isAllSelected = false
+    }
+    if (this.selectedCount === this.shotItems.length) {
+      this.isAllSelected = true
+    }
+  },
+
+  getSelectedShots() {
+    var selected = []
+    for (var i = 0; i < this.shotItems.length; i++) {
+      if (this.shotItems[i].selected) {
+        selected.push(this.shotItems[i])
+      }
+    }
+    return selected
+  },
+
+  syncSelectedScreenshots() {
+    var self = this
+    if (self.isSyncing) {
+      prompt.showToast({ message: self.$t("screenshot.syncInProgress") })
+      return
+    }
+    if (!self.interconnectReady) {
+      prompt.showToast({ message: self.$t("screenshot.syncNotConnected") })
+      return
+    }
+    var selected = self.getSelectedShots()
+    if (selected.length === 0) {
+      prompt.showToast({ message: self.$t("screenshot.syncNoSelection") })
+      return
+    }
+    self.isSyncing = true
+    self.statusText = self.$t("screenshot.syncPreparing")
+    var screenshotList = []
+    for (var i = 0; i < selected.length; i++) {
+      screenshotList.push({
+        shotId: selected[i].shotId,
+        capturedAt: selected[i].timeText
+      })
+    }
+    interconnectHelper.send("screenshotSyncRequest", {
+      sessionId: Date.now(),
+      screenshots: screenshotList
+    }).then(function() {
+      self.statusText = self.$t("screenshot.syncWaitingAck")
+    }).catch(function(error) {
+      self.isSyncing = false
+      self.statusText = self.$t("screenshot.syncFailed")
+      prompt.showToast({ message: self.$t("screenshot.syncFailed") })
+    })
+  },
+
+  onSyncAck(payload) {
+    var self = this
+    if (payload && payload.accepted) {
+      self.statusText = self.$t("screenshot.syncSending")
+      self.sendNextScreenshot(0)
+    } else {
+      self.isSyncing = false
+      self.statusText = self.$t("screenshot.syncRejected")
+      prompt.showToast({ message: self.$t("screenshot.syncRejected") })
+    }
+  },
+
+  sendNextScreenshot(index) {
+    var self = this
+    var selected = self.getSelectedShots()
+    if (index >= selected.length) {
+      self.syncComplete()
+      return
+    }
+    var shot = selected[index]
+    self.statusText = self.$t("screenshot.syncProgress", { current: index + 1, total: selected.length })
+    self.readFileAsBase64(shot.file, function(base64Data) {
+      if (!base64Data) {
+        self.sendNextScreenshot(index + 1)
+        return
+      }
+      var payload = {
+        shotId: shot.shotId,
+        capturedAt: shot.timeText,
+        imageData: base64Data
+      }
+      interconnectHelper.sendChunked("screenshotData", payload, 4096).then(function() {
+        self.sendNextScreenshot(index + 1)
+      }).catch(function(error) {
+        self.isSyncing = false
+        self.statusText = self.$t("screenshot.syncFailed")
+        prompt.showToast({ message: self.$t("screenshot.syncFailed") })
+      })
+    })
+  },
+
+  readFileAsBase64(filePath, callback) {
+    file.readText({
+      uri: filePath,
+      success: function(data) {
+        callback(data.text)
+      },
+      fail: function() {
+        callback(null)
+      }
+    })
+  },
+
+  onDataAck(payload) {
+    // 单张截图确认，可选处理
+  },
+
+  onSyncResult(payload) {
+    var self = this
+    self.isSyncing = false
+    if (payload && payload.success) {
+      self.statusText = self.$t("screenshot.syncComplete")
+      prompt.showToast({ message: self.$t("screenshot.syncComplete") })
+    } else {
+      self.statusText = self.$t("screenshot.syncFailed")
+      prompt.showToast({ message: self.$t("screenshot.syncFailed") })
+    }
+  },
+
+  syncComplete() {
+    var self = this
+    interconnectHelper.send("screenshotSyncComplete", {
+      sessionId: Date.now(),
+      count: self.selectedCount
+    }).then(function() {
+      self.statusText = self.$t("screenshot.syncComplete")
+      self.isSyncing = false
+      self.isSyncMode = false
+      self.clearSelection()
+      prompt.showToast({ message: self.$t("screenshot.syncComplete") })
+    }).catch(function() {
+      self.isSyncing = false
+      self.statusText = self.$t("screenshot.syncFailed")
+    })
+  },
+
   goBack() {
     router.back()
   }
@@ -819,6 +1049,70 @@ export default {
   top: 6px;
   width: 72px;
   height: 72px;
+}
+
+.card-sync {
+  background-color: #1a6b3a;
+}
+
+.card-sub-sync {
+  color: rgba(255,255,255,0.8);
+}
+
+.sync-action-bar {
+  width: 300px;
+  margin: 8px 6px 0 6px;
+  padding: 10px 12px;
+  border-radius: 24px;
+  background-color: #2a2a2a;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sync-select-all {
+  font-size: 22px;
+  color: #4fc3f7;
+}
+
+.sync-selected-count {
+  font-size: 20px;
+  color: rgba(255,255,255,0.6);
+}
+
+.sync-send-btn {
+  padding: 6px 16px;
+  border-radius: 16px;
+  background-color: #4fc3f7;
+  font-size: 22px;
+  color: #000000;
+  font-weight: bold;
+}
+
+.sync-send-disabled {
+  background-color: #555555;
+  color: #999999;
+}
+
+.card-checkbox {
+  width: 36px;
+  height: 36px;
+  justify-content: center;
+  align-items: center;
+}
+
+.checkbox {
+  width: 24px;
+  height: 24px;
+  border-radius: 12px;
+  border-width: 2px;
+  border-color: #ffffff;
+  border-style: solid;
+}
+
+.checkbox-checked {
+  background-color: #4fc3f7;
+  border-color: #4fc3f7;
 }
 
 @media (shape: rect) {
