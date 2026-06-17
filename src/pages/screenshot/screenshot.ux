@@ -576,9 +576,6 @@ export default {
     if (!self.previewPath) {
       return
     }
-    if (self.previewMode === "sample") {
-      return
-    }
     if (self.isBusy) {
       prompt.showToast({ message: self.statusText || self.$t("screenshot.busyDesc") })
       return
@@ -592,6 +589,9 @@ export default {
       ],
       success: function(ret) {
         if (!ret || ret.index !== 1) {
+          return
+        }
+        if (self.previewMode === "sample") {
           return
         }
         self.deleteCurrentShotConfirmed()
