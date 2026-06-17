@@ -59,13 +59,17 @@ class GallerySaver(private val context: Context) {
             put(MediaStore.Images.Media.MIME_TYPE, "image/png")
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                put(MediaStore.Images.Media.RELATIVE_PATH, "$ALBUM_NAME/Screenshots")
+                // 必须放在 Pictures/ 下，系统相册才会扫描收录
+                put(
+                    MediaStore.Images.Media.RELATIVE_PATH,
+                    "${Environment.DIRECTORY_PICTURES}/$ALBUM_NAME"
+                )
                 put(MediaStore.Images.Media.IS_PENDING, 1)
             } else {
                 put(
                     MediaStore.Images.Media.DATA,
                     Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
-                        .toString() + "/$ALBUM_NAME/Screenshots/$fileName.png"
+                        .toString() + "/$ALBUM_NAME/$fileName.png"
                 )
             }
         }

@@ -6,23 +6,47 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.shell.liangyi.core.ConnectionState
+import com.shell.liangyi.core.LogEntry
 import com.shell.liangyi.core.ScreenshotReceiver
+import com.shell.liangyi.core.WearMessageCenter
 import com.shell.liangyi.model.Screenshot
 import com.shell.liangyi.util.GallerySaver
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class ScreenshotViewModel(application: Application) : AndroidViewModel(application) {
 
+    companion object {
+        private const val KEY_DEBUG_LOG = "debug_log_enabled"
+    }
+
+    private val wearMessageCenter = WearMessageCenter.getInstance(application)
     private val screenshotReceiver = ScreenshotReceiver(application, viewModelScope)
     private val gallerySaver = GallerySaver(application)
 
     val screenshots: StateFlow<List<Screenshot>> = screenshotReceiver.screenshots
     val syncState: StateFlow<ScreenshotReceiver.SyncState> = screenshotReceiver.syncState
     val receiveProgress: StateFlow<String> = screenshotReceiver.receiveProgress
+    val connectionState: SharedFlow<ConnectionState> = wearMessageCenter.connectionState
+    val logs: SharedFlow<List<LogEntry>> = wearMessageCenter.logs
+
+    private val prefs = application.getSharedPreferences("shellplus_settings", Application.MODE_PRIVATE)
 
     var previewScreenshot by mutableStateOf<Screenshot?>(null)
         private set
+
+    // 调试日志：设置里的可选开关，默认关闭
+    var debugLogEnabled by mutableStateOf(prefs.getBoolean(KEY_DEBUG_LOG, false))
+        private set
+
+    fun updateDebugLogEnabled(enabled: Boolean) {
+        debugLogEnabled = enabled
+        prefs.edit().putBoolean(KEY_DEBUG_LOG, enabled).apply()
+    }
 
     fun requestFromWatch() {
         screenshotReceiver.requestFromWatch()
@@ -40,14 +64,19 @@ class ScreenshotViewModel(application: Application) : AndroidViewModel(applicati
         previewScreenshot = null
     }
 
-    fun saveToGallery(screenshot: Screenshot) {
+    fun saveToGallery(screenshot: Screenshot, onResult: (Boolean) -> Unit) {
         viewModelScope.launch {
-            if (screenshot.imageData.isNotEmpty()) {
-                gallerySaver.saveBase64ToGallery(
-                    screenshot.imageData,
-                    "screenshot_${screenshot.shotId}"
-                )
+            val success = withContext(Dispatchers.IO) {
+                if (screenshot.imageData.isNotEmpty()) {
+                    gallerySaver.saveBase64ToGallery(
+                        screenshot.imageData,
+                        "screenshot_${screenshot.shotId}"
+                    )
+                } else {
+                    false
+                }
             }
+            onResult(success)
         }
     }
 
@@ -60,5 +89,17 @@ class ScreenshotViewModel(application: Application) : AndroidViewModel(applicati
 
     fun clearAll() {
         screenshotReceiver.clearAll()
+    }
+
+    fun checkConnection() {
+        // 重新发现设备并确保监听器注册，同时发一个心跳探活
+        wearMessageCenter.ensureConnection()
+        viewModelScope.launch {
+            wearMessageCenter.sendHeartbeat()
+        }
+    }
+
+    fun clearLogs() {
+        wearMessageCenter.clearLogs()
     }
 }

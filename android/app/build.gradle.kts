@@ -46,6 +46,9 @@ android {
 }
 
 dependencies {
+    // 小米穿戴 SDK（本地 aar，参考 varclass 的接入方式）
+    implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.aar", "*.jar"))))
+
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.core.ktx)
     implementation(libs.material)

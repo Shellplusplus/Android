@@ -1,6 +1,7 @@
 package com.shell.liangyi.core
 
 import android.content.Context
+import android.util.Base64
 import android.util.Log
 import com.shell.liangyi.model.Screenshot
 import kotlinx.coroutines.CoroutineScope
@@ -11,6 +12,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
 
 /**
  * 截图接收处理类
@@ -43,6 +45,18 @@ class ScreenshotReceiver(
     private var receivedCount = 0
     private var totalCount = 0
 
+    // 截图二进制分片接收会话（按 sessionId 缓存）
+    private class ChunkSession(
+        val shotId: String,
+        val capturedAt: String,
+        val total: Int
+    ) {
+        val parts: Array<ByteArray?> = arrayOfNulls(total)
+        var receivedCount: Int = 0
+    }
+
+    private val chunkSessions = mutableMapOf<String, ChunkSession>()
+
     sealed class SyncState {
         object Idle : SyncState()
         object WaitingAck : SyncState()
@@ -69,8 +83,126 @@ class ScreenshotReceiver(
         when (type) {
             MessageType.SCREENSHOT_SYNC_REQUEST -> handleSyncRequest(json)
             MessageType.SCREENSHOT_DATA -> handleScreenshotData(json)
+            MessageType.SCREENSHOT_CHUNK_START -> handleChunkStart(json)
+            MessageType.SCREENSHOT_CHUNK_PART -> handleChunkPart(json)
+            MessageType.SCREENSHOT_CHUNK_FINISH -> handleChunkFinish(json)
             MessageType.SCREENSHOT_SYNC_COMPLETE -> handleSyncComplete(json)
             MessageType.SCREENSHOT_LIST_DATA -> handleScreenshotListData(json)
+        }
+    }
+
+    /**
+     * 收到分片起始：建立会话并回 ACK
+     */
+    private fun handleChunkStart(json: JSONObject) {
+        val sessionId = json.optString("sessionId")
+        val total = json.optInt("total", 0)
+        if (sessionId.isEmpty() || total <= 0) {
+            Log.w(TAG, "Invalid chunkStart")
+            messageCenter.sendChunkAck(sessionId, "start", false)
+            return
+        }
+        chunkSessions[sessionId] = ChunkSession(
+            shotId = json.optString("shotId"),
+            capturedAt = json.optString("capturedAt"),
+            total = total
+        )
+        _syncState.value = SyncState.Receiving
+        _receiveProgress.value = "接收中 0/$total"
+        Log.d(TAG, "Chunk session start: $sessionId total=$total")
+        messageCenter.sendChunkAck(sessionId, "start", true)
+    }
+
+    /**
+     * 收到分片数据：解码并缓存，回 ACK
+     */
+    private fun handleChunkPart(json: JSONObject) {
+        val sessionId = json.optString("sessionId")
+        val index = json.optInt("index", -1)
+        val data = json.optString("d")
+        val session = chunkSessions[sessionId]
+
+        if (session == null) {
+            Log.w(TAG, "chunkPart: session not found $sessionId")
+            messageCenter.sendChunkAck(sessionId, "part", false, index)
+            return
+        }
+        if (index < 0 || index >= session.total || data.isEmpty()) {
+            Log.w(TAG, "chunkPart: invalid index=$index")
+            messageCenter.sendChunkAck(sessionId, "part", false, index)
+            return
+        }
+
+        try {
+            val bytes = Base64.decode(data, Base64.DEFAULT)
+            if (session.parts[index] == null) {
+                session.parts[index] = bytes
+                session.receivedCount++
+            } else {
+                // 重传：覆盖，不增加计数
+                session.parts[index] = bytes
+            }
+            _receiveProgress.value = "接收中 ${session.receivedCount}/${session.total}"
+            messageCenter.sendChunkAck(sessionId, "part", true, index)
+        } catch (e: Exception) {
+            Log.e(TAG, "chunkPart decode failed", e)
+            messageCenter.sendChunkAck(sessionId, "part", false, index)
+        }
+    }
+
+    /**
+     * 收到分片结束：合并字节、生成截图，回 ACK
+     */
+    private fun handleChunkFinish(json: JSONObject) {
+        val sessionId = json.optString("sessionId")
+        val session = chunkSessions[sessionId]
+        if (session == null) {
+            Log.w(TAG, "chunkFinish: session not found $sessionId")
+            messageCenter.sendChunkAck(sessionId, "finish", false)
+            return
+        }
+        if (session.receivedCount != session.total) {
+            Log.w(TAG, "chunkFinish: incomplete ${session.receivedCount}/${session.total}")
+            // 不清理会话，允许重传缺失分片后再次 finish
+            messageCenter.sendChunkAck(sessionId, "finish", false)
+            return
+        }
+
+        try {
+            val out = ByteArrayOutputStream()
+            for (part in session.parts) {
+                if (part != null) {
+                    out.write(part)
+                }
+            }
+            val fullBytes = out.toByteArray()
+            val imageData = Base64.encodeToString(fullBytes, Base64.NO_WRAP)
+
+            receivedCount++
+            val screenshot = Screenshot(
+                shotId = session.shotId,
+                capturedAt = session.capturedAt,
+                capturedAtUnix = System.currentTimeMillis() / 1000,
+                imageData = imageData,
+                index = receivedCount
+            )
+
+            val currentList = _screenshots.value.toMutableList()
+            val existingIndex = currentList.indexOfFirst { it.shotId == session.shotId }
+            if (existingIndex >= 0) {
+                currentList[existingIndex] = screenshot
+            } else {
+                currentList.add(0, screenshot)
+            }
+            _screenshots.value = currentList
+
+            Log.d(TAG, "Chunk session done: ${session.shotId} bytes=${fullBytes.size}")
+            messageCenter.sendChunkAck(sessionId, "finish", true)
+        } catch (e: Exception) {
+            Log.e(TAG, "chunkFinish assemble failed", e)
+            messageCenter.sendChunkAck(sessionId, "finish", false)
+        } finally {
+            chunkSessions.remove(sessionId)
         }
     }
 

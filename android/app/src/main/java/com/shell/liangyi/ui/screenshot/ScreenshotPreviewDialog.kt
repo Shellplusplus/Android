@@ -1,26 +1,22 @@
 package com.shell.liangyi.ui.screenshot
 
+import android.util.Base64
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -31,6 +27,7 @@ import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.shell.liangyi.model.Screenshot
+import com.shell.liangyi.ui.theme.LocalIOSColors
 
 @Composable
 fun ScreenshotPreviewDialog(
@@ -39,107 +36,94 @@ fun ScreenshotPreviewDialog(
     onSave: () -> Unit,
     onDelete: () -> Unit
 ) {
+    val c = LocalIOSColors.current
+    val imageBytes = remember(screenshot.imageData) {
+        if (screenshot.imageData.isNotEmpty()) {
+            try {
+                Base64.decode(screenshot.imageData, Base64.DEFAULT)
+            } catch (e: Exception) {
+                null
+            }
+        } else {
+            null
+        }
+    }
+
     Dialog(onDismissRequest = onDismiss) {
-        Card(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .padding(12.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(c.cardBackground)
                 .padding(16.dp),
-            shape = RoundedCornerShape(16.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+            Text(
+                text = screenshot.shotId,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = c.label
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(text = screenshot.capturedAt, fontSize = 13.sp, color = c.secondaryLabel)
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1f)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(if (c.isDark) Color(0xFF2C2C2E) else Color(0xFFE5E5EA)),
+                contentAlignment = Alignment.Center
             ) {
-                // 标题
-                Text(
-                    text = screenshot.shotId,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // 时间
-                Text(
-                    text = screenshot.capturedAt,
-                    fontSize = 14.sp,
-                    color = Color.Gray
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // 图片预览
-                if (screenshot.imageData.isNotEmpty()) {
+                if (imageBytes != null) {
                     AsyncImage(
                         model = ImageRequest.Builder(LocalContext.current)
-                            .data(screenshot.imageData)
+                            .data(imageBytes)
                             .crossfade(true)
                             .build(),
                         contentDescription = "截图预览",
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(0.7f),
+                        modifier = Modifier.fillMaxWidth(),
                         contentScale = ContentScale.Fit
                     )
                 } else {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(0.7f)
-                            .background(Color.Gray.copy(alpha = 0.3f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "无图片数据",
-                            color = Color.Gray
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // 操作按钮
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    // 保存按钮
-                    Button(
-                        onClick = onSave,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF4FC3F7)
-                        )
-                    ) {
-                        Text("保存到相册")
-                    }
-
-                    Spacer(modifier = Modifier.width(16.dp))
-
-                    // 删除按钮
-                    Button(
-                        onClick = onDelete,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFFEF5350)
-                        )
-                    ) {
-                        Text("删除")
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // 关闭按钮
-                Button(
-                    onClick = onDismiss,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.Gray
-                    )
-                ) {
-                    Text("关闭")
+                    Text(text = "无图片数据", color = c.secondaryLabel, fontSize = 15.sp)
                 }
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            FilledButton(text = "保存到相册", bg = c.accent, onClick = onSave)
+            Spacer(modifier = Modifier.height(10.dp))
+            FilledButton(text = "删除", bg = c.red, onClick = onDelete)
+            Spacer(modifier = Modifier.height(10.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .clickable { onDismiss() }
+                    .padding(vertical = 13.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(text = "关闭", color = c.accent, fontSize = 17.sp)
+            }
         }
+    }
+}
+
+@Composable
+private fun FilledButton(text: String, bg: Color, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(bg)
+            .clickable { onClick() }
+            .padding(vertical = 13.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(text = text, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
     }
 }
