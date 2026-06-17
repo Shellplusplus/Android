@@ -117,7 +117,7 @@
     "logRecordEnabledToast": "日志记录已开启",
     "logRecordDisabledToast": "日志记录已关闭",
     "logHistoryTitle": "查看历史日志",
-    "logHistoryDesc": "查看 Lua 和快应用保存的日志",
+    "logHistoryDesc": "查看保存的日志",
     "quickAppPending": "暂未开放"
   },
   "history": {
