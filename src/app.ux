@@ -2,10 +2,14 @@
 import file from "@system.file"
 import shellData from "./common/scripts/shellData.js"
 import logData from "./common/scripts/logData.js"
+import InterconnectHelper from "./common/scripts/InterconnectHelper.js"
+
+var interconnectHelper = new InterconnectHelper()
 
 export default {
   shellData: shellData,
   logData: logData,
+  interconnectHelper: interconnectHelper,
 
   readLogEnabled(done) {
     file.readText({
@@ -152,6 +156,7 @@ export default {
       append: false
     })
     self.markAppStart()
+    interconnectHelper.init()
     console.log("Shell++ project created")
   },
   onDestroy() {

@@ -1,3 +1,17 @@
 <resources>
     <string name="app_name">ShellPlus</string>
+    <string name="screenshot_sync">截图同步</string>
+    <string name="screenshot_list">截图列表</string>
+    <string name="screenshot_empty">暂无截图</string>
+    <string name="screenshot_empty_desc">点击右下角按钮从手表获取</string>
+    <string name="screenshot_syncing">同步中...</string>
+    <string name="screenshot_sync_complete">同步完成</string>
+    <string name="screenshot_sync_failed">同步失败</string>
+    <string name="screenshot_save">保存到相册</string>
+    <string name="screenshot_delete">删除</string>
+    <string name="screenshot_close">关闭</string>
+    <string name="screenshot_saved">已保存到相册</string>
+    <string name="screenshot_deleted">已删除</string>
+    <string name="screenshot_no_data">无图片数据</string>
+    <string name="screenshot_from_watch">从手表获取</string>
 </resources>
