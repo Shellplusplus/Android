@@ -6,6 +6,7 @@
 build/
 dist/
 *.rpk
+**/.DS_Store
 
 # Claude Code
 CLAUDE.md
@@ -27,7 +28,6 @@ android/.idea/navEditor.xml
 android/.idea/assetWizardSettings.xml
 android/.idea/shelf/
 android/.idea/workspace.xml
-android/.DS_Store
 android/build
 android/app/build
 android/captures
