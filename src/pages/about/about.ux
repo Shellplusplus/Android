@@ -1,14 +1,13 @@
 <template>
   <div class="page">
     <scroll class="content-full" scroll-y="true" bounces="true">
-      <div class="header-area">
-        <img src="/common/hd.png" class="header-bg" />
-        <text class="hd-time">{{ nowTime }}</text>
-      </div>
       <img src="/common/About_336.png" class="about-bg about-336" />
       <img src="/common/About_192.png" class="about-bg about-192" />
       <img src="/common/About_212.png" class="about-bg about-212" />
     </scroll>
+    <div class="header-area">
+      <text class="hd-time">{{ nowTime }}</text>
+    </div>
     <img src="/common/back.png" @click="goBack" class="hd-back" />
     <div class="pill-header">
       <div class="pill-more-wrap" @click="goBack">
@@ -55,7 +54,8 @@ export default {
 
 .page { position: relative; }
 .about-bg { display: none; }
-.about-336 { display: flex; width: 336px; margin-top: -102px; }
+.header-area { position: absolute; top: 0; left: 0; }
+.about-336 { display: flex; width: 336px; margin-top: 0; }
 .about-192 { width: 192px; }
 .about-212 { width: 212px; }
 @media (shape: pill-shaped) and (max-width: 100) {
