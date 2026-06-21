@@ -1,6 +1,9 @@
 package com.shell.liangyi.core
 
 import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Handler
+import android.os.Looper
 import android.util.Base64
 import android.util.Log
 import com.xiaomi.xms.wearable.Wearable
@@ -15,12 +18,16 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
+import java.util.Timer
+import java.util.TimerTask
 import java.util.concurrent.ConcurrentHashMap
 
 /**
  * 消息类型常量
  */
 object MessageType {
+    const val HANDSHAKE = "__hs__"
+
     // 手表端发起同步
     const val SCREENSHOT_SYNC_REQUEST = "screenshotSyncRequest"
     const val SCREENSHOT_SYNC_ACK = "screenshotSyncAck"
@@ -40,7 +47,7 @@ object MessageType {
     const val SCREENSHOT_LIST_DATA = "screenshotListData"
     const val REQUEST_SCREENSHOT_DATA = "requestScreenshotData"
 
-    // 连接状态
+    // 连接保活
     const val HEARTBEAT = "heartbeat"
     const val HEARTBEAT_ACK = "heartbeatAck"
 }
@@ -49,10 +56,10 @@ object MessageType {
  * 连接状态
  */
 enum class ConnectionState {
-    DISCONNECTED,  // 未连接
-    CONNECTING,    // 连接中
-    CONNECTED,     // 已连接
-    ERROR          // 连接错误
+    DISCONNECTED,
+    CONNECTING,
+    CONNECTED,
+    ERROR
 }
 
 /**
@@ -60,23 +67,27 @@ enum class ConnectionState {
  */
 data class LogEntry(
     val timestamp: Long = System.currentTimeMillis(),
-    val direction: String,  // "SEND" / "RECEIVE" / "SYSTEM" / "ERROR"
+    val direction: String,
     val type: String,
     val message: String = ""
 )
 
 /**
- * 消息中心 - 管理与手表端（Vela 快应用）的通信
+ * 消息中心 - 管理与手表端（Vela 快应用）的通信。
  *
- * 通过小米穿戴 SDK（com.xiaomi.xms.wearable）与手表端建立连接：
- * 发现已连接设备 -> 申请/校验权限 -> 注册消息监听器 -> 收发消息。
- * 实现参考 varclass 中已验证可用的 WearMessageCenter 写法。
+ * 连接流程按参考项目重构：
+ * 发现设备 -> 校验权限 -> 注册监听器 -> 拉起手表快应用 -> 握手成功 -> 进入 CONNECTED。
+ * 只有握手成功后，业务消息才允许发送。
  */
 class WearMessageCenter private constructor(private val context: Context) {
 
     companion object {
         private const val TAG = "WearMessageCenter"
         private const val CHUNK_SIZE = 4096
+        private const val WEAR_APP_ENTRY_URI = "/pages/index"
+        private const val HANDSHAKE_TIMEOUT_MS = 3000L
+        private const val HEARTBEAT_INTERVAL_MS = 5000L
+        private const val HEARTBEAT_TIMEOUT_MS = 12000L
 
         @Volatile
         private var instance: WearMessageCenter? = null
@@ -88,27 +99,25 @@ class WearMessageCenter private constructor(private val context: Context) {
         }
     }
 
-    // 消息流（用 extraBufferCapacity 避免订阅者尚未就绪时丢消息）
     private val _messageFlow = MutableSharedFlow<JSONObject>(extraBufferCapacity = 64)
     val messageFlow: SharedFlow<JSONObject> = _messageFlow.asSharedFlow()
 
-    // 连接状态（replay=1，新订阅者可立即拿到最新状态）
     private val _connectionState = MutableSharedFlow<ConnectionState>(
         replay = 1,
         extraBufferCapacity = 8
     )
     val connectionState: SharedFlow<ConnectionState> = _connectionState.asSharedFlow()
 
-    // 日志（replay=1，调试面板订阅时可立即拿到当前日志）
     private val _logs = MutableSharedFlow<List<LogEntry>>(replay = 1, extraBufferCapacity = 8)
     val logs: SharedFlow<List<LogEntry>> = _logs.asSharedFlow()
     private val logEntries = mutableListOf<LogEntry>()
     private val maxLogEntries = 100
 
-    // 分片缓冲区
     private val chunkBuffers = ConcurrentHashMap<String, ChunkBuffer>()
+    private val pendingReadyCallbacks = mutableListOf<(Boolean) -> Unit>()
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val appVersionCode by lazy { resolveAppVersionCode() }
 
-    // 小米穿戴 SDK
     private var nodeApi: NodeApi? = null
     private var messageApi: MessageApi? = null
     private var authApi: AuthApi? = null
@@ -118,19 +127,21 @@ class WearMessageCenter private constructor(private val context: Context) {
 
     @Volatile
     private var currentState: ConnectionState = ConnectionState.DISCONNECTED
+    @Volatile
+    private var handshaked = false
+    @Volatile
+    private var handshakeInProgress = false
 
-    // 心跳定时器
-    private var heartbeatTimer: java.util.Timer? = null
+    private var heartbeatTimer: Timer? = null
     private var lastHeartbeatAck: Long = 0
+    private var handshakeTimeoutRunnable: Runnable? = null
 
     private class ChunkBuffer(
         val total: Int,
         val parts: Array<ByteArray?>,
-        var count: Int = 0,
-        val timestamp: Long = System.currentTimeMillis()
+        var count: Int = 0
     )
 
-    // 全局消息监听器：收到字节 -> 转字符串 -> 走统一处理逻辑
     private val messageListener = OnMessageReceivedListener { nodeId, bytes ->
         try {
             val text = String(bytes, Charsets.UTF_8)
@@ -142,9 +153,6 @@ class WearMessageCenter private constructor(private val context: Context) {
         }
     }
 
-    /**
-     * 初始化消息中心：获取 SDK，发现设备并完成权限/监听器注册
-     */
     fun initialize() {
         Log.d(TAG, "Initializing WearMessageCenter")
         addLog("SYSTEM", "init", "消息中心初始化")
@@ -153,65 +161,94 @@ class WearMessageCenter private constructor(private val context: Context) {
         messageApi = Wearable.getMessageApi(context)
         authApi = Wearable.getAuthApi(context)
 
-        updateState(ConnectionState.CONNECTING)
-        discoverAndRegister(force = false)
+        ensureSession(force = false)
     }
 
-    /**
-     * 保活：每次界面可见时调用，重新检查设备连接并确保监听器注册
-     */
     fun ensureConnection() {
-        if (nodeApi == null) {
-            // 尚未初始化，先初始化
+        if (nodeApi == null || messageApi == null || authApi == null) {
             initialize()
             return
         }
         addLog("SYSTEM", "ensure", "执行连接保活检查")
-        discoverAndRegister(force = true)
+        ensureSession(force = true)
     }
 
-    /**
-     * 发现已连接设备，并在成功后完成权限校验与监听器注册
-     */
-    private fun discoverAndRegister(force: Boolean) {
-        val api = nodeApi ?: return
+    private fun ensureSession(force: Boolean, onReady: (Boolean) -> Unit = {}) {
+        synchronized(this) {
+            if (handshaked && currentState == ConnectionState.CONNECTED && !force) {
+                onReady(true)
+                return
+            }
+            pendingReadyCallbacks.add(onReady)
+            if (handshakeInProgress) {
+                return
+            }
+            handshakeInProgress = true
+        }
+        updateState(ConnectionState.CONNECTING)
+        discoverAndPrepare(force)
+    }
+
+    private fun finishPendingReady(success: Boolean) {
+        val callbacks = synchronized(this) {
+            val copy = pendingReadyCallbacks.toList()
+            pendingReadyCallbacks.clear()
+            copy
+        }
+        callbacks.forEach { callback ->
+            try {
+                callback(success)
+            } catch (_: Throwable) {
+            }
+        }
+    }
+
+    private fun discoverAndPrepare(force: Boolean) {
+        val api = nodeApi
+        if (api == null) {
+            markDisconnected(ConnectionState.ERROR, "NodeApi 未初始化")
+            return
+        }
+
         api.connectedNodes
             .addOnSuccessListener { nodes ->
                 if (nodes.isNullOrEmpty()) {
-                    Log.w(TAG, "当前没有已连接设备")
-                    addLog("SYSTEM", "no_device", "当前没有已连接设备")
                     currentNode = null
                     hasDevicePermission = false
                     listenerRegistered = false
-                    updateState(ConnectionState.DISCONNECTED)
+                    markDisconnected(ConnectionState.DISCONNECTED, "当前没有已连接设备")
                     return@addOnSuccessListener
                 }
+
                 val node = nodes[0]
                 if (currentNode?.id != node.id) {
                     addLog("SYSTEM", "device", "找到设备 ${node.name} (${node.id})")
-                    // 设备发生变化，之前的权限与监听状态作废
                     hasDevicePermission = false
                     listenerRegistered = false
                 }
                 currentNode = node
-                ensurePermissionAndRegister(force)
+                ensurePermissionThenPrepare(force)
             }
             .addOnFailureListener { e ->
                 Log.e(TAG, "获取已连接设备失败", e)
-                addLog("ERROR", "connected_nodes", e.message ?: "获取设备失败")
-                updateState(ConnectionState.ERROR)
+                markDisconnected(ConnectionState.ERROR, e.message ?: "获取设备失败")
             }
     }
 
-    // ================= 权限 & 注册监听 =================
-
-    private fun ensurePermissionAndRegister(force: Boolean) {
-        val node = currentNode ?: return
-        if (hasDevicePermission) {
-            registerListenerIfNeeded(force)
+    private fun ensurePermissionThenPrepare(force: Boolean) {
+        val node = currentNode ?: run {
+            markDisconnected(ConnectionState.ERROR, "当前设备为空")
             return
         }
-        val api = authApi ?: return
+        if (hasDevicePermission) {
+            prepareWearAppSession(force)
+            return
+        }
+
+        val api = authApi ?: run {
+            markDisconnected(ConnectionState.ERROR, "AuthApi 未初始化")
+            return
+        }
         val permissions = arrayOf(Permission.DEVICE_MANAGER, Permission.NOTIFY)
 
         addLog("SYSTEM", "permission", "检查穿戴权限中")
@@ -221,71 +258,159 @@ class WearMessageCenter private constructor(private val context: Context) {
                 if (allGranted) {
                     hasDevicePermission = true
                     addLog("SYSTEM", "permission", "已具备必要权限")
-                    registerListenerIfNeeded(force)
+                    prepareWearAppSession(force)
                 } else {
-                    requestPermission(node)
+                    requestPermission(node, force)
                 }
             }
-            .addOnFailureListener { e ->
-                Log.w(TAG, "检查权限失败，尝试申请", e)
-                addLog("SYSTEM", "permission", "检查权限失败，尝试申请")
-                requestPermission(node)
+            .addOnFailureListener {
+                requestPermission(node, force)
             }
     }
 
-    private fun requestPermission(node: Node) {
-        val api = authApi ?: return
+    private fun requestPermission(node: Node, force: Boolean) {
+        val api = authApi ?: run {
+            markDisconnected(ConnectionState.ERROR, "AuthApi 未初始化")
+            return
+        }
+
         api.requestPermission(node.id, Permission.DEVICE_MANAGER, Permission.NOTIFY)
             .addOnSuccessListener { granted ->
                 if (granted != null && granted.isNotEmpty()) {
                     hasDevicePermission = true
                     addLog("SYSTEM", "permission", "权限申请成功")
-                    registerListenerIfNeeded(force = true)
+                    prepareWearAppSession(force)
                 } else {
-                    addLog("ERROR", "permission", "用户未授予必要权限")
-                    updateState(ConnectionState.ERROR)
+                    markDisconnected(ConnectionState.ERROR, "用户未授予必要权限")
                 }
             }
             .addOnFailureListener { e ->
                 Log.e(TAG, "申请权限失败", e)
-                addLog("ERROR", "permission", e.message ?: "申请权限失败")
-                updateState(ConnectionState.ERROR)
+                markDisconnected(ConnectionState.ERROR, e.message ?: "申请权限失败")
             }
     }
 
-    private fun registerListenerIfNeeded(force: Boolean) {
+    private fun prepareWearAppSession(force: Boolean) {
+        registerListenerIfNeeded(force) { success ->
+            if (!success) {
+                markDisconnected(ConnectionState.ERROR, "消息监听器注册失败")
+                return@registerListenerIfNeeded
+            }
+            launchWearApp {
+                startHandshake()
+            }
+        }
+    }
+
+    private fun registerListenerIfNeeded(force: Boolean, onDone: (Boolean) -> Unit) {
         if (listenerRegistered && !force) {
-            updateState(ConnectionState.CONNECTED)
+            onDone(true)
             return
         }
-        val node = currentNode ?: return
-        val api = messageApi ?: return
 
-        // 先移除旧监听器，无论成功失败都重新注册（避免重复注册报错）
+        val node = currentNode
+        val api = messageApi
+        if (node == null || api == null) {
+            onDone(false)
+            return
+        }
+
         val doRegister = {
             api.addListener(node.id, messageListener)
                 .addOnSuccessListener {
                     listenerRegistered = true
                     addLog("SYSTEM", "listener", "消息监听器注册成功")
-                    updateState(ConnectionState.CONNECTED)
+                    onDone(true)
                 }
                 .addOnFailureListener { e ->
                     if (e.message?.contains("registered") == true) {
-                        // 监听器其实已存在，视为成功
                         listenerRegistered = true
                         addLog("SYSTEM", "listener", "监听器已存在（忽略报错）")
-                        updateState(ConnectionState.CONNECTED)
+                        onDone(true)
                     } else {
                         listenerRegistered = false
                         addLog("ERROR", "listener", e.message ?: "监听器注册失败")
-                        updateState(ConnectionState.ERROR)
+                        onDone(false)
                     }
                 }
         }
 
-        val task = api.removeListener(node.id)
-        task.addOnSuccessListener { doRegister() }
-        task.addOnFailureListener { doRegister() }
+        api.removeListener(node.id)
+            .addOnSuccessListener { doRegister() }
+            .addOnFailureListener { doRegister() }
+    }
+
+    private fun launchWearApp(onComplete: () -> Unit) {
+        val node = currentNode
+        val api = nodeApi
+        if (node == null || api == null) {
+            onComplete()
+            return
+        }
+
+        api.launchWearApp(node.id, WEAR_APP_ENTRY_URI)
+            .addOnSuccessListener {
+                addLog("SYSTEM", "launch", "已拉起手表快应用")
+                onComplete()
+            }
+            .addOnFailureListener { e ->
+                addLog("SYSTEM", "launch", "拉起手表快应用失败，继续尝试握手: ${e.message ?: "unknown"}")
+                onComplete()
+            }
+    }
+
+    private fun startHandshake() {
+        clearHandshakeTimeout()
+
+        val timeoutRunnable = Runnable {
+            addLog("ERROR", "handshake", "握手超时")
+            markDisconnected(ConnectionState.DISCONNECTED, "手表快应用未响应握手")
+        }
+        handshakeTimeoutRunnable = timeoutRunnable
+        mainHandler.postDelayed(timeoutRunnable, HANDSHAKE_TIMEOUT_MS)
+
+        val payload = JSONObject().apply {
+            put("count", 0)
+            put("version", appVersionCode)
+        }
+        sendDirect(MessageType.HANDSHAKE, payload, logTraffic = false) { success, error ->
+            if (!success) {
+                markDisconnected(ConnectionState.ERROR, error?.message ?: "发送握手失败")
+            }
+        }
+    }
+
+    private fun clearHandshakeTimeout() {
+        handshakeTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
+        handshakeTimeoutRunnable = null
+    }
+
+    private fun confirmConnected() {
+        val wasConnected = handshaked && currentState == ConnectionState.CONNECTED
+        clearHandshakeTimeout()
+        handshakeInProgress = false
+        handshaked = true
+        lastHeartbeatAck = System.currentTimeMillis()
+        if (!wasConnected) {
+            updateState(ConnectionState.CONNECTED)
+            startHeartbeatMonitor()
+            finishPendingReady(true)
+            return
+        }
+        updateState(ConnectionState.CONNECTED)
+    }
+
+    private fun markDisconnected(state: ConnectionState, reason: String) {
+        clearHandshakeTimeout()
+        stopHeartbeat()
+        handshaked = false
+        handshakeInProgress = false
+        lastHeartbeatAck = 0
+        updateState(state)
+        if (reason.isNotEmpty()) {
+            addLog(if (state == ConnectionState.ERROR) "ERROR" else "SYSTEM", "disconnect", reason)
+        }
+        finishPendingReady(false)
     }
 
     private fun updateState(state: ConnectionState) {
@@ -293,9 +418,6 @@ class WearMessageCenter private constructor(private val context: Context) {
         _connectionState.tryEmit(state)
     }
 
-    /**
-     * 添加日志
-     */
     private fun addLog(direction: String, type: String, message: String = "") {
         val entry = LogEntry(
             direction = direction,
@@ -311,9 +433,6 @@ class WearMessageCenter private constructor(private val context: Context) {
         }
     }
 
-    /**
-     * 清空日志
-     */
     fun clearLogs() {
         synchronized(logEntries) {
             logEntries.clear()
@@ -321,124 +440,184 @@ class WearMessageCenter private constructor(private val context: Context) {
         }
     }
 
-    /**
-     * 获取当前连接状态
-     */
     fun getCurrentConnectionState(): ConnectionState = currentState
 
-    /**
-     * 启动心跳
-     */
-    fun startHeartbeat() {
-        stopHeartbeat()
-        heartbeatTimer = java.util.Timer()
-        heartbeatTimer?.schedule(object : java.util.TimerTask() {
-            override fun run() {
-                sendHeartbeat()
-            }
-        }, 0, 5000) // 每5秒发送一次心跳
+    private fun shouldLogTraffic(type: String): Boolean {
+        return type != MessageType.HANDSHAKE &&
+            type != MessageType.HEARTBEAT &&
+            type != MessageType.HEARTBEAT_ACK
     }
 
-    /**
-     * 停止心跳
-     */
+    private fun startHeartbeatMonitor() {
+        stopHeartbeat()
+        heartbeatTimer = Timer()
+        heartbeatTimer?.schedule(object : TimerTask() {
+            override fun run() {
+                val now = System.currentTimeMillis()
+                if (handshaked && lastHeartbeatAck > 0 && now - lastHeartbeatAck > HEARTBEAT_TIMEOUT_MS) {
+                    addLog("ERROR", "heartbeat", "心跳超时")
+                    markDisconnected(ConnectionState.DISCONNECTED, "手表快应用心跳超时")
+                    return
+                }
+                val payload = JSONObject().apply {
+                    put("timestamp", now / 1000)
+                }
+                sendDirect(MessageType.HEARTBEAT, payload, logTraffic = false)
+            }
+        }, HEARTBEAT_INTERVAL_MS, HEARTBEAT_INTERVAL_MS)
+    }
+
     fun stopHeartbeat() {
         heartbeatTimer?.cancel()
         heartbeatTimer = null
     }
 
-    /**
-     * 发送心跳
-     */
     fun sendHeartbeat() {
-        val payload = JSONObject().apply {
-            put("timestamp", System.currentTimeMillis() / 1000)
+        ensureSession(force = false) { success ->
+            if (!success) {
+                addLog("ERROR", "heartbeat", "连接未就绪，无法发送心跳")
+                return@ensureSession
+            }
+            val payload = JSONObject().apply {
+                put("timestamp", System.currentTimeMillis() / 1000)
+            }
+            sendDirect(MessageType.HEARTBEAT, payload, logTraffic = false)
         }
-        send(MessageType.HEARTBEAT, payload)
     }
 
-    /**
-     * 发送消息（自动补充 type 字段，超过单包上限时分片发送）
-     */
     fun send(type: String, payload: JSONObject) {
+        ensureSession(force = false) { success ->
+            if (!success) {
+                addLog("ERROR", type, "连接未建立，发送取消")
+                return@ensureSession
+            }
+            sendDirect(type, payload, logTraffic = shouldLogTraffic(type))
+        }
+    }
+
+    private fun sendDirect(
+        type: String,
+        payload: JSONObject,
+        logTraffic: Boolean = true,
+        onResult: ((Boolean, Exception?) -> Unit)? = null
+    ) {
         payload.put("type", type)
         val message = payload.toString()
-        addLog("SEND", type, message.take(200))
+        if (logTraffic) {
+            addLog("SEND", type, message.take(200))
+        }
+        sendEncodedMessage(message, onResult)
+    }
 
+    private fun sendEncodedMessage(
+        message: String,
+        onResult: ((Boolean, Exception?) -> Unit)? = null
+    ) {
         if (message.length <= CHUNK_SIZE) {
-            sendRaw(message.toByteArray(Charsets.UTF_8))
+            sendRaw(message.toByteArray(Charsets.UTF_8), onResult)
         } else {
-            sendChunked(message)
+            sendChunked(message, onResult)
         }
     }
 
-    /**
-     * 通过小米穿戴 SDK 发送原始字节
-     */
-    private fun sendRaw(bytes: ByteArray) {
+    private fun sendRaw(
+        bytes: ByteArray,
+        onResult: ((Boolean, Exception?) -> Unit)? = null
+    ) {
         val node = currentNode
         val api = messageApi
         if (node == null || api == null) {
-            Log.w(TAG, "发送失败：当前无已连接设备")
-            addLog("ERROR", "send", "发送失败：当前无已连接设备")
+            val error = IllegalStateException("当前无已连接设备")
+            addLog("ERROR", "send", error.message ?: "发送失败")
+            onResult?.invoke(false, error)
             return
         }
+
         api.sendMessage(node.id, bytes)
+            .addOnSuccessListener {
+                onResult?.invoke(true, null)
+            }
             .addOnFailureListener { e ->
                 Log.e(TAG, "消息发送失败", e)
                 addLog("ERROR", "send", e.message ?: "消息发送失败")
+                onResult?.invoke(false, Exception(e))
             }
     }
 
-    /**
-     * 分片发送大消息
-     */
-    private fun sendChunked(message: String) {
+    private fun sendChunked(
+        message: String,
+        onResult: ((Boolean, Exception?) -> Unit)? = null
+    ) {
         val id = "chunk-${System.currentTimeMillis()}"
         val chunks = message.chunked(CHUNK_SIZE)
         val total = chunks.size
-        Log.d(TAG, "Sending chunked message: $total chunks")
 
-        chunks.forEachIndexed { index, chunk ->
+        fun sendNext(index: Int) {
+            if (index >= total) {
+                onResult?.invoke(true, null)
+                return
+            }
+
             val chunkJson = JSONObject().apply {
                 put("__c", true)
                 put("id", id)
                 put("i", index)
                 put("t", total)
-                put("d", chunk)
+                put("d", chunks[index])
             }
-            sendRaw(chunkJson.toString().toByteArray(Charsets.UTF_8))
+            sendRaw(chunkJson.toString().toByteArray(Charsets.UTF_8)) { success, error ->
+                if (!success) {
+                    onResult?.invoke(false, error)
+                    return@sendRaw
+                }
+                sendNext(index + 1)
+            }
         }
+
+        sendNext(0)
     }
 
-    /**
-     * 处理接收到的消息
-     */
     fun onMessageReceived(message: String) {
         try {
-            // 仅在像 JSON 时才解析，避免把普通文本误判
             if (!message.trim().startsWith("{")) {
                 addLog("RECEIVE", "text", message.take(200))
                 return
             }
-            val json = JSONObject(message)
 
-            // 检查是否为分片
+            val json = JSONObject(message)
             if (json.optBoolean("__c", false)) {
                 handleChunk(json)
                 return
             }
 
             val type = json.optString("type", "unknown")
-            addLog("RECEIVE", type, message.take(200))
-
-            // 处理心跳响应
-            if (type == MessageType.HEARTBEAT_ACK) {
-                lastHeartbeatAck = System.currentTimeMillis()
-                updateState(ConnectionState.CONNECTED)
+            if (shouldLogTraffic(type)) {
+                addLog("RECEIVE", type, message.take(200))
             }
 
-            // 触发消息流
+            when (type) {
+                MessageType.HANDSHAKE -> {
+                    handleHandshake(json)
+                    return
+                }
+
+                MessageType.HEARTBEAT -> {
+                    handleHeartbeat()
+                    return
+                }
+
+                MessageType.HEARTBEAT_ACK -> {
+                    lastHeartbeatAck = System.currentTimeMillis()
+                    if (!handshaked) {
+                        confirmConnected()
+                    }
+                    return
+                }
+            }
+
+            if (!handshaked) {
+                confirmConnected()
+            }
             _messageFlow.tryEmit(json)
         } catch (e: Exception) {
             Log.e(TAG, "Error parsing message: ${message.take(100)}", e)
@@ -446,9 +625,51 @@ class WearMessageCenter private constructor(private val context: Context) {
         }
     }
 
-    /**
-     * 处理分片数据（支持 base64 编码的分片，e="b64"）
-     */
+    private fun handleHandshake(json: JSONObject) {
+        val count = json.optInt("count", -1)
+        if (count < 0) {
+            return
+        }
+
+        lastHeartbeatAck = System.currentTimeMillis()
+        if (count > 0) {
+            confirmConnected()
+        }
+
+        if (count < 2) {
+            val payload = JSONObject().apply {
+                put("count", count + 1)
+                put("version", appVersionCode)
+            }
+            sendDirect(MessageType.HANDSHAKE, payload, logTraffic = false)
+        }
+    }
+
+    private fun resolveAppVersionCode(): Long {
+        return try {
+            val pkg = context.packageManager.getPackageInfo(context.packageName, 0)
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                pkg.longVersionCode
+            } else {
+                @Suppress("DEPRECATION")
+                pkg.versionCode.toLong()
+            }
+        } catch (_: PackageManager.NameNotFoundException) {
+            1L
+        }
+    }
+
+    private fun handleHeartbeat() {
+        lastHeartbeatAck = System.currentTimeMillis()
+        if (!handshaked) {
+            confirmConnected()
+        }
+        val payload = JSONObject().apply {
+            put("timestamp", System.currentTimeMillis() / 1000)
+        }
+        sendDirect(MessageType.HEARTBEAT_ACK, payload, logTraffic = false)
+    }
+
     private fun handleChunk(json: JSONObject) {
         try {
             val id = json.optString("id")
@@ -457,7 +678,6 @@ class WearMessageCenter private constructor(private val context: Context) {
             val data = json.optString("d")
 
             if (id.isEmpty() || index < 0 || total <= 0 || index >= total || data.isEmpty()) {
-                Log.w(TAG, "Invalid chunk data")
                 addLog("ERROR", "chunk", "非法分片 id=$id i=$index t=$total")
                 return
             }
@@ -482,11 +702,11 @@ class WearMessageCenter private constructor(private val context: Context) {
                     chunkBuffers.remove(id)
                     val out = ByteArrayOutputStream()
                     for (part in buffer.parts) {
-                        if (part != null) out.write(part)
+                        if (part != null) {
+                            out.write(part)
+                        }
                     }
                     val fullText = out.toByteArray().toString(Charsets.UTF_8)
-                    Log.d(TAG, "分片消息组装完成 id=$id length=${fullText.length}")
-                    // 递归处理组装后的完整消息
                     onMessageReceived(fullText)
                 }
             }
@@ -496,9 +716,6 @@ class WearMessageCenter private constructor(private val context: Context) {
         }
     }
 
-    /**
-     * 发送截图同步确认
-     */
     fun sendSyncAck(accepted: Boolean) {
         val payload = JSONObject().apply {
             put("accepted", accepted)
@@ -506,9 +723,6 @@ class WearMessageCenter private constructor(private val context: Context) {
         send(MessageType.SCREENSHOT_SYNC_ACK, payload)
     }
 
-    /**
-     * 发送截图数据确认
-     */
     fun sendDataAck(shotId: String) {
         val payload = JSONObject().apply {
             put("shotId", shotId)
@@ -516,9 +730,6 @@ class WearMessageCenter private constructor(private val context: Context) {
         send(MessageType.SCREENSHOT_DATA_ACK, payload)
     }
 
-    /**
-     * 发送同步结果
-     */
     fun sendSyncResult(success: Boolean, message: String = "") {
         val payload = JSONObject().apply {
             put("success", success)
@@ -529,9 +740,6 @@ class WearMessageCenter private constructor(private val context: Context) {
         send(MessageType.SCREENSHOT_SYNC_RESULT, payload)
     }
 
-    /**
-     * 发送截图分片 ACK（自有分片协议）
-     */
     fun sendChunkAck(sessionId: String, phase: String, ok: Boolean, index: Int = -1) {
         val payload = JSONObject().apply {
             put("sessionId", sessionId)
@@ -544,16 +752,10 @@ class WearMessageCenter private constructor(private val context: Context) {
         send(MessageType.SCREENSHOT_CHUNK_ACK, payload)
     }
 
-    /**
-     * 请求截图列表
-     */
     fun requestScreenshotList() {
         send(MessageType.REQUEST_SCREENSHOT_LIST, JSONObject())
     }
 
-    /**
-     * 请求特定截图数据
-     */
     fun requestScreenshotData(shotId: String) {
         val payload = JSONObject().apply {
             put("shotId", shotId)
@@ -561,12 +763,15 @@ class WearMessageCenter private constructor(private val context: Context) {
         send(MessageType.REQUEST_SCREENSHOT_DATA, payload)
     }
 
-    /**
-     * 清理资源
-     */
     fun destroy() {
+        clearHandshakeTimeout()
         stopHeartbeat()
         chunkBuffers.clear()
+        handshaked = false
+        handshakeInProgress = false
+        lastHeartbeatAck = 0
+        finishPendingReady(false)
+
         val node = currentNode
         val api = messageApi
         if (node != null && api != null) {
@@ -577,6 +782,7 @@ class WearMessageCenter private constructor(private val context: Context) {
             }
         }
         listenerRegistered = false
+        updateState(ConnectionState.DISCONNECTED)
         addLog("SYSTEM", "destroy", "消息中心销毁")
     }
 }

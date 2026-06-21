@@ -1,11 +1,50 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
 }
 
+val localProps = Properties().apply {
+    val localPropsFile = rootDir.resolve("local.properties")
+    if (localPropsFile.exists()) {
+        localPropsFile.inputStream().use { load(it) }
+    }
+}
+
+val sharedSignDir = rootDir.resolve("../../Shell++/sign")
+val sharedAndroidKeystore = sharedSignDir.resolve("Android.jks")
+val sharedStorePassword = providers.gradleProperty("shell.storePassword")
+    .orElse(providers.environmentVariable("SHELL_STORE_PASSWORD"))
+    .orElse(localProps.getProperty("shell.storePassword") ?: "")
+    .orNull
+val sharedKeyAlias = providers.gradleProperty("shell.keyAlias")
+    .orElse(providers.environmentVariable("SHELL_KEY_ALIAS"))
+    .orElse(localProps.getProperty("shell.keyAlias") ?: "key")
+    .orNull
+val sharedKeyPassword = providers.gradleProperty("shell.keyPassword")
+    .orElse(providers.environmentVariable("SHELL_KEY_PASSWORD"))
+    .orElse(localProps.getProperty("shell.keyPassword") ?: "")
+    .orNull
+val hasSharedSigningConfig = sharedAndroidKeystore.exists()
+    && !sharedStorePassword.isNullOrBlank()
+    && !sharedKeyAlias.isNullOrBlank()
+    && !sharedKeyPassword.isNullOrBlank()
+
 android {
     namespace = "com.shell.liangyi"
     compileSdk = 34
+
+    signingConfigs {
+        create("sharedShellSign") {
+            if (hasSharedSigningConfig) {
+                storeFile = sharedAndroidKeystore
+                storePassword = sharedStorePassword
+                keyAlias = sharedKeyAlias
+                keyPassword = sharedKeyPassword
+            }
+        }
+    }
 
     defaultConfig {
         applicationId = "com.shell.liangyi"
@@ -18,8 +57,16 @@ android {
     }
 
     buildTypes {
+        debug {
+            if (hasSharedSigningConfig) {
+                signingConfig = signingConfigs.getByName("sharedShellSign")
+            }
+        }
         release {
             isMinifyEnabled = false
+            if (hasSharedSigningConfig) {
+                signingConfig = signingConfigs.getByName("sharedShellSign")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

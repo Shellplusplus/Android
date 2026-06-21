@@ -92,11 +92,8 @@ class ScreenshotViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun checkConnection() {
-        // 重新发现设备并确保监听器注册，同时发一个心跳探活
+        // 重新发现设备、拉起快应用并重新执行握手
         wearMessageCenter.ensureConnection()
-        viewModelScope.launch {
-            wearMessageCenter.sendHeartbeat()
-        }
     }
 
     fun clearLogs() {

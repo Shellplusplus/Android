@@ -45,3 +45,29 @@ Android 端配套应用，用于与 Vela 手表连接和截图同步。
 ```
 
 生成的 APK 位于 `app/build/outputs/apk/release/`。
+
+## 签名
+
+Android 工程已接入共享签名目录：
+
+- `../../Shell++/sign/Android.jks`
+
+构建前需要提供这 3 个 Gradle 属性，建议优先写在项目 `local.properties`，也可放到本机 `~/.gradle/gradle.properties` 或环境变量中：
+
+```properties
+shell.storePassword=your-store-password
+shell.keyAlias=your-key-alias
+shell.keyPassword=your-key-password
+```
+
+当前 keystore 的 alias 是 `key`。
+
+也可以使用环境变量：
+
+```bash
+SHELL_STORE_PASSWORD
+SHELL_KEY_ALIAS
+SHELL_KEY_PASSWORD
+```
+
+如果以上属性未提供，Android 工程不会启用共享 keystore，会继续使用默认 debug 签名配置。

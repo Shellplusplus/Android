@@ -176,10 +176,10 @@ private fun ConnectionRow(
         ConnectionState.ERROR -> c.red
     }
     val statusText = when (connectionState) {
-        ConnectionState.CONNECTED -> "已连接手表"
-        ConnectionState.CONNECTING -> "连接中…"
-        ConnectionState.DISCONNECTED -> "未连接"
-        ConnectionState.ERROR -> "连接错误"
+        ConnectionState.CONNECTED -> "已连接手表快应用"
+        ConnectionState.CONNECTING -> "正在连接手表快应用…"
+        ConnectionState.DISCONNECTED -> "手表快应用未连接"
+        ConnectionState.ERROR -> "手表快应用连接错误"
     }
     Row(
         modifier = Modifier

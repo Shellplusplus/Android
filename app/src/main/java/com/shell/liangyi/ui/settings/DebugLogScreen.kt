@@ -1,5 +1,6 @@
 package com.shell.liangyi.ui.settings
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -19,9 +20,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -40,20 +45,43 @@ fun DebugLogScreen(
 ) {
     val logs by viewModel.logs.collectAsState(initial = emptyList())
     val c = LocalIOSColors.current
+    val clipboardManager = LocalClipboardManager.current
+    val context = LocalContext.current
+    val allLogsText = remember(logs) { buildLogExportText(logs) }
 
     IOSScaffold(
         title = "通信日志",
         onBack = onBack,
         trailing = {
-            Text(
-                text = "清空",
-                color = c.accent,
-                fontSize = 17.sp,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable { viewModel.clearLogs() }
-                    .padding(horizontal = 10.dp, vertical = 6.dp)
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "复制全部",
+                    color = c.accent,
+                    fontSize = 17.sp,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable {
+                            if (logs.isEmpty()) {
+                                Toast.makeText(context, "暂无日志可复制", Toast.LENGTH_SHORT).show()
+                            } else {
+                                clipboardManager.setText(AnnotatedString(allLogsText))
+                                Toast.makeText(context, "已复制全部日志", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                )
+                Text(
+                    text = "清空",
+                    color = c.accent,
+                    fontSize = 17.sp,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { viewModel.clearLogs() }
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                )
+            }
         }
     ) {
         if (logs.isEmpty()) {
@@ -74,6 +102,24 @@ fun DebugLogScreen(
                     .background(c.cardBackground)
             ) {
                 items(logs) { entry -> LogRow(entry) }
+            }
+        }
+    }
+}
+
+private fun buildLogExportText(logs: List<LogEntry>): String {
+    val formatter = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
+    return logs.joinToString(separator = "\n\n") { entry ->
+        buildString {
+            append("[")
+            append(formatter.format(java.util.Date(entry.timestamp)))
+            append("] ")
+            append(entry.direction)
+            append(" ")
+            append(entry.type)
+            if (entry.message.isNotEmpty()) {
+                append("\n")
+                append(entry.message)
             }
         }
     }

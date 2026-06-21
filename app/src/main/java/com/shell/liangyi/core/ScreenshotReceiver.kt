@@ -57,6 +57,25 @@ class ScreenshotReceiver(
 
     private val chunkSessions = mutableMapOf<String, ChunkSession>()
 
+    private fun buildSessionDisplayList(sessionShots: List<Screenshot>): List<Screenshot> {
+        if (sessionShots.isEmpty()) {
+            return emptyList()
+        }
+
+        val existingById = _screenshots.value.associateBy { it.shotId }
+        return sessionShots.map { incoming ->
+            val existing = existingById[incoming.shotId]
+            if (existing == null) {
+                incoming
+            } else {
+                incoming.copy(
+                    capturedAtUnix = if (incoming.capturedAtUnix != 0L) incoming.capturedAtUnix else existing.capturedAtUnix,
+                    imageData = existing.imageData
+                )
+            }
+        }
+    }
+
     sealed class SyncState {
         object Idle : SyncState()
         object WaitingAck : SyncState()
@@ -222,6 +241,7 @@ class ScreenshotReceiver(
         pendingScreenshots.clear()
         receivedCount = 0
         totalCount = screenshotsArray.length()
+        chunkSessions.clear()
 
         for (i in 0 until screenshotsArray.length()) {
             val item = screenshotsArray.getJSONObject(i)
@@ -233,6 +253,8 @@ class ScreenshotReceiver(
                 )
             )
         }
+
+        _screenshots.value = buildSessionDisplayList(pendingScreenshots)
 
         Log.d(TAG, "Sync request received: $totalCount screenshots")
         _syncState.value = SyncState.WaitingAck
