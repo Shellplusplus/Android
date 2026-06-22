@@ -409,19 +409,7 @@ class ScreenshotReceiver(
             )
         }
 
-        val loaded = loadedByShotId.values
-            .sortedWith(
-                compareByDescending<Screenshot> { it.capturedAtUnix }
-                    .thenByDescending { readTransferRecord(it.shotId)?.updatedAtUnix ?: 0L }
-            )
-            .mapIndexed { index, screenshot ->
-                screenshot.copy(
-                    index = index + 1,
-                    displayTitle = buildDisplayTitle(screenshot.shotId, index + 1)
-                )
-            }
-
-        _screenshots.value = loaded
+        _screenshots.value = sortScreenshotList(loadedByShotId.values.toList())
     }
 
     private fun buildSessionDisplayList(sessionShots: List<Screenshot>): List<Screenshot> {
@@ -452,6 +440,37 @@ class ScreenshotReceiver(
             }
             hydrateStoredScreenshot(merged)
         }
+    }
+
+    private fun sortScreenshotList(items: List<Screenshot>): List<Screenshot> {
+        return items.sortedWith(
+            compareByDescending<Screenshot> { it.capturedAtUnix }
+                .thenByDescending { readTransferRecord(it.shotId)?.updatedAtUnix ?: 0L }
+                .thenByDescending { it.shotId }
+        ).mapIndexed { index, screenshot ->
+            screenshot.copy(
+                index = index + 1,
+                displayTitle = buildDisplayTitle(screenshot.shotId, index + 1)
+            )
+        }
+    }
+
+    private fun mergeWithStoredScreenshots(sessionShots: List<Screenshot>): List<Screenshot> {
+        val sessionList = buildSessionDisplayList(sessionShots)
+        if (sessionList.isEmpty()) {
+            return sortScreenshotList(_screenshots.value)
+        }
+
+        val merged = linkedMapOf<String, Screenshot>()
+        sessionList.forEach { screenshot ->
+            merged[screenshot.shotId] = screenshot
+        }
+        _screenshots.value.forEach { screenshot ->
+            if (!merged.containsKey(screenshot.shotId)) {
+                merged[screenshot.shotId] = hydrateStoredScreenshot(screenshot)
+            }
+        }
+        return sortScreenshotList(merged.values.toList())
     }
 
     private fun replaceScreenshotEntry(screenshot: Screenshot) {
@@ -1051,7 +1070,7 @@ class ScreenshotReceiver(
             )
         }
 
-        _screenshots.value = buildSessionDisplayList(pendingScreenshots)
+        _screenshots.value = mergeWithStoredScreenshots(pendingScreenshots)
 
         Log.d(TAG, "Sync request received: $totalCount screenshots")
         _syncState.value = SyncState.WaitingAck
@@ -1154,18 +1173,18 @@ class ScreenshotReceiver(
             )
         }
 
-        val displayList = buildSessionDisplayList(rawList)
-        pendingScreenshots = displayList.filter { !it.isComplete || it.localFilePath.isEmpty() }.toMutableList()
+        val sessionDisplayList = buildSessionDisplayList(rawList)
+        pendingScreenshots = sessionDisplayList.filter { !it.isComplete || it.localFilePath.isEmpty() }.toMutableList()
         receivedCount = 0
         totalCount = pendingScreenshots.size
         chunkSessions.clear()
         currentRequestedShotId = null
         requestRetryCounts.clear()
-        _screenshots.value = displayList
-        Log.d(TAG, "Screenshot list received: ${displayList.size} items, pending=${pendingScreenshots.size}")
+        _screenshots.value = mergeWithStoredScreenshots(rawList)
+        Log.d(TAG, "Screenshot list received: ${sessionDisplayList.size} items, pending=${pendingScreenshots.size}")
 
         if (pendingScreenshots.isEmpty()) {
-            _syncState.value = SyncState.Success(displayList.size)
+            _syncState.value = SyncState.Success(sessionDisplayList.size)
             _receiveProgress.value = ""
             return
         }
