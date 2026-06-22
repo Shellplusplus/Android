@@ -51,6 +51,7 @@ import com.shell.liangyi.model.Screenshot
 import com.shell.liangyi.ui.components.IOSScaffold
 import com.shell.liangyi.ui.components.InsetSection
 import com.shell.liangyi.ui.theme.LocalIOSColors
+import java.io.File
 
 @Composable
 fun ScreenshotScreen(
@@ -291,8 +292,10 @@ private fun ScreenshotCard(
     onLongClick: () -> Unit
 ) {
     val c = LocalIOSColors.current
-    val imageBytes = remember(screenshot.imageData) {
-        if (screenshot.imageData.isNotEmpty()) {
+    val imageModel = remember(screenshot.localFilePath, screenshot.imageData) {
+        if (screenshot.localFilePath.isNotEmpty()) {
+            File(screenshot.localFilePath)
+        } else if (screenshot.imageData.isNotEmpty()) {
             try {
                 Base64.decode(screenshot.imageData, Base64.DEFAULT)
             } catch (e: Exception) {
@@ -318,10 +321,10 @@ private fun ScreenshotCard(
                 .background(if (c.isDark) Color(0xFF2C2C2E) else Color(0xFFE5E5EA)),
             contentAlignment = Alignment.Center
         ) {
-            if (imageBytes != null) {
+            if (imageModel != null) {
                 AsyncImage(
                     model = ImageRequest.Builder(LocalContext.current)
-                        .data(imageBytes)
+                        .data(imageModel)
                         .crossfade(true)
                         .build(),
                     contentDescription = "截图",
@@ -333,12 +336,31 @@ private fun ScreenshotCard(
             }
         }
         Text(
+            text = screenshot.displayTitle.ifEmpty { screenshot.shotId },
+            color = c.label,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(start = 4.dp, top = 6.dp)
+        )
+        if (screenshot.transferHint.isNotEmpty()) {
+            Text(
+                text = screenshot.transferHint,
+                color = Color(0xFFFF453A),
+                fontSize = 11.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = 4.dp, top = 2.dp)
+            )
+        }
+        Text(
             text = screenshot.capturedAt,
             color = c.secondaryLabel,
             fontSize = 12.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(start = 4.dp, top = 6.dp, bottom = 2.dp)
+            modifier = Modifier.padding(start = 4.dp, top = 2.dp, bottom = 2.dp)
         )
     }
 }

@@ -756,9 +756,19 @@ class WearMessageCenter private constructor(private val context: Context) {
         send(MessageType.REQUEST_SCREENSHOT_LIST, JSONObject())
     }
 
-    fun requestScreenshotData(shotId: String) {
+    fun requestScreenshotData(
+        shotId: String,
+        startIndex: Int = 0,
+        chunkSize: Int = 2560,
+        throttleMs: Int = 8,
+        gcEvery: Int = 8
+    ) {
         val payload = JSONObject().apply {
             put("shotId", shotId)
+            put("startIndex", startIndex.coerceAtLeast(0))
+            put("chunkSize", chunkSize.coerceAtLeast(1024))
+            put("throttleMs", throttleMs.coerceAtLeast(0))
+            put("gcEvery", gcEvery.coerceAtLeast(1))
         }
         send(MessageType.REQUEST_SCREENSHOT_DATA, payload)
     }

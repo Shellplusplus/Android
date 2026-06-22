@@ -11,6 +11,8 @@ import android.provider.MediaStore
 import android.util.Base64
 import android.util.Log
 import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileInputStream
 import java.io.IOException
 
 /**
@@ -46,6 +48,68 @@ class GallerySaver(private val context: Context) {
             saveBitmapToGallery(bitmap, fileName)
         } catch (e: Exception) {
             Log.e(TAG, "Error saving image", e)
+            false
+        }
+    }
+
+    fun saveFileToGallery(filePath: String, fileName: String): Boolean {
+        return try {
+            val file = File(filePath)
+            if (!file.exists() || !file.isFile) {
+                Log.e(TAG, "Source image file not found: $filePath")
+                return false
+            }
+
+            val contentValues = ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, "$fileName.png")
+                put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    put(
+                        MediaStore.Images.Media.RELATIVE_PATH,
+                        "${Environment.DIRECTORY_PICTURES}/$ALBUM_NAME"
+                    )
+                    put(MediaStore.Images.Media.IS_PENDING, 1)
+                } else {
+                    put(
+                        MediaStore.Images.Media.DATA,
+                        Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
+                            .toString() + "/$ALBUM_NAME/$fileName.png"
+                    )
+                }
+            }
+
+            val resolver = context.contentResolver
+            var uri: Uri? = null
+
+            try {
+                uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+                if (uri == null) {
+                    Log.e(TAG, "Failed to create MediaStore entry for file")
+                    return false
+                }
+
+                FileInputStream(file).use { input ->
+                    resolver.openOutputStream(uri)?.use { output ->
+                        input.copyTo(output)
+                    }
+                }
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    contentValues.clear()
+                    contentValues.put(MediaStore.Images.Media.IS_PENDING, 0)
+                    resolver.update(uri, contentValues, null, null)
+                }
+
+                Log.d(TAG, "Image file saved to gallery: $uri")
+                true
+            } catch (e: IOException) {
+                Log.e(TAG, "Error saving image file", e)
+                uri?.let { resolver.delete(it, null, null) }
+                false
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error saving image file", e)
             false
         }
     }

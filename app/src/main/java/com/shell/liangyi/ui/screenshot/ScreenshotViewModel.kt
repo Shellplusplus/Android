@@ -43,6 +43,24 @@ class ScreenshotViewModel(application: Application) : AndroidViewModel(applicati
     var debugLogEnabled by mutableStateOf(prefs.getBoolean(KEY_DEBUG_LOG, false))
         private set
 
+    init {
+        viewModelScope.launch {
+            screenshots.collect { items ->
+                val currentPreview = previewScreenshot
+                if (currentPreview == null) {
+                    return@collect
+                }
+
+                val updated = items.firstOrNull { it.shotId == currentPreview.shotId }
+                if (updated != null) {
+                    previewScreenshot = updated
+                } else if (items.none { it.shotId == currentPreview.shotId }) {
+                    previewScreenshot = null
+                }
+            }
+        }
+    }
+
     fun updateDebugLogEnabled(enabled: Boolean) {
         debugLogEnabled = enabled
         prefs.edit().putBoolean(KEY_DEBUG_LOG, enabled).apply()
@@ -58,6 +76,9 @@ class ScreenshotViewModel(application: Application) : AndroidViewModel(applicati
 
     fun onScreenshotClick(screenshot: Screenshot) {
         previewScreenshot = screenshot
+        if (screenshot.localFilePath.isEmpty() && screenshot.imageData.isEmpty()) {
+            requestScreenshot(screenshot.shotId)
+        }
     }
 
     fun dismissPreview() {
@@ -67,7 +88,12 @@ class ScreenshotViewModel(application: Application) : AndroidViewModel(applicati
     fun saveToGallery(screenshot: Screenshot, onResult: (Boolean) -> Unit) {
         viewModelScope.launch {
             val success = withContext(Dispatchers.IO) {
-                if (screenshot.imageData.isNotEmpty()) {
+                if (screenshot.localFilePath.isNotEmpty()) {
+                    gallerySaver.saveFileToGallery(
+                        screenshot.localFilePath,
+                        "screenshot_${screenshot.shotId}"
+                    )
+                } else if (screenshot.imageData.isNotEmpty()) {
                     gallerySaver.saveBase64ToGallery(
                         screenshot.imageData,
                         "screenshot_${screenshot.shotId}"

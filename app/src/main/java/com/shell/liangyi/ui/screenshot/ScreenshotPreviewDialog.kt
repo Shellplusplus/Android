@@ -28,6 +28,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.shell.liangyi.model.Screenshot
 import com.shell.liangyi.ui.theme.LocalIOSColors
+import java.io.File
 
 @Composable
 fun ScreenshotPreviewDialog(
@@ -37,8 +38,10 @@ fun ScreenshotPreviewDialog(
     onDelete: () -> Unit
 ) {
     val c = LocalIOSColors.current
-    val imageBytes = remember(screenshot.imageData) {
-        if (screenshot.imageData.isNotEmpty()) {
+    val imageModel = remember(screenshot.localFilePath, screenshot.imageData) {
+        if (screenshot.localFilePath.isNotEmpty()) {
+            File(screenshot.localFilePath)
+        } else if (screenshot.imageData.isNotEmpty()) {
             try {
                 Base64.decode(screenshot.imageData, Base64.DEFAULT)
             } catch (e: Exception) {
@@ -60,13 +63,17 @@ fun ScreenshotPreviewDialog(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = screenshot.shotId,
+                text = screenshot.displayTitle.ifEmpty { screenshot.shotId },
                 fontSize = 17.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = c.label
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(text = screenshot.capturedAt, fontSize = 13.sp, color = c.secondaryLabel)
+            if (screenshot.transferHint.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(text = screenshot.transferHint, fontSize = 12.sp, color = Color(0xFFFF453A))
+            }
 
             Spacer(modifier = Modifier.height(14.dp))
 
@@ -78,10 +85,10 @@ fun ScreenshotPreviewDialog(
                     .background(if (c.isDark) Color(0xFF2C2C2E) else Color(0xFFE5E5EA)),
                 contentAlignment = Alignment.Center
             ) {
-                if (imageBytes != null) {
+                if (imageModel != null) {
                     AsyncImage(
                         model = ImageRequest.Builder(LocalContext.current)
-                            .data(imageBytes)
+                            .data(imageModel)
                             .crossfade(true)
                             .build(),
                         contentDescription = "截图预览",

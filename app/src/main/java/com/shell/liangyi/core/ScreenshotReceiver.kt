@@ -6,13 +6,15 @@ import android.util.Log
 import com.shell.liangyi.model.Screenshot
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import org.json.JSONArray
 import org.json.JSONObject
-import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
 
 /**
  * 截图接收处理类
@@ -23,6 +25,7 @@ class ScreenshotReceiver(
 ) {
     companion object {
         private const val TAG = "ScreenshotReceiver"
+        private const val REQUEST_TIMEOUT_MS = 12000L
     }
 
     private val messageCenter = WearMessageCenter.getInstance(context)
@@ -44,18 +47,229 @@ class ScreenshotReceiver(
     private var pendingScreenshots = mutableListOf<Screenshot>()
     private var receivedCount = 0
     private var totalCount = 0
+    private var currentRequestedShotId: String? = null
+    private var requestTimeoutJob: Job? = null
+    private var lastTransferActivityAt: Long = 0L
+    private val requestRetryCounts = mutableMapOf<String, Int>()
+
+    private val transferRootDir: File by lazy {
+        File(context.filesDir, "screenshot_sync").apply {
+            if (!exists()) {
+                mkdirs()
+            }
+        }
+    }
+
+    private data class TransferProfile(
+        val chunkSize: Int,
+        val throttleMs: Int,
+        val gcEvery: Int
+    )
+
+    private data class TransferRecord(
+        val shotId: String,
+        val capturedAt: String,
+        val totalChunks: Int,
+        val totalBytes: Long,
+        val chunkSize: Int,
+        val lastChunkNum: Int,
+        val completed: Boolean,
+        val status: String,
+        val updatedAtUnix: Long
+    )
 
     // 截图二进制分片接收会话（按 sessionId 缓存）
     private class ChunkSession(
         val shotId: String,
         val capturedAt: String,
-        val total: Int
+        val total: Int,
+        val totalBytes: Long,
+        val chunkSize: Int,
+        val tempFile: File,
+        val finalFile: File,
+        val outputStream: FileOutputStream,
+        resumeLastChunkNum: Int
     ) {
-        val parts: Array<ByteArray?> = arrayOfNulls(total)
-        var receivedCount: Int = 0
+        var lastChunkNum: Int = resumeLastChunkNum
+        var receivedCount: Int = (resumeLastChunkNum + 1).coerceAtLeast(0)
+        var receivedBytes: Long = if (tempFile.exists()) tempFile.length() else 0L
+        val startedAtMs: Long = System.currentTimeMillis()
+        var lastUiUpdateAtMs: Long = 0L
+        var lastStateFlushChunkNum: Int = resumeLastChunkNum
     }
 
     private val chunkSessions = mutableMapOf<String, ChunkSession>()
+
+    private fun nowUnix(): Long = System.currentTimeMillis() / 1000
+
+    private fun buildDisplayTitle(shotId: String, fallbackIndex: Int): String {
+        val value = shotId.ifEmpty { "#$fallbackIndex" }
+        val hashIndex = value.lastIndexOf("#")
+        return if (hashIndex >= 0 && hashIndex < value.length) {
+            value.substring(hashIndex)
+        } else {
+            "#$fallbackIndex"
+        }
+    }
+
+    private fun stableShotKey(shotId: String): String {
+        val safe = shotId.replace(Regex("[^A-Za-z0-9._-]"), "_")
+        val hash = shotId.hashCode().toUInt().toString(16)
+        return "${safe}_$hash"
+    }
+
+    private fun completedFile(shotId: String): File {
+        return File(transferRootDir, "${stableShotKey(shotId)}.png")
+    }
+
+    private fun partialFile(shotId: String): File {
+        return File(transferRootDir, "${stableShotKey(shotId)}.part")
+    }
+
+    private fun stateFile(shotId: String): File {
+        return File(transferRootDir, "${stableShotKey(shotId)}.json")
+    }
+
+    private fun safeDelete(file: File) {
+        if (file.exists()) {
+            try {
+                file.delete()
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    private fun writeTransferRecord(record: TransferRecord) {
+        val state = JSONObject().apply {
+            put("shotId", record.shotId)
+            put("capturedAt", record.capturedAt)
+            put("totalChunks", record.totalChunks)
+            put("totalBytes", record.totalBytes)
+            put("chunkSize", record.chunkSize)
+            put("lastChunkNum", record.lastChunkNum)
+            put("completed", record.completed)
+            put("status", record.status)
+            put("updatedAtUnix", record.updatedAtUnix)
+        }
+        stateFile(record.shotId).writeText(state.toString())
+    }
+
+    private fun readTransferRecord(shotId: String): TransferRecord? {
+        val file = stateFile(shotId)
+        if (!file.exists()) {
+            return null
+        }
+        return try {
+            val json = JSONObject(file.readText())
+            TransferRecord(
+                shotId = json.optString("shotId", shotId),
+                capturedAt = json.optString("capturedAt"),
+                totalChunks = json.optInt("totalChunks", 0),
+                totalBytes = json.optLong("totalBytes", 0L),
+                chunkSize = json.optInt("chunkSize", 0),
+                lastChunkNum = json.optInt("lastChunkNum", -1),
+                completed = json.optBoolean("completed", false),
+                status = json.optString("status", if (json.optBoolean("completed", false)) "completed" else "failed"),
+                updatedAtUnix = json.optLong("updatedAtUnix", 0L)
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to read transfer record for $shotId", e)
+            safeDelete(file)
+            null
+        }
+    }
+
+    private fun buildTransferHint(record: TransferRecord?): String {
+        if (record == null || record.completed) {
+            return ""
+        }
+        return "上次传输失败"
+    }
+
+    private fun markTransferFailed(shotId: String, reason: String = "") {
+        val existing = findExistingScreenshot(shotId)
+        val record = readTransferRecord(shotId)
+        val nextRecord = if (record != null) {
+            record.copy(
+                completed = false,
+                status = "failed",
+                updatedAtUnix = nowUnix()
+            )
+        } else {
+            TransferRecord(
+                shotId = shotId,
+                capturedAt = existing?.capturedAt.orEmpty(),
+                totalChunks = existing?.totalChunks ?: 0,
+                totalBytes = existing?.totalBytes ?: 0L,
+                chunkSize = 0,
+                lastChunkNum = existing?.lastChunkNum ?: -1,
+                completed = false,
+                status = "failed",
+                updatedAtUnix = nowUnix()
+            )
+        }
+        writeTransferRecord(nextRecord)
+        if (existing != null) {
+            replaceScreenshotEntry(
+                existing.copy(
+                    displayTitle = existing.displayTitle.ifEmpty { buildDisplayTitle(existing.shotId, existing.index) },
+                    lastTransferFailed = true,
+                    transferHint = "上次传输失败"
+                )
+            )
+        }
+        if (reason.isNotEmpty()) {
+            Log.w(TAG, "transfer failed for $shotId: $reason")
+        }
+    }
+
+    private fun clearTransferState(shotId: String, keepCompletedFile: Boolean) {
+        safeDelete(stateFile(shotId))
+        safeDelete(partialFile(shotId))
+        if (!keepCompletedFile) {
+            safeDelete(completedFile(shotId))
+        }
+    }
+
+    private fun hydrateStoredScreenshot(screenshot: Screenshot): Screenshot {
+        val currentFile = completedFile(screenshot.shotId)
+        if (currentFile.exists()) {
+            val size = currentFile.length()
+            return screenshot.copy(
+                displayTitle = screenshot.displayTitle.ifEmpty { buildDisplayTitle(screenshot.shotId, screenshot.index) },
+                localFilePath = currentFile.absolutePath,
+                imageData = "",
+                receivedBytes = size,
+                totalBytes = size,
+                receivedChunks = screenshot.totalChunks.coerceAtLeast(1),
+                isComplete = true,
+                lastTransferFailed = false,
+                transferHint = ""
+            )
+        }
+
+        val record = readTransferRecord(screenshot.shotId)
+        val partial = partialFile(screenshot.shotId)
+        if (record != null && partial.exists()) {
+            return screenshot.copy(
+                displayTitle = screenshot.displayTitle.ifEmpty { buildDisplayTitle(screenshot.shotId, screenshot.index) },
+                lastChunkNum = record.lastChunkNum,
+                receivedChunks = (record.lastChunkNum + 1).coerceAtLeast(0),
+                totalChunks = record.totalChunks,
+                receivedBytes = partial.length(),
+                totalBytes = record.totalBytes,
+                isComplete = false,
+                lastTransferFailed = record.status != "completed",
+                transferHint = buildTransferHint(record)
+            )
+        }
+
+        return screenshot.copy(
+            displayTitle = screenshot.displayTitle.ifEmpty { buildDisplayTitle(screenshot.shotId, screenshot.index) },
+            lastTransferFailed = record != null && record.status == "failed",
+            transferHint = buildTransferHint(record)
+        )
+    }
 
     private fun buildSessionDisplayList(sessionShots: List<Screenshot>): List<Screenshot> {
         if (sessionShots.isEmpty()) {
@@ -65,14 +279,253 @@ class ScreenshotReceiver(
         val existingById = _screenshots.value.associateBy { it.shotId }
         return sessionShots.map { incoming ->
             val existing = existingById[incoming.shotId]
-            if (existing == null) {
+            val merged = if (existing == null) {
                 incoming
             } else {
                 incoming.copy(
                     capturedAtUnix = if (incoming.capturedAtUnix != 0L) incoming.capturedAtUnix else existing.capturedAtUnix,
-                    imageData = existing.imageData
+                    imageData = existing.imageData,
+                    localFilePath = existing.localFilePath,
+                    lastChunkNum = existing.lastChunkNum,
+                    receivedChunks = existing.receivedChunks,
+                    totalChunks = existing.totalChunks,
+                    receivedBytes = existing.receivedBytes,
+                    totalBytes = existing.totalBytes,
+                    isComplete = existing.isComplete,
+                    lastTransferFailed = existing.lastTransferFailed,
+                    transferHint = existing.transferHint,
+                    displayTitle = existing.displayTitle
                 )
             }
+            hydrateStoredScreenshot(merged)
+        }
+    }
+
+    private fun replaceScreenshotEntry(screenshot: Screenshot) {
+        val currentList = _screenshots.value.toMutableList()
+        val existingIndex = currentList.indexOfFirst { it.shotId == screenshot.shotId }
+        if (existingIndex >= 0) {
+            currentList[existingIndex] = screenshot
+        } else {
+            currentList.add(0, screenshot)
+        }
+        _screenshots.value = currentList
+    }
+
+    private fun closeChunkSession(sessionId: String) {
+        val session = chunkSessions.remove(sessionId) ?: return
+        try {
+            session.outputStream.close()
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun closeSessionsForShot(shotId: String) {
+        val targetIds = chunkSessions.keys.filter { key ->
+            val session = chunkSessions[key]
+            session != null && session.shotId == shotId
+        }
+        for (sessionId in targetIds) {
+            closeChunkSession(sessionId)
+        }
+    }
+
+    private fun findExistingScreenshot(shotId: String): Screenshot? {
+        return _screenshots.value.firstOrNull { it.shotId == shotId }
+    }
+
+    private fun cancelRequestTimeout() {
+        requestTimeoutJob?.cancel()
+        requestTimeoutJob = null
+    }
+
+    private fun markTransferActivity() {
+        lastTransferActivityAt = System.currentTimeMillis()
+    }
+
+    private fun scheduleRequestTimeout(shotId: String) {
+        cancelRequestTimeout()
+        markTransferActivity()
+        requestTimeoutJob = scope.launch(Dispatchers.IO) {
+            while (currentRequestedShotId == shotId) {
+                delay(1500)
+                if (currentRequestedShotId != shotId) {
+                    return@launch
+                }
+                if (System.currentTimeMillis() - lastTransferActivityAt > REQUEST_TIMEOUT_MS) {
+                    val retries = requestRetryCounts[shotId] ?: 0
+                    Log.w(TAG, "requestScreenshotData timeout: $shotId retries=$retries")
+                    currentRequestedShotId = null
+                    closeSessionsForShot(shotId)
+                    if (retries < 2) {
+                        requestRetryCounts[shotId] = retries + 1
+                        markTransferFailed(shotId, "timeout retry=${retries + 1}")
+                        requestNextPendingScreenshot()
+                    } else {
+                        markTransferFailed(shotId, "timeout exhausted")
+                        pendingScreenshots.removeAll { it.shotId == shotId }
+                        requestRetryCounts.remove(shotId)
+                        requestNextPendingScreenshot()
+                    }
+                    return@launch
+                }
+            }
+        }
+    }
+
+    private fun updateImageProgressText() {
+        if (totalCount <= 0) {
+            _receiveProgress.value = ""
+            return
+        }
+        val completed = receivedCount.coerceAtMost(totalCount)
+        val current = if (completed >= totalCount) totalCount else completed + 1
+        _receiveProgress.value = "接收图片 $current/$totalCount"
+    }
+
+    private fun updateChunkProgressText(chunkReceived: Int, chunkTotal: Int) {
+        updateChunkProgressText(chunkReceived, chunkTotal, 0L, 0L, System.currentTimeMillis())
+    }
+
+    private fun updateChunkProgressText(
+        chunkReceived: Int,
+        chunkTotal: Int,
+        receivedBytes: Long,
+        totalBytes: Long,
+        startedAtMs: Long
+    ) {
+        val speedText = formatSpeed(receivedBytes, startedAtMs)
+        val byteText = if (totalBytes > 0L) {
+            "，${formatBytes(receivedBytes)}/${formatBytes(totalBytes)}"
+        } else {
+            ""
+        }
+        val detailText = "分片 $chunkReceived/$chunkTotal$byteText，$speedText"
+        if (totalCount > 0) {
+            val completed = receivedCount.coerceAtMost(totalCount)
+            val current = if (completed >= totalCount) totalCount else completed + 1
+            _receiveProgress.value = "接收图片 $current/$totalCount（$detailText）"
+            return
+        }
+        _receiveProgress.value = "接收中（$detailText）"
+    }
+
+    private fun formatBytes(bytes: Long): String {
+        val value = bytes.toDouble()
+        return when {
+            value >= 1024 * 1024 -> String.format("%.1f MB", value / (1024 * 1024))
+            value >= 1024 -> String.format("%.1f KB", value / 1024)
+            else -> "${bytes} B"
+        }
+    }
+
+    private fun formatSpeed(bytes: Long, startedAtMs: Long): String {
+        val elapsedMs = (System.currentTimeMillis() - startedAtMs).coerceAtLeast(1L)
+        val bytesPerSecond = bytes * 1000.0 / elapsedMs
+        return when {
+            bytesPerSecond >= 1024 * 1024 -> String.format("%.1f MB/s", bytesPerSecond / (1024 * 1024))
+            bytesPerSecond >= 1024 -> String.format("%.1f KB/s", bytesPerSecond / 1024)
+            else -> String.format("%.0f B/s", bytesPerSecond)
+        }
+    }
+
+    private fun completePullSync() {
+        cancelRequestTimeout()
+        currentRequestedShotId = null
+        requestRetryCounts.clear()
+        _syncState.value = SyncState.Success(receivedCount)
+        _receiveProgress.value = ""
+        pendingScreenshots.clear()
+        totalCount = 0
+    }
+
+    private fun chooseTransferProfile(shotId: String): TransferProfile {
+        val record = readTransferRecord(shotId)
+        if (record != null && !record.completed && record.chunkSize > 0) {
+            val throttle = when {
+                record.totalBytes >= 1024 * 1024 -> 18
+                record.totalBytes >= 512 * 1024 -> 10
+                else -> 6
+            }
+            val gcEvery = when {
+                record.totalChunks >= 180 -> 4
+                record.totalChunks >= 96 -> 6
+                else -> 8
+            }
+            return TransferProfile(
+                chunkSize = record.chunkSize,
+                throttleMs = throttle,
+                gcEvery = gcEvery
+            )
+        }
+
+        return TransferProfile(
+            chunkSize = 2560,
+            throttleMs = 8,
+            gcEvery = 8
+        )
+    }
+
+    private fun resolveResumeStartIndex(shotId: String): Int {
+        val record = readTransferRecord(shotId) ?: return 0
+        if (record.completed) {
+            return 0
+        }
+        val part = partialFile(shotId)
+        if (!part.exists()) {
+            clearTransferState(shotId, keepCompletedFile = true)
+            return 0
+        }
+        if (record.chunkSize <= 0 || record.lastChunkNum < 0) {
+            clearTransferState(shotId, keepCompletedFile = true)
+            return 0
+        }
+        val expectedLength = (record.lastChunkNum + 1).toLong() * record.chunkSize.toLong()
+        if (part.length() != expectedLength) {
+            clearTransferState(shotId, keepCompletedFile = true)
+            return 0
+        }
+        val nextIndex = record.lastChunkNum + 1
+        return if (record.totalChunks > 0 && nextIndex < record.totalChunks) nextIndex else 0
+    }
+
+    private fun requestNextPendingScreenshot() {
+        cancelRequestTimeout()
+
+        val next = pendingScreenshots.firstOrNull() ?: run {
+            completePullSync()
+            return
+        }
+
+        val resumeIndex = resolveResumeStartIndex(next.shotId)
+        val profile = chooseTransferProfile(next.shotId)
+
+        currentRequestedShotId = next.shotId
+        _syncState.value = SyncState.Receiving
+        updateImageProgressText()
+        scheduleRequestTimeout(next.shotId)
+        messageCenter.requestScreenshotData(
+            shotId = next.shotId,
+            startIndex = resumeIndex,
+            chunkSize = profile.chunkSize,
+            throttleMs = profile.throttleMs,
+            gcEvery = profile.gcEvery
+        )
+    }
+
+    private fun onPulledScreenshotReceived(shotId: String) {
+        if (currentRequestedShotId != shotId) {
+            return
+        }
+
+        cancelRequestTimeout()
+        currentRequestedShotId = null
+        requestRetryCounts.remove(shotId)
+        pendingScreenshots.removeAll { it.shotId == shotId }
+        if (pendingScreenshots.isEmpty()) {
+            completePullSync()
+        } else {
+            requestNextPendingScreenshot()
         }
     }
 
@@ -115,25 +568,106 @@ class ScreenshotReceiver(
      */
     private fun handleChunkStart(json: JSONObject) {
         val sessionId = json.optString("sessionId")
+        val shotId = json.optString("shotId")
         val total = json.optInt("total", 0)
-        if (sessionId.isEmpty() || total <= 0) {
+        val totalBytes = json.optLong("size", 0L)
+        val chunkSize = json.optInt("chunkSize", 0)
+        val startIndex = json.optInt("startIndex", 0)
+        if (sessionId.isEmpty() || shotId.isEmpty() || total <= 0 || chunkSize <= 0) {
             Log.w(TAG, "Invalid chunkStart")
             messageCenter.sendChunkAck(sessionId, "start", false)
             return
         }
-        chunkSessions[sessionId] = ChunkSession(
-            shotId = json.optString("shotId"),
+
+        markTransferActivity()
+        closeSessionsForShot(shotId)
+
+        val finalFile = completedFile(shotId)
+        val tempFile = partialFile(shotId)
+        val resumeRecord = readTransferRecord(shotId)
+        val resumeLastChunk = startIndex - 1
+
+        if (startIndex > 0) {
+            val expectedLength = startIndex.toLong() * chunkSize.toLong()
+            val resumeValid = resumeRecord != null &&
+                !resumeRecord.completed &&
+                resumeRecord.totalChunks == total &&
+                resumeRecord.totalBytes == totalBytes &&
+                resumeRecord.chunkSize == chunkSize &&
+                resumeRecord.lastChunkNum == resumeLastChunk &&
+                tempFile.exists() &&
+                tempFile.length() == expectedLength
+            if (!resumeValid) {
+                clearTransferState(shotId, keepCompletedFile = true)
+                Log.w(TAG, "Invalid resume state for $shotId startIndex=$startIndex")
+                markTransferFailed(shotId, "invalid resume state")
+                messageCenter.sendChunkAck(sessionId, "start", false)
+                return
+            }
+        } else {
+            safeDelete(tempFile)
+            safeDelete(stateFile(shotId))
+        }
+
+        val outputStream = FileOutputStream(tempFile, true)
+
+        val session = ChunkSession(
+            shotId = shotId,
             capturedAt = json.optString("capturedAt"),
-            total = total
+            total = total,
+            totalBytes = totalBytes,
+            chunkSize = chunkSize,
+            tempFile = tempFile,
+            finalFile = finalFile,
+            outputStream = outputStream,
+            resumeLastChunkNum = resumeLastChunk
         )
+
+        chunkSessions[sessionId] = session
+        writeTransferRecord(
+            TransferRecord(
+                shotId = shotId,
+                capturedAt = session.capturedAt,
+                totalChunks = total,
+                totalBytes = totalBytes,
+                chunkSize = chunkSize,
+                lastChunkNum = resumeLastChunk,
+                completed = false,
+                status = "receiving",
+                updatedAtUnix = nowUnix()
+            )
+        )
+
+        val existing = findExistingScreenshot(shotId)
+        replaceScreenshotEntry(
+            hydrateStoredScreenshot(
+                Screenshot(
+                    shotId = shotId,
+                    capturedAt = session.capturedAt.ifEmpty { existing?.capturedAt.orEmpty() },
+                    capturedAtUnix = existing?.capturedAtUnix ?: 0L,
+                    displayTitle = existing?.displayTitle ?: buildDisplayTitle(shotId, existing?.index ?: (receivedCount + 1)),
+                    index = existing?.index ?: (receivedCount + 1),
+                    totalChunks = total,
+                    lastTransferFailed = false,
+                    transferHint = ""
+                )
+            )
+        )
+
         _syncState.value = SyncState.Receiving
-        _receiveProgress.value = "接收中 0/$total"
-        Log.d(TAG, "Chunk session start: $sessionId total=$total")
+        updateChunkProgressText(
+            session.receivedCount,
+            total,
+            session.receivedBytes,
+            totalBytes,
+            session.startedAtMs
+        )
+        Log.d(TAG, "Chunk session start: $sessionId total=$total startIndex=$startIndex chunkSize=$chunkSize")
         messageCenter.sendChunkAck(sessionId, "start", true)
     }
 
     /**
-     * 收到分片数据：解码并缓存，回 ACK
+     * 收到分片数据：解码后直接写入临时文件，回 ACK
      */
     private fun handleChunkPart(json: JSONObject) {
         val sessionId = json.optString("sessionId")
@@ -151,26 +685,82 @@ class ScreenshotReceiver(
             messageCenter.sendChunkAck(sessionId, "part", false, index)
             return
         }
+        if (index <= session.lastChunkNum) {
+            messageCenter.sendChunkAck(sessionId, "part", true, index)
+            return
+        }
+        if (index != session.lastChunkNum + 1) {
+            Log.w(TAG, "chunkPart: non sequential index=$index expected=${session.lastChunkNum + 1}")
+            messageCenter.sendChunkAck(sessionId, "part", false, index)
+            return
+        }
 
         try {
             val bytes = Base64.decode(data, Base64.DEFAULT)
-            if (session.parts[index] == null) {
-                session.parts[index] = bytes
-                session.receivedCount++
-            } else {
-                // 重传：覆盖，不增加计数
-                session.parts[index] = bytes
+            session.outputStream.write(bytes)
+            session.lastChunkNum = index
+            session.receivedCount = index + 1
+            session.receivedBytes = session.tempFile.length()
+            markTransferActivity()
+            if (session.lastChunkNum == session.total - 1 || session.lastChunkNum - session.lastStateFlushChunkNum >= 4) {
+                session.outputStream.flush()
+                writeTransferRecord(
+                    TransferRecord(
+                        shotId = session.shotId,
+                        capturedAt = session.capturedAt,
+                        totalChunks = session.total,
+                        totalBytes = session.totalBytes,
+                        chunkSize = session.chunkSize,
+                        lastChunkNum = session.lastChunkNum,
+                        completed = false,
+                        status = "receiving",
+                        updatedAtUnix = nowUnix()
+                    )
+                )
+                session.lastStateFlushChunkNum = session.lastChunkNum
             }
-            _receiveProgress.value = "接收中 ${session.receivedCount}/${session.total}"
+            val now = System.currentTimeMillis()
+            if (index == session.total - 1 || now - session.lastUiUpdateAtMs >= 200L) {
+                session.lastUiUpdateAtMs = now
+                updateChunkProgressText(
+                    session.receivedCount,
+                    session.total,
+                    session.receivedBytes,
+                    session.totalBytes,
+                    session.startedAtMs
+                )
+
+                val existing = findExistingScreenshot(session.shotId)
+                replaceScreenshotEntry(
+                    hydrateStoredScreenshot(
+                        Screenshot(
+                            shotId = session.shotId,
+                            capturedAt = session.capturedAt.ifEmpty { existing?.capturedAt.orEmpty() },
+                            capturedAtUnix = existing?.capturedAtUnix ?: 0L,
+                            displayTitle = existing?.displayTitle ?: buildDisplayTitle(session.shotId, existing?.index ?: (receivedCount + 1)),
+                            index = existing?.index ?: (receivedCount + 1),
+                            lastChunkNum = session.lastChunkNum,
+                            receivedChunks = session.receivedCount,
+                            totalChunks = session.total,
+                            receivedBytes = session.receivedBytes,
+                            totalBytes = session.totalBytes,
+                            lastTransferFailed = false,
+                            transferHint = ""
+                        )
+                    )
+                )
+            }
+
             messageCenter.sendChunkAck(sessionId, "part", true, index)
         } catch (e: Exception) {
             Log.e(TAG, "chunkPart decode failed", e)
+            markTransferFailed(session.shotId, e.message ?: "chunk decode failed")
             messageCenter.sendChunkAck(sessionId, "part", false, index)
         }
     }
 
     /**
-     * 收到分片结束：合并字节、生成截图，回 ACK
+     * 收到分片结束：校验并落盘完成，回 ACK
      */
     private fun handleChunkFinish(json: JSONObject) {
         val sessionId = json.optString("sessionId")
@@ -180,47 +770,65 @@ class ScreenshotReceiver(
             messageCenter.sendChunkAck(sessionId, "finish", false)
             return
         }
-        if (session.receivedCount != session.total) {
+        if (session.receivedCount != session.total || session.lastChunkNum != session.total - 1) {
             Log.w(TAG, "chunkFinish: incomplete ${session.receivedCount}/${session.total}")
-            // 不清理会话，允许重传缺失分片后再次 finish
+            markTransferFailed(session.shotId, "chunk finish incomplete")
+            messageCenter.sendChunkAck(sessionId, "finish", false)
+            return
+        }
+        if (session.totalBytes > 0 && session.tempFile.length() != session.totalBytes) {
+            Log.w(TAG, "chunkFinish: invalid size ${session.tempFile.length()}/${session.totalBytes}")
+            markTransferFailed(session.shotId, "chunk finish invalid size")
             messageCenter.sendChunkAck(sessionId, "finish", false)
             return
         }
 
         try {
-            val out = ByteArrayOutputStream()
-            for (part in session.parts) {
-                if (part != null) {
-                    out.write(part)
-                }
+            session.outputStream.flush()
+            session.outputStream.close()
+            if (session.finalFile.exists()) {
+                safeDelete(session.finalFile)
             }
-            val fullBytes = out.toByteArray()
-            val imageData = Base64.encodeToString(fullBytes, Base64.NO_WRAP)
+            val moved = session.tempFile.renameTo(session.finalFile)
+            if (!moved) {
+                session.tempFile.copyTo(session.finalFile, overwrite = true)
+                safeDelete(session.tempFile)
+            }
+            safeDelete(stateFile(session.shotId))
 
             receivedCount++
+            val existing = findExistingScreenshot(session.shotId)
             val screenshot = Screenshot(
                 shotId = session.shotId,
-                capturedAt = session.capturedAt,
-                capturedAtUnix = System.currentTimeMillis() / 1000,
-                imageData = imageData,
-                index = receivedCount
+                capturedAt = session.capturedAt.ifEmpty { existing?.capturedAt.orEmpty() },
+                capturedAtUnix = existing?.capturedAtUnix ?: (System.currentTimeMillis() / 1000),
+                displayTitle = existing?.displayTitle ?: buildDisplayTitle(session.shotId, existing?.index ?: receivedCount),
+                localFilePath = session.finalFile.absolutePath,
+                index = existing?.index ?: receivedCount,
+                lastChunkNum = session.lastChunkNum,
+                receivedChunks = session.total,
+                totalChunks = session.total,
+                receivedBytes = session.totalBytes,
+                totalBytes = session.totalBytes,
+                isComplete = true,
+                lastTransferFailed = false,
+                transferHint = ""
             )
 
-            val currentList = _screenshots.value.toMutableList()
-            val existingIndex = currentList.indexOfFirst { it.shotId == session.shotId }
-            if (existingIndex >= 0) {
-                currentList[existingIndex] = screenshot
-            } else {
-                currentList.add(0, screenshot)
-            }
-            _screenshots.value = currentList
+            replaceScreenshotEntry(screenshot)
 
-            Log.d(TAG, "Chunk session done: ${session.shotId} bytes=${fullBytes.size}")
+            Log.d(TAG, "Chunk session done: ${session.shotId} bytes=${session.totalBytes}")
             messageCenter.sendChunkAck(sessionId, "finish", true)
+            onPulledScreenshotReceived(session.shotId)
         } catch (e: Exception) {
             Log.e(TAG, "chunkFinish assemble failed", e)
+            markTransferFailed(session.shotId, e.message ?: "chunk finish failed")
             messageCenter.sendChunkAck(sessionId, "finish", false)
         } finally {
+            try {
+                session.outputStream.close()
+            } catch (_: Exception) {
+            }
             chunkSessions.remove(sessionId)
         }
     }
@@ -246,10 +854,13 @@ class ScreenshotReceiver(
         for (i in 0 until screenshotsArray.length()) {
             val item = screenshotsArray.getJSONObject(i)
             pendingScreenshots.add(
-                Screenshot(
-                    shotId = item.optString("shotId"),
-                    capturedAt = item.optString("capturedAt"),
-                    index = i + 1
+                hydrateStoredScreenshot(
+                    Screenshot(
+                        shotId = item.optString("shotId"),
+                        capturedAt = item.optString("capturedAt"),
+                        displayTitle = buildDisplayTitle(item.optString("shotId"), i + 1),
+                        index = i + 1
+                    )
                 )
             )
         }
@@ -264,7 +875,7 @@ class ScreenshotReceiver(
     }
 
     /**
-     * 处理截图数据
+     * 处理旧协议截图数据
      */
     private suspend fun handleScreenshotData(json: JSONObject) {
         val shotId = json.optString("shotId")
@@ -276,34 +887,33 @@ class ScreenshotReceiver(
             return
         }
 
-        receivedCount++
-        _syncState.value = SyncState.Receiving
-        _receiveProgress.value = "接收中 $receivedCount/$totalCount"
-
-        // 更新或添加截图到列表
-        val currentList = _screenshots.value.toMutableList()
-        val existingIndex = currentList.indexOfFirst { it.shotId == shotId }
-
-        val screenshot = Screenshot(
-            shotId = shotId,
-            capturedAt = capturedAt,
-            capturedAtUnix = System.currentTimeMillis() / 1000,
-            imageData = imageData,
-            index = receivedCount
-        )
-
-        if (existingIndex >= 0) {
-            currentList[existingIndex] = screenshot
-        } else {
-            currentList.add(0, screenshot)
+        try {
+            val bytes = Base64.decode(imageData, Base64.DEFAULT)
+            val finalFile = completedFile(shotId)
+            finalFile.writeBytes(bytes)
+            safeDelete(stateFile(shotId))
+            safeDelete(partialFile(shotId))
+            receivedCount++
+            _syncState.value = SyncState.Receiving
+            updateImageProgressText()
+            replaceScreenshotEntry(
+                Screenshot(
+                    shotId = shotId,
+                    capturedAt = capturedAt,
+                    capturedAtUnix = System.currentTimeMillis() / 1000,
+                    displayTitle = buildDisplayTitle(shotId, receivedCount),
+                    localFilePath = finalFile.absolutePath,
+                    index = receivedCount,
+                    isComplete = true,
+                    receivedBytes = finalFile.length(),
+                    totalBytes = finalFile.length()
+                )
+            )
+            messageCenter.sendDataAck(shotId)
+            onPulledScreenshotReceived(shotId)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to persist legacy screenshot payload", e)
         }
-
-        _screenshots.value = currentList
-
-        // 发送确认
-        messageCenter.sendDataAck(shotId)
-
-        Log.d(TAG, "Screenshot received: $shotId ($receivedCount/$totalCount)")
     }
 
     /**
@@ -332,21 +942,39 @@ class ScreenshotReceiver(
     private fun handleScreenshotListData(json: JSONObject) {
         val screenshotsArray = json.optJSONArray("screenshots") ?: return
 
-        val newList = mutableListOf<Screenshot>()
+        val rawList = mutableListOf<Screenshot>()
         for (i in 0 until screenshotsArray.length()) {
             val item = screenshotsArray.getJSONObject(i)
-            newList.add(
+            rawList.add(
                 Screenshot(
                     shotId = item.optString("shotId"),
                     capturedAt = item.optString("capturedAt"),
                     capturedAtUnix = item.optLong("capturedAtUnix", 0),
+                    displayTitle = buildDisplayTitle(item.optString("shotId"), item.optInt("index", i + 1)),
                     index = item.optInt("index", i + 1)
                 )
             )
         }
 
-        _screenshots.value = newList
-        Log.d(TAG, "Screenshot list received: ${newList.size} items")
+        val displayList = buildSessionDisplayList(rawList)
+        pendingScreenshots = displayList.filter { !it.isComplete || it.localFilePath.isEmpty() }.toMutableList()
+        receivedCount = 0
+        totalCount = pendingScreenshots.size
+        chunkSessions.clear()
+        currentRequestedShotId = null
+        requestRetryCounts.clear()
+        _screenshots.value = displayList
+        Log.d(TAG, "Screenshot list received: ${displayList.size} items, pending=${pendingScreenshots.size}")
+
+        if (pendingScreenshots.isEmpty()) {
+            _syncState.value = SyncState.Success(displayList.size)
+            _receiveProgress.value = ""
+            return
+        }
+
+        _syncState.value = SyncState.Receiving
+        updateImageProgressText()
+        requestNextPendingScreenshot()
     }
 
     /**
@@ -354,6 +982,15 @@ class ScreenshotReceiver(
      */
     fun requestFromWatch() {
         scope.launch(Dispatchers.IO) {
+            cancelRequestTimeout()
+            currentRequestedShotId = null
+            pendingScreenshots.clear()
+            chunkSessions.clear()
+            requestRetryCounts.clear()
+            receivedCount = 0
+            totalCount = 0
+            _syncState.value = SyncState.WaitingAck
+            _receiveProgress.value = "正在获取截图列表…"
             messageCenter.requestScreenshotList()
         }
     }
@@ -363,7 +1000,21 @@ class ScreenshotReceiver(
      */
     fun requestScreenshot(shotId: String) {
         scope.launch(Dispatchers.IO) {
-            messageCenter.requestScreenshotData(shotId)
+            val existing = completedFile(shotId)
+            if (existing.exists()) {
+                return@launch
+            }
+            val resumeIndex = resolveResumeStartIndex(shotId)
+            val profile = chooseTransferProfile(shotId)
+            currentRequestedShotId = shotId
+            scheduleRequestTimeout(shotId)
+            messageCenter.requestScreenshotData(
+                shotId = shotId,
+                startIndex = resumeIndex,
+                chunkSize = profile.chunkSize,
+                throttleMs = profile.throttleMs,
+                gcEvery = profile.gcEvery
+            )
         }
     }
 
@@ -371,15 +1022,25 @@ class ScreenshotReceiver(
      * 删除截图
      */
     fun deleteScreenshot(shotId: String) {
+        closeSessionsForShot(shotId)
+        clearTransferState(shotId, keepCompletedFile = false)
         val currentList = _screenshots.value.toMutableList()
         currentList.removeAll { it.shotId == shotId }
         _screenshots.value = currentList
+        pendingScreenshots.removeAll { it.shotId == shotId }
+        requestRetryCounts.remove(shotId)
     }
 
     /**
      * 清空所有截图
      */
     fun clearAll() {
+        val activeSessionIds = chunkSessions.keys.toList()
+        activeSessionIds.forEach { closeChunkSession(it) }
+        transferRootDir.listFiles()?.forEach { safeDelete(it) }
+        chunkSessions.clear()
+        pendingScreenshots.clear()
+        requestRetryCounts.clear()
         _screenshots.value = emptyList()
     }
 }
