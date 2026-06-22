@@ -639,26 +639,40 @@ class ScreenshotReceiver(
     }
 
     private fun resolveResumeStartIndex(shotId: String): Int {
-        val record = readTransferRecord(shotId)?.let(::normalizeTransferRecord) ?: return 0
+        val rawRecord = readTransferRecord(shotId)
+        if (rawRecord == null) {
+            Log.d(TAG, "resolveResumeStartIndex: shotId=$shotId → 0 (no transfer record)")
+            return 0
+        }
+        val record = normalizeTransferRecord(rawRecord)
+        Log.d(TAG, "resolveResumeStartIndex: shotId=$shotId raw=(lastChunk=${rawRecord.lastChunkNum}, completed=${rawRecord.completed}, status=${rawRecord.status}, totalChunks=${rawRecord.totalChunks}, totalBytes=${rawRecord.totalBytes}, chunkSize=${rawRecord.chunkSize})")
+        Log.d(TAG, "resolveResumeStartIndex: shotId=$shotId normalized=(lastChunk=${record.lastChunkNum}, completed=${record.completed}, status=${record.status})")
         if (record.completed) {
+            Log.d(TAG, "resolveResumeStartIndex: shotId=$shotId → 0 (already completed)")
             return 0
         }
         val part = partialFile(shotId)
         if (!part.exists()) {
+            Log.d(TAG, "resolveResumeStartIndex: shotId=$shotId → 0 (.part file not found)")
             clearTransferState(shotId, keepCompletedFile = true)
             return 0
         }
         if (record.chunkSize <= 0 || record.lastChunkNum < 0) {
+            Log.d(TAG, "resolveResumeStartIndex: shotId=$shotId → 0 (invalid chunkSize=${record.chunkSize} or lastChunkNum=${record.lastChunkNum})")
             clearTransferState(shotId, keepCompletedFile = true)
             return 0
         }
         val expectedLength = (record.lastChunkNum + 1).toLong() * record.chunkSize.toLong()
-        if (part.length() < expectedLength) {
+        val partLength = part.length()
+        if (partLength < expectedLength) {
+            Log.d(TAG, "resolveResumeStartIndex: shotId=$shotId → 0 (.part length=$partLength < expected=$expectedLength, lastChunk=${record.lastChunkNum}, chunkSize=${record.chunkSize})")
             clearTransferState(shotId, keepCompletedFile = true)
             return 0
         }
         val resumeIndex = (record.lastChunkNum - 4).coerceAtLeast(0)
+        Log.d(TAG, "resolveResumeStartIndex: shotId=$shotId lastChunk=${record.lastChunkNum} → resumeIndex=$resumeIndex (back 4)")
         if (record.totalChunks > 0 && resumeIndex >= record.totalChunks) {
+            Log.d(TAG, "resolveResumeStartIndex: shotId=$shotId → 0 (resumeIndex=$resumeIndex >= totalChunks=${record.totalChunks})")
             return 0
         }
         val keepBytes = resumeIndex.toLong() * record.chunkSize.toLong()
@@ -674,11 +688,13 @@ class ScreenshotReceiver(
                     updatedAtUnix = nowUnix()
                 )
             )
+            Log.d(TAG, "resolveResumeStartIndex: shotId=$shotId truncated .part to $keepBytes bytes, updated record lastChunkNum=${resumeIndex - 1}")
         } catch (e: Exception) {
             Log.w(TAG, "Failed to prepare resume window for $shotId", e)
             clearTransferState(shotId, keepCompletedFile = true)
             return 0
         }
+        Log.d(TAG, "resolveResumeStartIndex: shotId=$shotId → returning resumeIndex=$resumeIndex")
         return resumeIndex
     }
 
@@ -697,6 +713,7 @@ class ScreenshotReceiver(
         _syncState.value = SyncState.Receiving
         updateImageProgressText()
         scheduleRequestTimeout(next.shotId)
+        Log.d(TAG, "requestNextPendingScreenshot: shotId=${next.shotId} startIndex=$resumeIndex chunkSize=${profile.chunkSize} throttleMs=${profile.throttleMs} gcEvery=${profile.gcEvery}")
         messageCenter.requestScreenshotData(
             shotId = next.shotId,
             startIndex = resumeIndex,
@@ -767,8 +784,9 @@ class ScreenshotReceiver(
         val totalBytes = json.optLong("size", 0L)
         val chunkSize = json.optInt("chunkSize", 0)
         val startIndex = json.optInt("startIndex", 0)
+        Log.d(TAG, "handleChunkStart: shotId=$shotId startIndex=$startIndex total=$total chunkSize=$chunkSize totalBytes=$totalBytes")
         if (sessionId.isEmpty() || shotId.isEmpty() || total <= 0 || chunkSize <= 0) {
-            Log.w(TAG, "Invalid chunkStart")
+            Log.w(TAG, "Invalid chunkStart: sessionId=$sessionId shotId=$shotId total=$total chunkSize=$chunkSize")
             messageCenter.sendChunkAck(sessionId, "start", false)
             return
         }
@@ -783,22 +801,36 @@ class ScreenshotReceiver(
 
         if (startIndex > 0) {
             val expectedLength = startIndex.toLong() * chunkSize.toLong()
-            val resumeValid = resumeRecord != null &&
-                !resumeRecord.completed &&
-                resumeRecord.totalChunks == total &&
-                resumeRecord.totalBytes == totalBytes &&
-                resumeRecord.chunkSize == chunkSize &&
-                resumeRecord.lastChunkNum == resumeLastChunk &&
-                tempFile.exists() &&
-                tempFile.length() == expectedLength
+            val tempExists = tempFile.exists()
+            val tempLen = if (tempExists) tempFile.length() else -1L
+            val c1 = resumeRecord != null
+            val c2 = resumeRecord?.completed == false
+            val c3 = resumeRecord?.totalChunks == total
+            val c4 = resumeRecord?.totalBytes == totalBytes
+            val c5 = resumeRecord?.chunkSize == chunkSize
+            val c6 = resumeRecord?.lastChunkNum == resumeLastChunk
+            val c7 = tempExists
+            val c8 = tempLen == expectedLength
+            Log.d(TAG, "handleChunkStart resume validation for $shotId:")
+            Log.d(TAG, "  [1] recordExists=$c1 lastChunk=${resumeRecord?.lastChunkNum} completed=${resumeRecord?.completed}")
+            Log.d(TAG, "  [2] !completed=$c2")
+            Log.d(TAG, "  [3] totalChunks==total: ${resumeRecord?.totalChunks}==$total → $c3")
+            Log.d(TAG, "  [4] totalBytes==totalBytes: ${resumeRecord?.totalBytes}==$totalBytes → $c4")
+            Log.d(TAG, "  [5] chunkSize==chunkSize: ${resumeRecord?.chunkSize}==$chunkSize → $c5")
+            Log.d(TAG, "  [6] lastChunkNum==resumeLastChunk: ${resumeRecord?.lastChunkNum}==$resumeLastChunk → $c6")
+            Log.d(TAG, "  [7] tempFileExists=$c7 tempLen=$tempLen")
+            Log.d(TAG, "  [8] tempLen==expected: $tempLen==$expectedLength → $c8")
+            val resumeValid = c1 && c2 && c3 && c4 && c5 && c6 && c7 && c8
             if (!resumeValid) {
                 clearTransferState(shotId, keepCompletedFile = true)
-                Log.w(TAG, "Invalid resume state for $shotId startIndex=$startIndex")
+                Log.w(TAG, "Invalid resume state for $shotId startIndex=$startIndex (conditions above)")
                 markTransferFailed(shotId, "invalid resume state")
                 messageCenter.sendChunkAck(sessionId, "start", false)
                 return
             }
+            Log.d(TAG, "handleChunkStart: resume VALID for $shotId, continuing from startIndex=$startIndex")
         } else {
+            Log.d(TAG, "handleChunkStart: startIndex=0, fresh transfer for $shotId")
             safeDelete(tempFile)
         }
 

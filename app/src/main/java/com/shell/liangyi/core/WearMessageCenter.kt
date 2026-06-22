@@ -770,6 +770,7 @@ class WearMessageCenter private constructor(private val context: Context) {
             put("throttleMs", throttleMs.coerceAtLeast(0))
             put("gcEvery", gcEvery.coerceAtLeast(1))
         }
+        Log.d(TAG, "requestScreenshotData: shotId=$shotId startIndex=${startIndex.coerceAtLeast(0)} chunkSize=${chunkSize.coerceAtLeast(1024)}")
         send(MessageType.REQUEST_SCREENSHOT_DATA, payload)
     }
 
