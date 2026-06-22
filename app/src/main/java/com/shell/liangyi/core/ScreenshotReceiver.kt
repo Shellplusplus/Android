@@ -15,6 +15,7 @@ import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
+import java.io.RandomAccessFile
 
 /**
  * 截图接收处理类
@@ -102,6 +103,44 @@ class ScreenshotReceiver(
 
     private fun nowUnix(): Long = System.currentTimeMillis() / 1000
 
+    private fun parseCapturedAtUnix(shotId: String, fallback: Long = 0L): Long {
+        val raw = shotId.substringBefore("#")
+        if (raw.length != 14 || raw.any { !it.isDigit() }) {
+            return fallback
+        }
+        return try {
+            val year = raw.substring(0, 4).toInt()
+            val month = raw.substring(4, 6).toInt()
+            val day = raw.substring(6, 8).toInt()
+            val hour = raw.substring(8, 10).toInt()
+            val minute = raw.substring(10, 12).toInt()
+            val second = raw.substring(12, 14).toInt()
+            java.time.LocalDateTime.of(year, month, day, hour, minute, second)
+                .atZone(java.time.ZoneId.systemDefault())
+                .toEpochSecond()
+        } catch (_: Exception) {
+            fallback
+        }
+    }
+
+    private fun formatCapturedAtFromShotId(shotId: String): String {
+        val raw = shotId.substringBefore("#")
+        if (raw.length != 14 || raw.any { !it.isDigit() }) {
+            return ""
+        }
+        return try {
+            val year = raw.substring(0, 4)
+            val month = raw.substring(4, 6)
+            val day = raw.substring(6, 8)
+            val hour = raw.substring(8, 10)
+            val minute = raw.substring(10, 12)
+            val second = raw.substring(12, 14)
+            "$year-$month-$day $hour:$minute:$second"
+        } catch (_: Exception) {
+            ""
+        }
+    }
+
     private fun buildDisplayTitle(shotId: String, fallbackIndex: Int): String {
         val value = shotId.ifEmpty { "#$fallbackIndex" }
         val hashIndex = value.lastIndexOf("#")
@@ -116,6 +155,12 @@ class ScreenshotReceiver(
         val safe = shotId.replace(Regex("[^A-Za-z0-9._-]"), "_")
         val hash = shotId.hashCode().toUInt().toString(16)
         return "${safe}_$hash"
+    }
+
+    private fun recoverShotIdFromStoredName(fileName: String): String? {
+        val baseName = fileName.substringBeforeLast(".")
+        val match = Regex("""^(\d{14})_(\d+)_([0-9a-fA-F]+)$""").matchEntire(baseName) ?: return null
+        return "${match.groupValues[1]}#${match.groupValues[2]}"
     }
 
     private fun completedFile(shotId: String): File {
@@ -179,11 +224,29 @@ class ScreenshotReceiver(
         }
     }
 
+    private fun normalizeTransferRecord(record: TransferRecord): TransferRecord {
+        if (record.completed || record.status == "failed") {
+            return record
+        }
+        val normalized = record.copy(
+            completed = false,
+            status = "failed",
+            updatedAtUnix = nowUnix()
+        )
+        writeTransferRecord(normalized)
+        return normalized
+    }
+
     private fun buildTransferHint(record: TransferRecord?): String {
         if (record == null || record.completed) {
             return ""
         }
-        return "上次传输失败"
+        val chunkNum = (record.lastChunkNum + 1).coerceAtLeast(0)
+        return if (record.totalChunks > 0 && chunkNum > 0) {
+            "上次传输失败（中断于块 $chunkNum/${record.totalChunks}）"
+        } else {
+            "上次传输失败"
+        }
     }
 
     private fun markTransferFailed(shotId: String, reason: String = "") {
@@ -233,26 +296,34 @@ class ScreenshotReceiver(
 
     private fun hydrateStoredScreenshot(screenshot: Screenshot): Screenshot {
         val currentFile = completedFile(screenshot.shotId)
+        val record = readTransferRecord(screenshot.shotId)?.let(::normalizeTransferRecord)
         if (currentFile.exists()) {
             val size = currentFile.length()
+            val effectiveTotalChunks = record?.totalChunks ?: screenshot.totalChunks
+            val effectiveChunkNum = record?.lastChunkNum ?: screenshot.lastChunkNum
             return screenshot.copy(
                 displayTitle = screenshot.displayTitle.ifEmpty { buildDisplayTitle(screenshot.shotId, screenshot.index) },
+                capturedAt = screenshot.capturedAt.ifEmpty { record?.capturedAt.orEmpty().ifEmpty { formatCapturedAtFromShotId(screenshot.shotId) } },
+                capturedAtUnix = if (screenshot.capturedAtUnix != 0L) screenshot.capturedAtUnix else parseCapturedAtUnix(screenshot.shotId),
                 localFilePath = currentFile.absolutePath,
                 imageData = "",
                 receivedBytes = size,
                 totalBytes = size,
-                receivedChunks = screenshot.totalChunks.coerceAtLeast(1),
+                lastChunkNum = effectiveChunkNum,
+                receivedChunks = effectiveTotalChunks.coerceAtLeast(1),
+                totalChunks = effectiveTotalChunks.coerceAtLeast(1),
                 isComplete = true,
                 lastTransferFailed = false,
                 transferHint = ""
             )
         }
 
-        val record = readTransferRecord(screenshot.shotId)
         val partial = partialFile(screenshot.shotId)
         if (record != null && partial.exists()) {
             return screenshot.copy(
                 displayTitle = screenshot.displayTitle.ifEmpty { buildDisplayTitle(screenshot.shotId, screenshot.index) },
+                capturedAt = screenshot.capturedAt.ifEmpty { record.capturedAt.ifEmpty { formatCapturedAtFromShotId(screenshot.shotId) } },
+                capturedAtUnix = if (screenshot.capturedAtUnix != 0L) screenshot.capturedAtUnix else parseCapturedAtUnix(screenshot.shotId),
                 lastChunkNum = record.lastChunkNum,
                 receivedChunks = (record.lastChunkNum + 1).coerceAtLeast(0),
                 totalChunks = record.totalChunks,
@@ -266,9 +337,91 @@ class ScreenshotReceiver(
 
         return screenshot.copy(
             displayTitle = screenshot.displayTitle.ifEmpty { buildDisplayTitle(screenshot.shotId, screenshot.index) },
+            capturedAt = screenshot.capturedAt.ifEmpty { record?.capturedAt.orEmpty().ifEmpty { formatCapturedAtFromShotId(screenshot.shotId) } },
+            capturedAtUnix = if (screenshot.capturedAtUnix != 0L) screenshot.capturedAtUnix else parseCapturedAtUnix(screenshot.shotId),
             lastTransferFailed = record != null && record.status == "failed",
             transferHint = buildTransferHint(record)
         )
+    }
+
+    private fun loadStoredScreenshots() {
+        val stateFiles = transferRootDir.listFiles { file ->
+            file.isFile && file.extension.equals("json", ignoreCase = true)
+        }?.toList().orEmpty()
+        val loadedByShotId = linkedMapOf<String, Screenshot>()
+
+        stateFiles.mapNotNull { file ->
+            val record = try {
+                val json = JSONObject(file.readText())
+                TransferRecord(
+                    shotId = json.optString("shotId"),
+                    capturedAt = json.optString("capturedAt"),
+                    totalChunks = json.optInt("totalChunks", 0),
+                    totalBytes = json.optLong("totalBytes", 0L),
+                    chunkSize = json.optInt("chunkSize", 0),
+                    lastChunkNum = json.optInt("lastChunkNum", -1),
+                    completed = json.optBoolean("completed", false),
+                    status = json.optString("status", if (json.optBoolean("completed", false)) "completed" else "failed"),
+                    updatedAtUnix = json.optLong("updatedAtUnix", 0L)
+                )
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to parse stored screenshot state: ${file.name}", e)
+                null
+            } ?: return@mapNotNull null
+
+            if (record.shotId.isEmpty()) {
+                return@mapNotNull null
+            }
+
+            val normalized = normalizeTransferRecord(record)
+            Screenshot(
+                shotId = normalized.shotId,
+                capturedAt = normalized.capturedAt.ifEmpty { formatCapturedAtFromShotId(normalized.shotId) },
+                capturedAtUnix = parseCapturedAtUnix(normalized.shotId, normalized.updatedAtUnix),
+                displayTitle = buildDisplayTitle(normalized.shotId, 0),
+                index = 0,
+                lastChunkNum = normalized.lastChunkNum,
+                totalChunks = normalized.totalChunks
+            )
+        }.map { hydrateStoredScreenshot(it) }
+            .forEach { screenshot ->
+                loadedByShotId[screenshot.shotId] = screenshot
+            }
+
+        transferRootDir.listFiles { file ->
+            file.isFile && file.extension.equals("png", ignoreCase = true)
+        }?.forEach { pngFile ->
+            val shotId = recoverShotIdFromStoredName(pngFile.name) ?: return@forEach
+            if (loadedByShotId.containsKey(shotId)) {
+                return@forEach
+            }
+            loadedByShotId[shotId] = Screenshot(
+                shotId = shotId,
+                capturedAt = formatCapturedAtFromShotId(shotId),
+                capturedAtUnix = parseCapturedAtUnix(shotId, pngFile.lastModified() / 1000),
+                displayTitle = buildDisplayTitle(shotId, 0),
+                localFilePath = pngFile.absolutePath,
+                receivedBytes = pngFile.length(),
+                totalBytes = pngFile.length(),
+                receivedChunks = 1,
+                totalChunks = 1,
+                isComplete = true
+            )
+        }
+
+        val loaded = loadedByShotId.values
+            .sortedWith(
+                compareByDescending<Screenshot> { it.capturedAtUnix }
+                    .thenByDescending { readTransferRecord(it.shotId)?.updatedAtUnix ?: 0L }
+            )
+            .mapIndexed { index, screenshot ->
+                screenshot.copy(
+                    index = index + 1,
+                    displayTitle = buildDisplayTitle(screenshot.shotId, index + 1)
+                )
+            }
+
+        _screenshots.value = loaded
     }
 
     private fun buildSessionDisplayList(sessionShots: List<Screenshot>): List<Screenshot> {
@@ -467,7 +620,7 @@ class ScreenshotReceiver(
     }
 
     private fun resolveResumeStartIndex(shotId: String): Int {
-        val record = readTransferRecord(shotId) ?: return 0
+        val record = readTransferRecord(shotId)?.let(::normalizeTransferRecord) ?: return 0
         if (record.completed) {
             return 0
         }
@@ -481,12 +634,33 @@ class ScreenshotReceiver(
             return 0
         }
         val expectedLength = (record.lastChunkNum + 1).toLong() * record.chunkSize.toLong()
-        if (part.length() != expectedLength) {
+        if (part.length() < expectedLength) {
             clearTransferState(shotId, keepCompletedFile = true)
             return 0
         }
-        val nextIndex = record.lastChunkNum + 1
-        return if (record.totalChunks > 0 && nextIndex < record.totalChunks) nextIndex else 0
+        val resumeIndex = (record.lastChunkNum - 4).coerceAtLeast(0)
+        if (record.totalChunks > 0 && resumeIndex >= record.totalChunks) {
+            return 0
+        }
+        val keepBytes = resumeIndex.toLong() * record.chunkSize.toLong()
+        try {
+            RandomAccessFile(part, "rw").use { raf ->
+                raf.setLength(keepBytes)
+            }
+            writeTransferRecord(
+                record.copy(
+                    lastChunkNum = resumeIndex - 1,
+                    completed = false,
+                    status = "failed",
+                    updatedAtUnix = nowUnix()
+                )
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to prepare resume window for $shotId", e)
+            clearTransferState(shotId, keepCompletedFile = true)
+            return 0
+        }
+        return resumeIndex
     }
 
     private fun requestNextPendingScreenshot() {
@@ -538,6 +712,7 @@ class ScreenshotReceiver(
     }
 
     init {
+        loadStoredScreenshots()
         scope.launch(Dispatchers.IO) {
             messageCenter.messageFlow.collect { json ->
                 handleMessage(json)
@@ -606,7 +781,6 @@ class ScreenshotReceiver(
             }
         } else {
             safeDelete(tempFile)
-            safeDelete(stateFile(shotId))
         }
 
         val outputStream = FileOutputStream(tempFile, true)
@@ -794,7 +968,19 @@ class ScreenshotReceiver(
                 session.tempFile.copyTo(session.finalFile, overwrite = true)
                 safeDelete(session.tempFile)
             }
-            safeDelete(stateFile(session.shotId))
+            writeTransferRecord(
+                TransferRecord(
+                    shotId = session.shotId,
+                    capturedAt = session.capturedAt,
+                    totalChunks = session.total,
+                    totalBytes = session.totalBytes,
+                    chunkSize = session.chunkSize,
+                    lastChunkNum = session.lastChunkNum,
+                    completed = true,
+                    status = "completed",
+                    updatedAtUnix = nowUnix()
+                )
+            )
 
             receivedCount++
             val existing = findExistingScreenshot(session.shotId)
@@ -891,8 +1077,20 @@ class ScreenshotReceiver(
             val bytes = Base64.decode(imageData, Base64.DEFAULT)
             val finalFile = completedFile(shotId)
             finalFile.writeBytes(bytes)
-            safeDelete(stateFile(shotId))
             safeDelete(partialFile(shotId))
+            writeTransferRecord(
+                TransferRecord(
+                    shotId = shotId,
+                    capturedAt = capturedAt,
+                    totalChunks = 1,
+                    totalBytes = finalFile.length(),
+                    chunkSize = finalFile.length().toInt().coerceAtLeast(1),
+                    lastChunkNum = 0,
+                    completed = true,
+                    status = "completed",
+                    updatedAtUnix = nowUnix()
+                )
+            )
             receivedCount++
             _syncState.value = SyncState.Receiving
             updateImageProgressText()
@@ -989,6 +1187,7 @@ class ScreenshotReceiver(
             requestRetryCounts.clear()
             receivedCount = 0
             totalCount = 0
+            loadStoredScreenshots()
             _syncState.value = SyncState.WaitingAck
             _receiveProgress.value = "正在获取截图列表…"
             messageCenter.requestScreenshotList()
