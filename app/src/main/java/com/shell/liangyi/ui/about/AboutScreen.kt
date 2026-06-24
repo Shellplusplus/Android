@@ -28,60 +28,37 @@ import com.shell.liangyi.ui.components.InsetSection
 import com.shell.liangyi.ui.components.RowDivider
 import com.shell.liangyi.ui.theme.LocalIOSColors
 
-private val CONTRIBUTORS = listOf("@梁逸", "@IKUN-CXKPRO", "@无源流沙", "@NEORUAA", "@AzumaChiaki")
+private val CONTRIBUTORS = listOf("@\u6881\u9038", "@IKUN-CXKPRO", "@\u65E0\u6E90\u6D41\u6C99", "@NEORUAA", "@AzumaChiaki")
 
 @Composable
 fun AboutScreen(onBack: () -> Unit) {
     val c = LocalIOSColors.current
-    IOSScaffold(title = "关于", onBack = onBack) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // 应用图标
-            Box(
-                modifier = Modifier
-                    .size(96.dp)
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(
-                        Brush.verticalGradient(listOf(Color(0xFF4A8CFF), Color(0xFF2C6BE0)))
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = ">_",
-                    color = Color.White,
-                    fontSize = 40.sp,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-            Text(text = "Shell++", color = c.label, fontSize = 28.sp, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(text = "Beta 1  ·  β", color = c.secondaryLabel, fontSize = 15.sp)
-
-            Spacer(modifier = Modifier.height(28.dp))
-
-            InsetSection(header = "参与开发的人员") {
-                CONTRIBUTORS.forEachIndexed { index, name ->
-                    if (index > 0) RowDivider()
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 13.dp)
-                    ) {
-                        Text(text = name, color = c.label, fontSize = 17.sp)
-                    }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(c.groupedBackground)
+            .verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(modifier = Modifier.height(20.dp))
+        Box(
+            modifier = Modifier.size(96.dp).clip(RoundedCornerShape(22.dp))
+                .background(Brush.verticalGradient(listOf(Color(0xFF4A8CFF), Color(0xFF2C6BE0)))),
+            contentAlignment = Alignment.Center
+        ) { Text(">_", color = Color.White, fontSize = 40.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold) }
+        Spacer(modifier = Modifier.height(14.dp))
+        Text("Shell++", color = c.label, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(2.dp))
+        Text("Beta 1  \u00B7  \u03B2", color = c.secondaryLabel, fontSize = 15.sp)
+        Spacer(modifier = Modifier.height(28.dp))
+        InsetSection(header = "\u53C2\u4E0E\u5F00\u53D1\u7684\u4EBA\u5458") {
+            CONTRIBUTORS.forEachIndexed { index, name ->
+                if (index > 0) RowDivider()
+                Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp)) {
+                    Text(name, color = c.label, fontSize = 17.sp)
                 }
             }
-
-            Spacer(modifier = Modifier.height(24.dp))
         }
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }

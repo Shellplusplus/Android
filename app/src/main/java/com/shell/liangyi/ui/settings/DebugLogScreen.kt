@@ -3,7 +3,6 @@ package com.shell.liangyi.ui.settings
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -50,54 +49,37 @@ fun DebugLogScreen(
     val allLogsText = remember(logs) { buildLogExportText(logs) }
 
     IOSScaffold(
-        title = "通信日志",
+        title = "\u901A\u4FE1\u65E5\u5FD7",
         onBack = onBack,
         trailing = {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "复制全部",
-                    color = c.accent,
-                    fontSize = 17.sp,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable {
-                            if (logs.isEmpty()) {
-                                Toast.makeText(context, "暂无日志可复制", Toast.LENGTH_SHORT).show()
-                            } else {
-                                clipboardManager.setText(AnnotatedString(allLogsText))
-                                Toast.makeText(context, "已复制全部日志", Toast.LENGTH_SHORT).show()
-                            }
+                    text = "\u590D\u5236\u5168\u90E8", color = c.accent, fontSize = 17.sp,
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable {
+                        if (logs.isEmpty()) {
+                            Toast.makeText(context, "\u6682\u65E0\u65E5\u5FD7\u53EF\u590D\u5236", Toast.LENGTH_SHORT).show()
+                        } else {
+                            clipboardManager.setText(AnnotatedString(allLogsText))
+                            Toast.makeText(context, "\u5DF2\u590D\u5236\u5168\u90E8\u65E5\u5FD7", Toast.LENGTH_SHORT).show()
                         }
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                    }.padding(horizontal = 10.dp, vertical = 6.dp)
                 )
                 Text(
-                    text = "清空",
-                    color = c.accent,
-                    fontSize = 17.sp,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable { viewModel.clearLogs() }
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                    text = "\u6E05\u7A7A", color = c.accent, fontSize = 17.sp,
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { viewModel.clearLogs() }.padding(horizontal = 10.dp, vertical = 6.dp)
                 )
             }
         }
     ) {
         if (logs.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(top = 60.dp),
-                contentAlignment = androidx.compose.ui.Alignment.TopCenter
-            ) {
-                Text(text = "暂无日志", color = c.secondaryLabel, fontSize = 15.sp)
+            Box(modifier = Modifier.fillMaxSize().padding(top = 60.dp), contentAlignment = Alignment.TopCenter) {
+                Text("\u6682\u65E0\u65E5\u5FD7", color = c.secondaryLabel, fontSize = 15.sp)
             }
         } else {
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 16.dp)
+                    .padding(horizontal = 12.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(c.cardBackground)
             ) {
@@ -117,10 +99,7 @@ private fun buildLogExportText(logs: List<LogEntry>): String {
             append(entry.direction)
             append(" ")
             append(entry.type)
-            if (entry.message.isNotEmpty()) {
-                append("\n")
-                append(entry.message)
-            }
+            if (entry.message.isNotEmpty()) { append("\n"); append(entry.message) }
         }
     }
 }
@@ -129,43 +108,25 @@ private fun buildLogExportText(logs: List<LogEntry>): String {
 private fun LogRow(entry: LogEntry) {
     val c = LocalIOSColors.current
     val directionColor = when (entry.direction) {
-        "SEND" -> c.accent
-        "RECEIVE" -> c.green
-        "SYSTEM" -> Color(0xFFFF9F0A)
-        "ERROR" -> c.red
+        "SEND" -> c.accent; "RECEIVE" -> c.green; "SYSTEM" -> Color(0xFFFF9F0A); "ERROR" -> c.red
         else -> c.secondaryLabel
     }
     val time = remember(entry.timestamp) {
-        java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
-            .format(java.util.Date(entry.timestamp))
+        java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(entry.timestamp))
     }
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 7.dp),
-        verticalAlignment = androidx.compose.ui.Alignment.Top
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.Top
     ) {
-        Text(text = time, color = c.tertiaryLabel, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+        Text(text = time, color = c.tertiaryLabel, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
         Spacer(modifier = Modifier.width(8.dp))
-        Text(
-            text = entry.direction,
-            color = directionColor,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            fontFamily = FontFamily.Monospace,
-            modifier = Modifier.width(56.dp)
-        )
+        Text(text = entry.direction, color = directionColor, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+            fontFamily = FontFamily.Monospace, modifier = Modifier.width(56.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = entry.type, color = c.label, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+            Text(entry.type, color = c.label, fontSize = 13.sp, fontWeight = FontWeight.Medium)
             if (entry.message.isNotEmpty()) {
-                Text(
-                    text = entry.message,
-                    color = c.secondaryLabel,
-                    fontSize = 11.sp,
-                    fontFamily = FontFamily.Monospace,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Text(entry.message, color = c.secondaryLabel, fontSize = 12.sp,
+                    fontFamily = FontFamily.Monospace, maxLines = 3, overflow = TextOverflow.Ellipsis)
             }
         }
     }
