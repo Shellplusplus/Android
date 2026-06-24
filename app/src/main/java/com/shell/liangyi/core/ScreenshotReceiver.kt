@@ -61,6 +61,71 @@ class ScreenshotReceiver(
         }
     }
 
+    // HTTP 服务器（WiFi 直传）
+    private val httpServer: HttpScreenshotServer by lazy {
+        HttpScreenshotServer(
+                        screenshotsDir = transferRootDir,
+            onScreenshotReceived = { shotId, file ->
+                scope.launch {
+                    onHttpScreenshotReceived(shotId, file)
+                }
+            }
+        )
+    }
+
+    /** HTTP 服务器是否在运行 */
+    private val _httpServerRunning = MutableStateFlow(false)
+    val httpServerRunning: StateFlow<Boolean> = _httpServerRunning.asStateFlow()
+
+    /** HTTP 服务器本机 IP */
+    private val _httpServerIp = MutableStateFlow("")
+    val httpServerIp: StateFlow<String> = _httpServerIp.asStateFlow()
+
+    /** HTTP 服务器端口 */
+    private val _httpServerPort = MutableStateFlow(0)
+    val httpServerPort: StateFlow<Int> = _httpServerPort.asStateFlow()
+
+    /** 启动 HTTP 服务器，成功返回 ip:port 字符串 */
+    fun startHttpServer(): String? {
+        if (_httpServerRunning.value) {
+            return "${_httpServerIp.value}:${_httpServerPort.value}"
+        }
+        return try {
+            val ok = httpServer.start()
+            if (ok) {
+                val ip = httpServer.getWifiIp() ?: httpServer.getWifiIp() ?: "0.0.0.0"
+                _httpServerIp.value = ip
+                _httpServerPort.value = httpServer.port
+                _httpServerRunning.value = true
+                Log.i(TAG, "HTTP server ready at $ip:${httpServer.port}")
+                "$ip:${httpServer.port}"
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start HTTP server", e)
+            null
+        }
+    }
+
+    fun stopHttpServer() {
+        httpServer.stop()
+        _httpServerRunning.value = false
+        _httpServerIp.value = ""
+    }
+
+    private suspend fun onHttpScreenshotReceived(shotId: String, file: File) {
+        Log.i(TAG, "HTTP screenshot received: $shotId (${file.length()} bytes)")
+        // 重新加载列表以包含新收到的截图
+        loadStoredScreenshots()
+        // 如果正在等待该 shotId，标记完成
+        if (currentRequestedShotId == shotId) {
+            currentRequestedShotId = null
+            requestTimeoutJob?.cancel()
+            requestTimeoutJob = null
+        }
+    }
+
     private data class TransferProfile(
         val chunkSize: Int,
         val throttleMs: Int,
