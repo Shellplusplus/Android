@@ -173,23 +173,47 @@ class HttpScreenshotServer(
                 return
             }
 
+            val bodyStr = String(body, Charsets.UTF_8)
+            val finalShotId: String
+            val finalTimeText: String
+            val pngBytes: ByteArray
+
+            // 尝试解析 JSON（快应用发送 base64 编码的 JSON）
+            val jsonTry = try { org.json.JSONObject(bodyStr) } catch (_: Exception) { null }
+            if (jsonTry != null && jsonTry.has("data")) {
+                finalShotId = jsonTry.optString("shotId", shotId)
+                finalTimeText = jsonTry.optString("timeText", timeText)
+                val b64 = jsonTry.optString("data", "")
+                if (b64.isEmpty()) {
+                    respond(socket, 400, """{"ok":false,"error":"Empty data field"}""")
+                    return
+                }
+                pngBytes = android.util.Base64.decode(b64, android.util.Base64.DEFAULT)
+                Log.i(TAG, "Decoded base64 JSON: ${b64.length} chars -> ${pngBytes.size} bytes")
+            } else {
+                // 原始二进制保底
+                finalShotId = shotId
+                finalTimeText = timeText
+                pngBytes = body
+            }
+
             // 保存文件
-            val fileName = "${shotId}.png"
+            val fileName = "${finalShotId}.png"
             val destFile = File(screenshotsDir, fileName)
             FileOutputStream(destFile).use { fos ->
-                fos.write(body, 0, body.size)
+                fos.write(pngBytes, 0, pngBytes.size)
             }
 
             // sidecar JSON
             val sidecarFile = File(screenshotsDir, "$fileName.json")
-            val sidecar = """{"shotId":"$shotId","timeText":"$timeText","size":${body.size},"receivedVia":"http"}"""
+            val sidecar = """{"shotId":"$finalShotId","timeText":"$finalTimeText","size":${pngBytes.size},"receivedVia":"http"}"""
             sidecarFile.writeText(sidecar)
 
-            Log.i(TAG, "Received screenshot via HTTP: $shotId (${body.size} bytes)")
+            Log.i(TAG, "Received screenshot via HTTP: $finalShotId (${pngBytes.size} bytes)")
 
-            onScreenshotReceived(shotId, destFile)
+            onScreenshotReceived(finalShotId, destFile)
 
-            val resp = """{"ok":true,"shotId":"$shotId","size":${body.size}}"""
+            val resp = """{"ok":true,"shotId":"$finalShotId","size":${pngBytes.size}}"""
             respond(socket, 200, resp)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to save screenshot $shotId", e)
