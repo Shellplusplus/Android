@@ -112,22 +112,33 @@ fun NetworkTransferScreen(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
                     .background(c.groupedBackground)
-                    .padding(vertical = 28.dp, horizontal = 20.dp),
+                    .padding(vertical = 22.dp, horizontal = 20.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = if (isRunning && ip.isNotEmpty())
-                        "$ip:$port"
-                    else if (isRunning)
-                        "正在获取 IP…"
-                    else
-                        "——",
-                    fontSize = 36.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = c.accent,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = if (isRunning && ip.isNotEmpty())
+                            ip
+                        else if (isRunning)
+                            "正在获取 IP…"
+                        else
+                            "——",
+                        fontSize = 36.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = c.accent,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (isRunning && ip.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "端口: $port（固定）",
+                            fontSize = 14.sp,
+                            color = c.secondaryLabel,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -151,7 +162,7 @@ fun NetworkTransferScreen(
                     Text(
                         text = "1. 确保手机和手表连接同一 WiFi\n" +
                                "2. 在手表上打开「网络传输」页面\n" +
-                               "3. 输入上方显示的 IP 地址和端口\n" +
+                               "3. 输入上方显示的 IP 地址（端口已固定为 8765）\n" +
                                "4. 选择截图后发送",
                         fontSize = 15.sp,
                         color = c.secondaryLabel,
