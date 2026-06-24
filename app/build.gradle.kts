@@ -3,6 +3,7 @@ import java.util.Properties
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlinCompose)
 }
 
 val localProps = Properties().apply {
@@ -33,7 +34,7 @@ val hasSharedSigningConfig = sharedAndroidKeystore.exists()
 
 android {
     namespace = "com.shell.liangyi"
-    compileSdk = 34
+    compileSdk = 35
 
     signingConfigs {
         create("sharedShellSign") {
@@ -49,7 +50,7 @@ android {
     defaultConfig {
         applicationId = "com.shell.liangyi"
         minSdk = 26
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
 
@@ -85,10 +86,6 @@ android {
 
     buildFeatures {
         compose = true
-    }
-
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.1"
     }
 }
 
