@@ -56,7 +56,8 @@ import java.io.File
 @Composable
 fun ScreenshotScreen(
     viewModel: ScreenshotViewModel = viewModel(),
-    onOpenSettings: () -> Unit
+    onOpenSettings: () -> Unit,
+    onOpenNetwork: () -> Unit = {}
 ) {
     val screenshots by viewModel.screenshots.collectAsState()
     val syncState by viewModel.syncState.collectAsState()
@@ -68,6 +69,15 @@ fun ScreenshotScreen(
     IOSScaffold(
         title = "截图同步",
         trailing = {
+            IconButton(onClick = onOpenNetwork) {
+                Text(
+                    text = "WiFi",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = c.accent,
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                )
+            }
             IconButton(onClick = onOpenSettings) {
                 Icon(
                     imageVector = Icons.Filled.Settings,

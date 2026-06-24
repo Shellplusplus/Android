@@ -15,6 +15,7 @@ import com.shell.liangyi.ui.about.AboutScreen
 import com.shell.liangyi.ui.screenshot.ScreenshotScreen
 import com.shell.liangyi.ui.screenshot.ScreenshotViewModel
 import com.shell.liangyi.ui.settings.DebugLogScreen
+import com.shell.liangyi.ui.network.NetworkTransferScreen
 import com.shell.liangyi.ui.settings.SettingsScreen
 import com.shell.liangyi.ui.theme.ShellPlusTheme
 
@@ -48,7 +49,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class Route { SCREENSHOTS, SETTINGS, ABOUT, DEBUG_LOG }
+private enum class Route { SCREENSHOTS, SETTINGS, ABOUT, DEBUG_LOG, NETWORK_TRANSFER }
 
 @Composable
 private fun AppRoot() {
@@ -69,7 +70,8 @@ private fun AppRoot() {
     when (stack.last()) {
         Route.SCREENSHOTS -> ScreenshotScreen(
             viewModel = vm,
-            onOpenSettings = { push(Route.SETTINGS) }
+            onOpenSettings = { push(Route.SETTINGS) },
+            onOpenNetwork = { push(Route.NETWORK_TRANSFER) }
         )
 
         Route.SETTINGS -> SettingsScreen(
@@ -82,6 +84,11 @@ private fun AppRoot() {
         Route.ABOUT -> AboutScreen(onBack = { pop() })
 
         Route.DEBUG_LOG -> DebugLogScreen(
+            viewModel = vm,
+            onBack = { pop() }
+        )
+
+        Route.NETWORK_TRANSFER -> NetworkTransferScreen(
             viewModel = vm,
             onBack = { pop() }
         )

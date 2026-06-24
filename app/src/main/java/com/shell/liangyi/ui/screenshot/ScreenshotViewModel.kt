@@ -31,6 +31,9 @@ class ScreenshotViewModel(application: Application) : AndroidViewModel(applicati
     val screenshots: StateFlow<List<Screenshot>> = screenshotReceiver.screenshots
     val syncState: StateFlow<ScreenshotReceiver.SyncState> = screenshotReceiver.syncState
     val receiveProgress: StateFlow<String> = screenshotReceiver.receiveProgress
+    val httpServerRunning: StateFlow<Boolean> = screenshotReceiver.httpServerRunning
+    val httpServerIp: StateFlow<String> = screenshotReceiver.httpServerIp
+    val httpServerPort: StateFlow<Int> = screenshotReceiver.httpServerPort
     val connectionState: SharedFlow<ConnectionState> = wearMessageCenter.connectionState
     val logs: SharedFlow<List<LogEntry>> = wearMessageCenter.logs
 
@@ -120,6 +123,14 @@ class ScreenshotViewModel(application: Application) : AndroidViewModel(applicati
     fun checkConnection() {
         // 重新发现设备、拉起快应用并重新执行握手
         wearMessageCenter.ensureConnection()
+    }
+
+    fun startHttpServer(): String? {
+        return screenshotReceiver.startHttpServer()
+    }
+
+    fun stopHttpServer() {
+        screenshotReceiver.stopHttpServer()
     }
 
     fun clearLogs() {
