@@ -21,12 +21,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -55,9 +50,7 @@ import java.io.File
 
 @Composable
 fun ScreenshotScreen(
-    viewModel: ScreenshotViewModel = viewModel(),
-    onOpenSettings: () -> Unit,
-    onOpenNetwork: () -> Unit = {}
+    viewModel: ScreenshotViewModel = viewModel()
 ) {
     val screenshots by viewModel.screenshots.collectAsState()
     val syncState by viewModel.syncState.collectAsState()
@@ -68,24 +61,7 @@ fun ScreenshotScreen(
 
     IOSScaffold(
         title = "截图同步",
-        trailing = {
-            IconButton(onClick = onOpenNetwork) {
-                Text(
-                    text = "WiFi",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = c.accent,
-                    modifier = Modifier.padding(horizontal = 4.dp)
-                )
-            }
-            IconButton(onClick = onOpenSettings) {
-                Icon(
-                    imageVector = Icons.Filled.Settings,
-                    contentDescription = "设置",
-                    tint = c.accent
-                )
-            }
-        }
+
     ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
