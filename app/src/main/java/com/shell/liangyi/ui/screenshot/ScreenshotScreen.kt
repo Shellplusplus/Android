@@ -66,10 +66,10 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 
 private val PagePadding = 12.dp
-private val CardCornerRadius = 18.dp
+private val CardCornerRadius = 16.dp
 private val ButtonCornerRadius = 8.dp
-private val ImageCornerRadius = 12.dp
-private val GridSpacing = 12.dp
+private val ImageCornerRadius = 11.dp
+private val GridSpacing = 10.dp
 private val statusDotDisconnected = Color(0xFFFF4444)
 private val statusDotConnected = Color(0xFF4CAF50)
 

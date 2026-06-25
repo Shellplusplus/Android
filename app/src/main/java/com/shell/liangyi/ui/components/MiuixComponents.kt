@@ -46,7 +46,9 @@ import top.yukonga.miuix.kmp.utils.PressFeedbackType
 
 private val SectionHorizontalPadding = 12.dp
 private val SectionVerticalPadding = 6.dp
-private val CardCornerRadius = 18.dp
+private val CardCornerRadius = 16.dp
+private val RowHorizontalPadding = 16.dp
+private val RowVerticalPadding = 13.dp
 
 @Composable
 fun ShellTopLevelScaffold(
@@ -174,7 +176,7 @@ fun ShellActionRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 18.dp, vertical = 16.dp),
+            .padding(horizontal = RowHorizontalPadding, vertical = RowVerticalPadding),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
@@ -222,7 +224,7 @@ fun ShellSwitchRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 18.dp, vertical = 16.dp),
+            .padding(horizontal = RowHorizontalPadding, vertical = RowVerticalPadding),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {

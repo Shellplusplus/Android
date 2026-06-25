@@ -113,8 +113,8 @@ private fun AppRoot() {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                cornerRadius = 24.dp,
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                cornerRadius = 16.dp,
                 colors = CardColors(
                     color = colors.surface,
                     contentColor = colors.onSurface
