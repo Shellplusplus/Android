@@ -58,6 +58,7 @@ fun ShellTopLevelScaffold(
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
+        containerColor = colors.background,
         topBar = {
             SmallTopAppBar(
                 title = title,
@@ -83,6 +84,7 @@ fun ShellDetailScaffold(
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
+        containerColor = colors.background,
         topBar = {
             SmallTopAppBar(
                 title = title,
