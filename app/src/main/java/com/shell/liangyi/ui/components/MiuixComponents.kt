@@ -125,7 +125,7 @@ fun ShellSectionCard(
                 modifier = baseModifier,
                 cornerRadius = CardCornerRadius,
                 colors = CardColors(
-                    color = colors.surfaceContainerHigh,
+                    color = colors.surface,
                     contentColor = colors.onSurface
                 ),
                 pressFeedbackType = PressFeedbackType.Sink,
@@ -142,7 +142,7 @@ fun ShellSectionCard(
                 modifier = baseModifier,
                 cornerRadius = CardCornerRadius,
                 colors = CardColors(
-                    color = colors.surfaceContainerHigh,
+                    color = colors.surface,
                     contentColor = colors.onSurface
                 )
             ) {
