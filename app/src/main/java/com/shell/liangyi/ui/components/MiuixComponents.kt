@@ -58,7 +58,7 @@ fun ShellTopLevelScaffold(
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        containerColor = colors.background,
+        containerColor = colors.surface,
         topBar = {
             SmallTopAppBar(
                 title = title,
@@ -84,7 +84,7 @@ fun ShellDetailScaffold(
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        containerColor = colors.background,
+        containerColor = colors.surface,
         topBar = {
             SmallTopAppBar(
                 title = title,
@@ -127,7 +127,7 @@ fun ShellSectionCard(
                 modifier = baseModifier,
                 cornerRadius = CardCornerRadius,
                 colors = CardColors(
-                    color = colors.surface,
+                    color = colors.background,
                     contentColor = colors.onSurface
                 ),
                 pressFeedbackType = PressFeedbackType.Sink,
@@ -144,7 +144,7 @@ fun ShellSectionCard(
                 modifier = baseModifier,
                 cornerRadius = CardCornerRadius,
                 colors = CardColors(
-                    color = colors.surface,
+                    color = colors.background,
                     contentColor = colors.onSurface
                 )
             ) {
