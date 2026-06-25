@@ -116,13 +116,13 @@ private fun AppRoot() {
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 cornerRadius = 24.dp,
                 colors = CardColors(
-                    color = colors.background,
+                    color = colors.surface,
                     contentColor = colors.onSurface
                 )
             ) {
                 NavigationBar(
                     modifier = Modifier.fillMaxWidth(),
-                    color = colors.background,
+                    color = colors.surface,
                     showDivider = false,
                     defaultWindowInsetsPadding = false,
                     mode = NavigationBarDisplayMode.IconAndText
