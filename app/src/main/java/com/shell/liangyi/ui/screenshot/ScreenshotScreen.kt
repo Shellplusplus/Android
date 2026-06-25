@@ -43,9 +43,9 @@ import coil.request.ImageRequest
 import com.shell.liangyi.core.ConnectionState
 import com.shell.liangyi.core.ScreenshotReceiver
 import com.shell.liangyi.model.Screenshot
-import com.shell.liangyi.ui.components.IOSScaffold
-import com.shell.liangyi.ui.components.InsetSection
-import com.shell.liangyi.ui.theme.LocalIOSColors
+import androidx.compose.material3.Scaffold
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.io.File
 
 @Composable
@@ -57,20 +57,24 @@ fun ScreenshotScreen(
     val receiveProgress by viewModel.receiveProgress.collectAsState()
     val connectionState by viewModel.connectionState.collectAsState(initial = ConnectionState.DISCONNECTED)
     val context = LocalContext.current
-    val c = LocalIOSColors.current
+    val c = MiuixTheme.colorScheme
 
-    IOSScaffold(
-        title = "截图同步",
-
-    ) {
+    Scaffold(containerColor = c.background) { innerPadding ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(top = 4.dp, bottom = 32.dp)
+            modifier = Modifier.fillMaxSize().padding(innerPadding),
+            contentPadding = PaddingValues(top = 12.dp, bottom = 32.dp)
         ) {
             // 连接状态
             item {
-                InsetSection(footer = "进入设置可开启调试日志，排查连接问题。") {
-                    ConnectionRow(connectionState) { viewModel.checkConnection() }
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                    cornerRadius = 16.dp
+                ) {
+                    Column {
+                        ConnectionRow(connectionState) { viewModel.checkConnection() }
+                        Text("进入设置可开启调试日志，排查连接问题。", color = Color(0x99FFFFFF), fontSize = 14.sp,
+                            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp))
+                    }
                 }
             }
 
@@ -155,12 +159,12 @@ private fun ConnectionRow(
     connectionState: ConnectionState,
     onRefresh: () -> Unit
 ) {
-    val c = LocalIOSColors.current
+    val c = MiuixTheme.colorScheme
     val statusColor = when (connectionState) {
-        ConnectionState.CONNECTED -> c.green
+        ConnectionState.CONNECTED -> Color(0xFF4CAF50)
         ConnectionState.CONNECTING -> Color(0xFFFF9F0A)
-        ConnectionState.DISCONNECTED -> c.red
-        ConnectionState.ERROR -> c.red
+        ConnectionState.DISCONNECTED -> Color(0xFFFF4444)
+        ConnectionState.ERROR -> Color(0xFFFF4444)
     }
     val statusText = when (connectionState) {
         ConnectionState.CONNECTED -> "已连接手表快应用"
@@ -180,10 +184,10 @@ private fun ConnectionRow(
                 .background(statusColor, CircleShape)
         )
         Spacer(modifier = Modifier.width(10.dp))
-        Text(text = statusText, color = c.label, fontSize = 17.sp, modifier = Modifier.weight(1f))
+        Text(text = statusText, color = c.onSurface, fontSize = 17.sp, modifier = Modifier.weight(1f))
         Text(
             text = "刷新",
-            color = c.accent,
+            color = c.primary,
             fontSize = 17.sp,
             modifier = Modifier
                 .clip(RoundedCornerShape(8.dp))
@@ -195,13 +199,13 @@ private fun ConnectionRow(
 
 @Composable
 private fun PrimaryButton(text: String, enabled: Boolean, onClick: () -> Unit) {
-    val c = LocalIOSColors.current
+    val c = MiuixTheme.colorScheme
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
             .clip(RoundedCornerShape(14.dp))
-            .background(if (enabled) c.accent else c.accent.copy(alpha = 0.4f))
+            .background(if (enabled) c.primary else c.primary.copy(alpha = 0.4f))
             .clickable(enabled = enabled) { onClick() }
             .padding(vertical = 15.dp),
         contentAlignment = Alignment.Center
@@ -212,11 +216,11 @@ private fun PrimaryButton(text: String, enabled: Boolean, onClick: () -> Unit) {
 
 @Composable
 private fun SyncBanner(syncState: ScreenshotReceiver.SyncState, progress: String) {
-    val c = LocalIOSColors.current
+    val c = MiuixTheme.colorScheme
     val tint = when (syncState) {
-        is ScreenshotReceiver.SyncState.Success -> c.green
-        is ScreenshotReceiver.SyncState.Error -> c.red
-        else -> c.accent
+        is ScreenshotReceiver.SyncState.Success -> Color(0xFF4CAF50)
+        is ScreenshotReceiver.SyncState.Error -> Color(0xFFFF4444)
+        else -> c.primary
     }
     Row(
         modifier = Modifier
@@ -243,10 +247,10 @@ private fun SyncBanner(syncState: ScreenshotReceiver.SyncState, progress: String
 
 @Composable
 private fun SectionHeader(text: String) {
-    val c = LocalIOSColors.current
+    val c = MiuixTheme.colorScheme
     Text(
         text = text.uppercase(),
-        color = c.secondaryLabel,
+        color = Color(0x99FFFFFF),
         fontSize = 13.sp,
         modifier = Modifier.padding(start = 32.dp, end = 32.dp, top = 22.dp, bottom = 8.dp)
     )
@@ -254,18 +258,18 @@ private fun SectionHeader(text: String) {
 
 @Composable
 private fun EmptyState() {
-    val c = LocalIOSColors.current
+    val c = MiuixTheme.colorScheme
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 40.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(text = "暂无截图", color = c.label, fontSize = 17.sp, fontWeight = FontWeight.Medium)
+        Text(text = "暂无截图", color = c.onSurface, fontSize = 17.sp, fontWeight = FontWeight.Medium)
         Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = "点击上方「从手表获取截图」开始同步",
-            color = c.secondaryLabel,
+            color = Color(0x99FFFFFF),
             fontSize = 14.sp
         )
     }
@@ -277,7 +281,7 @@ private fun ScreenshotCard(
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
-    val c = LocalIOSColors.current
+    val c = MiuixTheme.colorScheme
     val imageModel = remember(screenshot.localFilePath, screenshot.imageData) {
         if (screenshot.localFilePath.isNotEmpty()) {
             File(screenshot.localFilePath)
@@ -295,7 +299,7 @@ private fun ScreenshotCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(c.cardBackground)
+            .background(c.surface)
             .clickable { onClick() }
             .padding(6.dp)
     ) {
@@ -304,7 +308,7 @@ private fun ScreenshotCard(
                 .fillMaxWidth()
                 .aspectRatio(1f)
                 .clip(RoundedCornerShape(11.dp))
-                .background(if (c.isDark) Color(0xFF2C2C2E) else Color(0xFFE5E5EA)),
+                .background(Color(0xFF2C2C2E)),
             contentAlignment = Alignment.Center
         ) {
             if (imageModel != null) {
@@ -323,7 +327,7 @@ private fun ScreenshotCard(
         }
         Text(
             text = screenshot.displayTitle.ifEmpty { screenshot.shotId },
-            color = c.label,
+            color = c.onSurface,
             fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
@@ -342,7 +346,7 @@ private fun ScreenshotCard(
         }
         Text(
             text = screenshot.capturedAt,
-            color = c.secondaryLabel,
+            color = Color(0x99FFFFFF),
             fontSize = 12.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
