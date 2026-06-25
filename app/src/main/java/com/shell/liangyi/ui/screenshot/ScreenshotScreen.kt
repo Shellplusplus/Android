@@ -442,18 +442,7 @@ private fun ScreenshotGridCard(
 ) {
     val colors = MiuixTheme.colorScheme
     val imageModel = remember(screenshot.localFilePath, screenshot.imageData) {
-        when {
-            screenshot.localFilePath.isNotEmpty() -> File(screenshot.localFilePath)
-            screenshot.imageData.isNotEmpty() -> {
-                try {
-                    Base64.decode(screenshot.imageData, Base64.DEFAULT)
-                } catch (_: Exception) {
-                    null
-                }
-            }
-
-            else -> null
-        }
+        screenshot.localFilePath.takeIf { it.isNotEmpty() }?.let(::File)
     }
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()

@@ -1,25 +1,18 @@
 package com.shell.liangyi.ui.network
 
-import android.util.Base64
 import android.widget.Toast
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -29,17 +22,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
 import com.shell.liangyi.model.Screenshot
 import com.shell.liangyi.ui.components.ShellActionRow
 import com.shell.liangyi.ui.components.ShellEmptyStateCard
@@ -49,7 +38,6 @@ import com.shell.liangyi.ui.components.ShellStatusDot
 import com.shell.liangyi.ui.components.ShellTopLevelScaffold
 import com.shell.liangyi.ui.screenshot.ScreenshotPreviewDialog
 import com.shell.liangyi.ui.screenshot.ScreenshotViewModel
-import java.io.File
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
@@ -122,6 +110,17 @@ fun NetworkTransferScreen(
                 )
             }
 
+            if (screenshots.isNotEmpty()) {
+                item {
+                    ShellSectionCard {
+                        ShellActionRow(
+                            title = "此页不重复渲染缩略图",
+                            summary = "为减少切换页面时的卡顿，完整图片列表仅在「截图同步」页展示。这里保留文本记录和点按预览。"
+                        )
+                    }
+                }
+            }
+
             if (screenshots.isEmpty()) {
                 item {
                     ShellEmptyStateCard(
@@ -136,28 +135,17 @@ fun NetworkTransferScreen(
                     )
                 }
             } else {
-                items(screenshots.chunked(2)) { rowItems ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                items(screenshots) { shot ->
+                    ShellSectionCard(
+                        onClick = { viewModel.onScreenshotClick(shot) },
+                        onLongClick = {
+                            viewModel.deleteScreenshot(shot.shotId)
+                            Toast.makeText(context, "已删除", Toast.LENGTH_SHORT).show()
+                        }
                     ) {
-                        rowItems.forEach { shot ->
-                            Box(modifier = Modifier.weight(1f)) {
-                                WifiScreenshotCard(
-                                    screenshot = shot,
-                                    onClick = { viewModel.onScreenshotClick(shot) },
-                                    onLongClick = {
-                                        viewModel.deleteScreenshot(shot.shotId)
-                                        Toast.makeText(context, "已删除", Toast.LENGTH_SHORT).show()
-                                    }
-                                )
-                            }
-                        }
-                        if (rowItems.size == 1) {
-                            Spacer(modifier = Modifier.weight(1f))
-                        }
+                        WifiScreenshotRow(
+                            screenshot = shot
+                        )
                     }
                 }
             }
@@ -237,83 +225,36 @@ private fun WifiConnectionCard(
 }
 
 @Composable
-private fun WifiScreenshotCard(
-    screenshot: Screenshot,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit
+private fun WifiScreenshotRow(
+    screenshot: Screenshot
 ) {
     val colors = MiuixTheme.colorScheme
-    val imageModel = remember(screenshot.localFilePath, screenshot.imageData) {
-        when {
-            screenshot.localFilePath.isNotEmpty() -> File(screenshot.localFilePath)
-            screenshot.imageData.isNotEmpty() -> {
-                try {
-                    Base64.decode(screenshot.imageData, Base64.DEFAULT)
-                } catch (_: Exception) {
-                    null
-                }
-            }
-
-            else -> null
-        }
-    }
-
-    ShellSectionCard(
-        modifier = Modifier.fillMaxWidth(),
-        onClick = onClick,
-        onLongClick = onLongClick
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 18.dp, vertical = 16.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(12.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(1f)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(colors.surfaceContainer),
-                contentAlignment = Alignment.Center
-            ) {
-                if (imageModel != null) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current)
-                            .data(imageModel)
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = "截图预览",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(22.dp),
-                        strokeWidth = 2.dp
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(10.dp))
-            Text(
-                text = screenshot.displayTitle.ifEmpty { screenshot.shotId },
-                color = colors.onSurface,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            if (screenshot.transferHint.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = screenshot.transferHint,
-                    color = colors.error,
-                    fontSize = 12.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
+        Text(
+            text = screenshot.displayTitle.ifEmpty { screenshot.shotId },
+            color = colors.onSurface,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = screenshot.capturedAt,
+            color = colors.onSurfaceVariantSummary,
+            fontSize = 13.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        if (screenshot.transferHint.isNotEmpty()) {
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = screenshot.capturedAt,
-                color = colors.onSurfaceVariantSummary,
+                text = screenshot.transferHint,
+                color = colors.error,
                 fontSize = 12.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
