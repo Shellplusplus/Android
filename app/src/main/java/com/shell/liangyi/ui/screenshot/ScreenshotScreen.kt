@@ -23,7 +23,6 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
@@ -122,14 +121,13 @@ fun ScreenshotScreen(
         selectMode = selectedIds.isNotEmpty()
     }
 
-    ShellTopLevelScaffold(title = "截图同步") { innerPadding, scrollBehavior ->
+    ShellTopLevelScaffold(title = "截图同步") { innerPadding ->
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
             state = gridState,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
-                .nestedScroll(scrollBehavior.nestedScrollConnection),
+                .padding(innerPadding),
             contentPadding = PaddingValues(
                 start = PagePadding,
                 end = PagePadding,

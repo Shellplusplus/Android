@@ -1,10 +1,7 @@
 package com.shell.liangyi.ui.settings
 
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.runtime.Composable
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.shell.liangyi.ui.components.ShellActionRow
@@ -24,11 +21,9 @@ fun SettingsScreen(
 ) {
     val debugEnabled = viewModel.debugLogEnabled
 
-    ShellTopLevelScaffold(title = "设置") { paddingValues, scrollBehavior ->
+    ShellTopLevelScaffold(title = "设置") { paddingValues ->
         LazyColumn(
-            modifier = androidx.compose.ui.Modifier
-                .fillMaxSize()
-                .nestedScroll(scrollBehavior.nestedScrollConnection),
+            modifier = androidx.compose.ui.Modifier.fillMaxSize(),
             contentPadding = paddingValues
         ) {
             item {

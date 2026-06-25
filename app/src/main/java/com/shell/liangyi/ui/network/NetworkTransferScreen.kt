@@ -14,12 +14,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -28,7 +24,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import com.shell.liangyi.model.Screenshot
 import com.shell.liangyi.ui.components.ShellActionRow
 import com.shell.liangyi.ui.components.ShellEmptyStateCard
@@ -54,20 +49,10 @@ fun NetworkTransferScreen(
     val port by viewModel.httpServerPort.collectAsState(initial = 0)
     val context = LocalContext.current
 
-    var started by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        if (!started) {
-            started = true
-            viewModel.startHttpServer()
-        }
-    }
-
-    ShellTopLevelScaffold(title = "网络传输") { paddingValues, scrollBehavior ->
+    ShellTopLevelScaffold(title = "网络传输") { paddingValues ->
         LazyColumn(
             modifier = Modifier
-                .fillMaxSize()
-                .nestedScroll(scrollBehavior.nestedScrollConnection),
+                .fillMaxSize(),
             contentPadding = paddingValues
         ) {
             item {

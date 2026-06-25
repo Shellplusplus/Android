@@ -36,15 +36,11 @@ import androidx.compose.ui.unit.sp
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardColors
 import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.ScrollBehavior
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.basic.rememberTopAppBarState
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 
@@ -56,27 +52,23 @@ private val CardCornerRadius = 18.dp
 fun ShellTopLevelScaffold(
     title: String,
     actions: @Composable RowScope.() -> Unit = {},
-    content: @Composable (PaddingValues, ScrollBehavior) -> Unit
+    content: @Composable (PaddingValues) -> Unit
 ) {
-    val scrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
     val colors = MiuixTheme.colorScheme
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = {
-            TopAppBar(
+            SmallTopAppBar(
                 title = title,
-                largeTitle = title,
                 color = colors.background,
                 titleColor = colors.onBackground,
-                largeTitleColor = colors.onBackground,
-                scrollBehavior = scrollBehavior,
                 actions = actions
             )
         },
         popupHost = { null }
     ) { paddingValues ->
-        content(paddingValues, scrollBehavior)
+        content(paddingValues)
     }
 }
 
@@ -300,7 +292,7 @@ fun ShellListPage(
     actions: @Composable RowScope.() -> Unit = {},
     content: LazyListScope.() -> Unit
 ) {
-    ShellTopLevelScaffold(title = title, actions = actions) { paddingValues, scrollBehavior ->
+    ShellTopLevelScaffold(title = title, actions = actions) { paddingValues ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
