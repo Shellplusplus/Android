@@ -140,7 +140,7 @@ private fun AppRoot() {
                     color = colors.surface,
                     showDivider = false,
                     defaultWindowInsetsPadding = false,
-                    mode = NavigationBarDisplayMode.TextOnly
+                    mode = NavigationBarDisplayMode.IconAndText
                 ) {
                     tabs.forEachIndexed { index, title ->
                         val icon = when (index) {

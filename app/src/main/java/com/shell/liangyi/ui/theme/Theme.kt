@@ -1,6 +1,7 @@
 package com.shell.liangyi.ui.theme
 
 import android.app.Activity
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -8,32 +9,28 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
-import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.theme.ThemeColorSpec
-import top.yukonga.miuix.kmp.theme.ThemeController
-import top.yukonga.miuix.kmp.theme.ThemePaletteStyle
+import top.yukonga.miuix.kmp.theme.darkColorScheme
+import top.yukonga.miuix.kmp.theme.lightColorScheme
 
 @Composable
 fun ShellPlusTheme(content: @Composable () -> Unit) {
-    val controller = remember {
-        ThemeController(
-            colorSchemeMode = ColorSchemeMode.MonetSystem,
-            paletteStyle = ThemePaletteStyle.TonalSpot,
-            colorSpec = ThemeColorSpec.Spec2025
-        )
+    val isDarkTheme = isSystemInDarkTheme()
+    val colors = remember(isDarkTheme) {
+        if (isDarkTheme) darkColorScheme() else lightColorScheme()
     }
     val view = LocalView.current
     if (!view.isInEditMode) {
         val window = (view.context as Activity).window
-        window.statusBarColor = Color(0xFF0D0D0D).toArgb()
-        window.navigationBarColor = Color(0xFF0D0D0D).toArgb()
+        window.statusBarColor = colors.background.toArgb()
+        window.navigationBarColor = colors.background.toArgb()
+        window.isNavigationBarContrastEnforced = false
         WindowCompat.getInsetsController(window, view).apply {
-            isAppearanceLightStatusBars = false
-            isAppearanceLightNavigationBars = false
+            isAppearanceLightStatusBars = !isDarkTheme
+            isAppearanceLightNavigationBars = !isDarkTheme
         }
     }
-    MiuixTheme(controller = controller) { content() }
+    MiuixTheme(colors = colors) { content() }
 }
 
 data class IOSColors(

@@ -23,6 +23,7 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
@@ -51,20 +52,22 @@ import coil.request.ImageRequest
 import com.shell.liangyi.core.ConnectionState
 import com.shell.liangyi.core.ScreenshotReceiver
 import com.shell.liangyi.model.Screenshot
+import com.shell.liangyi.ui.components.ShellSectionCard
+import com.shell.liangyi.ui.components.ShellSectionTitle
+import com.shell.liangyi.ui.components.ShellTopLevelScaffold
 import java.io.File
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardColors
 import top.yukonga.miuix.kmp.basic.Checkbox
-import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 
-private val PagePadding = 16.dp
-private val CardCornerRadius = 16.dp
+private val PagePadding = 12.dp
+private val CardCornerRadius = 18.dp
 private val ButtonCornerRadius = 8.dp
 private val ImageCornerRadius = 12.dp
 private val GridSpacing = 12.dp
@@ -119,74 +122,82 @@ fun ScreenshotScreen(
         selectMode = selectedIds.isNotEmpty()
     }
 
-    Scaffold(
-        containerColor = colors.background,
-        content = { innerPadding ->
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                state = gridState,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                contentPadding = PaddingValues(
-                    start = PagePadding,
-                    end = PagePadding,
-                    top = 20.dp,
-                    bottom = 28.dp
-                ),
-                verticalArrangement = Arrangement.spacedBy(GridSpacing),
-                horizontalArrangement = Arrangement.spacedBy(GridSpacing)
-            ) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    Text(
-                        text = "截图同步",
-                        color = colors.onBackground,
-                        fontSize = 32.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+    ShellTopLevelScaffold(title = "截图同步") { innerPadding, scrollBehavior ->
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(2),
+            state = gridState,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .nestedScroll(scrollBehavior.nestedScrollConnection),
+            contentPadding = PaddingValues(
+                start = PagePadding,
+                end = PagePadding,
+                top = 4.dp,
+                bottom = 28.dp
+            ),
+            verticalArrangement = Arrangement.spacedBy(GridSpacing),
+            horizontalArrangement = Arrangement.spacedBy(GridSpacing)
+        ) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                ShellSectionTitle("连接状态")
+            }
 
-                item(span = { GridItemSpan(maxLineSpan) }) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                ShellSectionCard {
                     ConnectionStatusCard(
                         connectionState = connectionState,
                         onRefresh = { viewModel.checkConnection() }
                     )
                 }
+            }
 
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    Text(
-                        text = "进入设置可开启调试日志，排查连接问题。",
-                        color = colors.onBackgroundVariant,
-                        fontSize = 14.sp,
-                        modifier = Modifier.padding(horizontal = 4.dp)
-                    )
-                }
-
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    Button(
-                        onClick = { viewModel.requestFromWatch() },
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = syncState !is ScreenshotReceiver.SyncState.Receiving,
-                        cornerRadius = ButtonCornerRadius,
-                        colors = ButtonDefaults.buttonColorsPrimary()
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                ShellSectionCard {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 18.dp, vertical = 16.dp)
                     ) {
                         Text(
-                            text = "从手表获取截图",
-                            color = colors.onPrimary,
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.SemiBold
+                            text = "进入设置可开启调试日志，排查连接问题。",
+                            color = colors.onSurfaceVariantSummary,
+                            fontSize = 13.sp
                         )
                     }
                 }
+            }
 
-                if (receiveProgress.isNotEmpty() && syncState !is ScreenshotReceiver.SyncState.Idle) {
-                    item(span = { GridItemSpan(maxLineSpan) }) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Button(
+                    onClick = { viewModel.requestFromWatch() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    enabled = syncState !is ScreenshotReceiver.SyncState.Receiving,
+                    cornerRadius = ButtonCornerRadius,
+                    colors = ButtonDefaults.buttonColorsPrimary()
+                ) {
+                    Text(
+                        text = "从手表获取截图",
+                        color = colors.onPrimary,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+
+            if (receiveProgress.isNotEmpty() && syncState !is ScreenshotReceiver.SyncState.Idle) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    ShellSectionCard {
                         SyncProgressCard(syncState = syncState, progress = receiveProgress)
                     }
                 }
+            }
 
-                if (selectMode) {
-                    item(span = { GridItemSpan(maxLineSpan) }) {
+            if (selectMode) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    ShellSectionCard {
                         SelectionActionCard(
                             selectedCount = selectedIds.size,
                             allSelected = allSelected,
@@ -195,44 +206,39 @@ fun ScreenshotScreen(
                         )
                     }
                 }
+            }
 
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                ShellSectionTitle(if (screenshots.isEmpty()) "已接收截图" else "已接收截图 · ${screenshots.size}")
+            }
+
+            if (screenshots.isEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
-                    Text(
-                        text = "截图 · ${screenshots.size}",
-                        color = colors.onBackground,
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    EmptyState()
                 }
-
-                if (screenshots.isEmpty()) {
-                    item(span = { GridItemSpan(maxLineSpan) }) {
-                        EmptyState()
-                    }
-                } else {
-                    items(
-                        items = screenshots,
-                        key = { it.shotId }
-                    ) { screenshot ->
-                        ScreenshotGridCard(
-                            screenshot = screenshot,
-                            selected = selectedIds.contains(screenshot.shotId),
-                            selectMode = selectMode,
-                            onClick = { viewModel.onScreenshotClick(screenshot) },
-                            onLongClick = {
-                                if (selectMode) {
-                                    toggleShotSelection(screenshot)
-                                } else {
-                                    enterSelectMode(screenshot)
-                                }
-                            },
-                            onToggleSelection = { toggleShotSelection(screenshot) }
-                        )
-                    }
+            } else {
+                items(
+                    items = screenshots,
+                    key = { it.shotId }
+                ) { screenshot ->
+                    ScreenshotGridCard(
+                        screenshot = screenshot,
+                        selected = selectedIds.contains(screenshot.shotId),
+                        selectMode = selectMode,
+                        onClick = { viewModel.onScreenshotClick(screenshot) },
+                        onLongClick = {
+                            if (selectMode) {
+                                toggleShotSelection(screenshot)
+                            } else {
+                                enterSelectMode(screenshot)
+                            }
+                        },
+                        onToggleSelection = { toggleShotSelection(screenshot) }
+                    )
                 }
             }
         }
-    )
+    }
 
     previewScreenshot?.let { screenshot ->
         ScreenshotPreviewDialog(
@@ -282,46 +288,37 @@ private fun ConnectionStatusCard(
         ConnectionState.ERROR -> "手表快应用连接错误"
     }
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        cornerRadius = CardCornerRadius,
-        colors = CardColors(
-            color = colors.surface,
-            contentColor = colors.onSurface
-        )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 18.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(10.dp)
-                    .clip(CircleShape)
-                    .background(statusColor)
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Text(
-                text = statusText,
-                color = colors.onSurface,
-                fontSize = 17.sp,
-                modifier = Modifier.weight(1f)
-            )
-            TextButton(
-                text = "刷新",
-                onClick = onRefresh,
-                colors = ButtonDefaults.textButtonColorsPrimary(
-                    color = Color.Transparent,
-                    disabledColor = Color.Transparent,
-                    textColor = colors.primary,
-                    disabledTextColor = colors.primary.copy(alpha = 0.4f)
-                ),
-                insideMargin = PaddingValues(horizontal = 0.dp, vertical = 0.dp),
-                minWidth = 0.dp
-            )
-        }
+                .size(10.dp)
+                .clip(CircleShape)
+                .background(statusColor)
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = statusText,
+            color = colors.onSurface,
+            fontSize = 17.sp,
+            modifier = Modifier.weight(1f)
+        )
+        TextButton(
+            text = "刷新",
+            onClick = onRefresh,
+            colors = ButtonDefaults.textButtonColorsPrimary(
+                color = Color.Transparent,
+                disabledColor = Color.Transparent,
+                textColor = colors.primary,
+                disabledTextColor = colors.primary.copy(alpha = 0.4f)
+            ),
+            insideMargin = PaddingValues(horizontal = 0.dp, vertical = 0.dp),
+            minWidth = 0.dp
+        )
     }
 }
 
@@ -337,37 +334,28 @@ private fun SyncProgressCard(
         else -> colors.primary
     }
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        cornerRadius = CardCornerRadius,
-        colors = CardColors(
-            color = colors.surface,
-            contentColor = colors.onSurface
-        )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 18.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically
+        if (syncState is ScreenshotReceiver.SyncState.Receiving ||
+            syncState is ScreenshotReceiver.SyncState.WaitingAck
         ) {
-            if (syncState is ScreenshotReceiver.SyncState.Receiving ||
-                syncState is ScreenshotReceiver.SyncState.WaitingAck
-            ) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(16.dp),
-                    strokeWidth = 2.dp,
-                    color = tint
-                )
-                Spacer(modifier = Modifier.width(10.dp))
-            }
-            Text(
-                text = progress,
-                color = tint,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium
+            CircularProgressIndicator(
+                modifier = Modifier.size(16.dp),
+                strokeWidth = 2.dp,
+                color = tint
             )
+            Spacer(modifier = Modifier.width(10.dp))
         }
+        Text(
+            text = progress,
+            color = tint,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Medium
+        )
     }
 }
 
@@ -379,52 +367,43 @@ private fun SelectionActionCard(
     onDone: () -> Unit
 ) {
     val colors = MiuixTheme.colorScheme
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        cornerRadius = CardCornerRadius,
-        colors = CardColors(
-            color = colors.surface,
-            contentColor = colors.onSurface
-        )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 18.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            TextButton(
-                text = if (allSelected) "取消全选" else "全选",
-                onClick = onToggleSelectAll,
-                colors = ButtonDefaults.textButtonColorsPrimary(
-                    color = Color.Transparent,
-                    disabledColor = Color.Transparent,
-                    textColor = colors.primary,
-                    disabledTextColor = colors.primary.copy(alpha = 0.4f)
-                ),
-                insideMargin = PaddingValues(0.dp),
-                minWidth = 0.dp
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Text(
-                text = "已选 $selectedCount",
-                color = colors.onSurfaceSecondary,
-                fontSize = 14.sp,
-                modifier = Modifier.weight(1f)
-            )
-            TextButton(
-                text = "完成",
-                onClick = onDone,
-                colors = ButtonDefaults.textButtonColorsPrimary(
-                    color = Color.Transparent,
-                    disabledColor = Color.Transparent,
-                    textColor = colors.primary,
-                    disabledTextColor = colors.primary.copy(alpha = 0.4f)
-                ),
-                insideMargin = PaddingValues(0.dp),
-                minWidth = 0.dp
-            )
-        }
+        TextButton(
+            text = if (allSelected) "取消全选" else "全选",
+            onClick = onToggleSelectAll,
+            colors = ButtonDefaults.textButtonColorsPrimary(
+                color = Color.Transparent,
+                disabledColor = Color.Transparent,
+                textColor = colors.primary,
+                disabledTextColor = colors.primary.copy(alpha = 0.4f)
+            ),
+            insideMargin = PaddingValues(0.dp),
+            minWidth = 0.dp
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = "已选 $selectedCount",
+            color = colors.onSurfaceSecondary,
+            fontSize = 14.sp,
+            modifier = Modifier.weight(1f)
+        )
+        TextButton(
+            text = "完成",
+            onClick = onDone,
+            colors = ButtonDefaults.textButtonColorsPrimary(
+                color = Color.Transparent,
+                disabledColor = Color.Transparent,
+                textColor = colors.primary,
+                disabledTextColor = colors.primary.copy(alpha = 0.4f)
+            ),
+            insideMargin = PaddingValues(0.dp),
+            minWidth = 0.dp
+        )
     }
 }
 

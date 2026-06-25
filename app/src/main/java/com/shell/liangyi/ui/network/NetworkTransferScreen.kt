@@ -3,7 +3,6 @@ package com.shell.liangyi.ui.network
 import android.util.Base64
 import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,10 +18,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -40,14 +37,23 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import com.shell.liangyi.ui.components.IOSScaffold
-import com.shell.liangyi.ui.components.InsetSection
-import com.shell.liangyi.ui.screenshot.ScreenshotViewModel
 import com.shell.liangyi.model.Screenshot
-import com.shell.liangyi.ui.theme.LocalIOSColors
+import com.shell.liangyi.ui.components.ShellActionRow
+import com.shell.liangyi.ui.components.ShellEmptyStateCard
+import com.shell.liangyi.ui.components.ShellSectionCard
+import com.shell.liangyi.ui.components.ShellSectionTitle
+import com.shell.liangyi.ui.components.ShellStatusDot
+import com.shell.liangyi.ui.components.ShellTopLevelScaffold
+import com.shell.liangyi.ui.screenshot.ScreenshotPreviewDialog
+import com.shell.liangyi.ui.screenshot.ScreenshotViewModel
 import java.io.File
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
 fun NetworkTransferScreen(
@@ -59,11 +65,9 @@ fun NetworkTransferScreen(
     val ip by viewModel.httpServerIp.collectAsState(initial = "")
     val port by viewModel.httpServerPort.collectAsState(initial = 0)
     val context = LocalContext.current
-    val c = LocalIOSColors.current
 
     var started by remember { mutableStateOf(false) }
 
-    // 打开页面时自动启动
     LaunchedEffect(Unit) {
         if (!started) {
             started = true
@@ -71,51 +75,79 @@ fun NetworkTransferScreen(
         }
     }
 
-    IOSScaffold(title = "网络传输") {
+    ShellTopLevelScaffold(title = "网络传输") { paddingValues, scrollBehavior ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(top = 4.dp, bottom = 32.dp)
+            modifier = Modifier
+                .fillMaxSize()
+                .nestedScroll(scrollBehavior.nestedScrollConnection),
+            contentPadding = paddingValues
         ) {
-            // 连接状态
             item {
-                InsetSection {
-                    WifiConnectionRow(
+                ShellSectionTitle("服务器状态")
+            }
+            item {
+                ShellSectionCard {
+                    WifiConnectionCard(
                         isRunning = isRunning,
                         ip = ip,
                         port = port,
                         onToggle = {
-                            if (isRunning) viewModel.stopHttpServer()
-                            else viewModel.startHttpServer()
+                            if (isRunning) viewModel.stopHttpServer() else viewModel.startHttpServer()
                         }
                     )
                 }
             }
 
-            // 截图列表
             item {
-                SectionHeader(
-                    text = if (screenshots.isEmpty()) "已接收截图" else "已接收截图 · ${screenshots.size}"
+                ShellSectionTitle("使用说明")
+            }
+            item {
+                ShellSectionCard {
+                    ShellActionRow(
+                        title = "手表端输入手机地址",
+                        summary = if (isRunning && ip.isNotEmpty()) {
+                            "在手表「网络传输」页输入 $ip:$port，然后开始发送截图。"
+                        } else if (isRunning) {
+                            "服务器已启动，正在获取本机地址。"
+                        } else {
+                            "先启动服务器，再到手表端输入地址。"
+                        }
+                    )
+                }
+            }
+
+            item {
+                ShellSectionTitle(
+                    if (screenshots.isEmpty()) "已接收截图" else "已接收截图 · ${screenshots.size}"
                 )
             }
 
             if (screenshots.isEmpty()) {
-                item { WifiEmptyState(ip, port, isRunning) }
+                item {
+                    ShellEmptyStateCard(
+                        title = "暂无截图",
+                        summary = if (isRunning && ip.isNotEmpty()) {
+                            "在手表「网络传输」页面输入 $ip:$port 并发送截图。"
+                        } else if (isRunning) {
+                            "等待获取 IP 地址。"
+                        } else {
+                            "点击上方按钮启动服务器。"
+                        }
+                    )
+                }
             } else {
                 items(screenshots.chunked(2)) { rowItems ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                            .padding(horizontal = 12.dp, vertical = 4.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        for (shot in rowItems) {
+                        rowItems.forEach { shot ->
                             Box(modifier = Modifier.weight(1f)) {
                                 WifiScreenshotCard(
                                     screenshot = shot,
-                                    onClick = {
-                                        // 预览
-                                        viewModel.onScreenshotClick(shot)
-                                    },
+                                    onClick = { viewModel.onScreenshotClick(shot) },
                                     onLongClick = {
                                         viewModel.deleteScreenshot(shot.shotId)
                                         Toast.makeText(context, "已删除", Toast.LENGTH_SHORT).show()
@@ -132,9 +164,8 @@ fun NetworkTransferScreen(
         }
     }
 
-    // 预览对话框
     viewModel.previewScreenshot?.let { screenshot ->
-        com.shell.liangyi.ui.screenshot.ScreenshotPreviewDialog(
+        ScreenshotPreviewDialog(
             screenshot = screenshot,
             onDismiss = { viewModel.dismissPreview() },
             onSave = {
@@ -156,88 +187,51 @@ fun NetworkTransferScreen(
 }
 
 @Composable
-private fun WifiConnectionRow(
+private fun WifiConnectionCard(
     isRunning: Boolean,
     ip: String,
     port: Int,
     onToggle: () -> Unit
 ) {
-    val c = LocalIOSColors.current
+    val colors = MiuixTheme.colorScheme
+    val statusText = when {
+        isRunning && ip.isNotEmpty() -> "$ip:$port"
+        isRunning -> "正在获取本机地址"
+        else -> "服务器未启动"
+    }
+    val summary = when {
+        isRunning && ip.isNotEmpty() -> "手表端输入这个地址后即可通过 Wi-Fi 直传截图。"
+        isRunning -> "保持当前页面打开，稍后会自动显示可连接地址。"
+        else -> "点击右侧按钮启动 HTTP 服务。"
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 18.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier = Modifier
-                .size(10.dp)
-                .background(if (isRunning) c.green else c.red, CircleShape)
-        )
-        Spacer(modifier = Modifier.width(10.dp))
+        ShellStatusDot(if (isRunning) Color(0xFF4CAF50) else colors.error)
+        Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = if (isRunning && ip.isNotEmpty()) "$ip:$port" else if (isRunning) "正在获取 IP…" else "服务器未启动",
-                color = c.label,
-                fontSize = 17.sp
+                text = statusText,
+                color = colors.onSurface,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Medium
             )
-            if (isRunning && ip.isNotEmpty()) {
-                Text(
-                    text = "手表端输入此地址即可连接",
-                    color = c.secondaryLabel,
-                    fontSize = 13.sp
-                )
-            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = summary,
+                color = colors.onSurfaceVariantSummary,
+                fontSize = 13.sp
+            )
         }
-        Text(
+        Spacer(modifier = Modifier.width(12.dp))
+        TextButton(
             text = if (isRunning) "停止" else "启动",
-            color = if (isRunning) c.red else c.accent,
-            fontSize = 17.sp,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
-                .clickable { onToggle() }
-                .padding(horizontal = 8.dp, vertical = 4.dp)
-        )
-    }
-}
-
-@Composable
-private fun SectionHeader(text: String) {
-    val c = LocalIOSColors.current
-    Text(
-        text = text.uppercase(),
-        color = c.secondaryLabel,
-        fontSize = 13.sp,
-        modifier = Modifier.padding(start = 32.dp, end = 32.dp, top = 22.dp, bottom = 8.dp)
-    )
-}
-
-@Composable
-private fun WifiEmptyState(ip: String, port: Int, isRunning: Boolean) {
-    val c = LocalIOSColors.current
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 40.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = "暂无截图",
-            color = c.label,
-            fontSize = 17.sp,
-            fontWeight = FontWeight.Medium
-        )
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(
-            text = if (isRunning && ip.isNotEmpty())
-                "在手表「网络传输」页面输入 $ip:$port 并发送截图"
-            else if (isRunning)
-                "等待获取 IP 地址…"
-            else
-                "点击「启动」开启服务器",
-            color = c.secondaryLabel,
-            fontSize = 14.sp
+            onClick = onToggle,
+            colors = ButtonDefaults.textButtonColorsPrimary()
         )
     }
 }
@@ -248,76 +242,82 @@ private fun WifiScreenshotCard(
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
-    val c = LocalIOSColors.current
+    val colors = MiuixTheme.colorScheme
     val imageModel = remember(screenshot.localFilePath, screenshot.imageData) {
-        if (screenshot.localFilePath.isNotEmpty()) {
-            File(screenshot.localFilePath)
-        } else if (screenshot.imageData.isNotEmpty()) {
-            try {
-                Base64.decode(screenshot.imageData, Base64.DEFAULT)
-            } catch (e: Exception) {
-                null
+        when {
+            screenshot.localFilePath.isNotEmpty() -> File(screenshot.localFilePath)
+            screenshot.imageData.isNotEmpty() -> {
+                try {
+                    Base64.decode(screenshot.imageData, Base64.DEFAULT)
+                } catch (_: Exception) {
+                    null
+                }
             }
-        } else {
-            null
+
+            else -> null
         }
     }
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(c.cardBackground)
-            .clickable { onClick() }
-            .padding(6.dp)
+
+    ShellSectionCard(
+        modifier = Modifier.fillMaxWidth(),
+        onClick = onClick,
+        onLongClick = onLongClick
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(1f)
-                .clip(RoundedCornerShape(11.dp))
-                .background(if (c.isDark) Color(0xFF2C2C2E) else Color(0xFFE5E5EA)),
-            contentAlignment = Alignment.Center
+        Column(
+            modifier = Modifier.padding(12.dp)
         ) {
-            if (imageModel != null) {
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(imageModel)
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = "截图",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
-                CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1f)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(colors.surfaceContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                if (imageModel != null) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(imageModel)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = "截图预览",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(22.dp),
+                        strokeWidth = 2.dp
+                    )
+                }
             }
-        }
-        Text(
-            text = screenshot.displayTitle.ifEmpty { screenshot.shotId },
-            color = c.label,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(start = 4.dp, top = 6.dp)
-        )
-        if (screenshot.transferHint.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(10.dp))
             Text(
-                text = screenshot.transferHint,
-                color = Color(0xFFFF453A),
-                fontSize = 11.sp,
+                text = screenshot.displayTitle.ifEmpty { screenshot.shotId },
+                color = colors.onSurface,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = 4.dp, top = 2.dp)
+                overflow = TextOverflow.Ellipsis
+            )
+            if (screenshot.transferHint.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = screenshot.transferHint,
+                    color = colors.error,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = screenshot.capturedAt,
+                color = colors.onSurfaceVariantSummary,
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
-        Text(
-            text = screenshot.capturedAt,
-            color = c.secondaryLabel,
-            fontSize = 12.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(start = 4.dp, top = 2.dp, bottom = 2.dp)
-        )
     }
 }
