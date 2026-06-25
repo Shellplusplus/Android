@@ -69,7 +69,7 @@ fun ScreenshotPreviewDialog(
                 .padding(12.dp),
             cornerRadius = 20.dp,
             colors = CardColors(
-                color = colors.surface,
+                color = colors.surfaceContainer,
                 contentColor = colors.onSurface
             )
         ) {

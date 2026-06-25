@@ -60,11 +60,11 @@ fun ShellTopLevelScaffold(
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        containerColor = colors.background,
+        containerColor = colors.surface,
         topBar = {
             SmallTopAppBar(
                 title = title,
-                color = colors.background,
+                color = colors.surface,
                 titleColor = colors.onBackground,
                 actions = actions
             )
@@ -86,11 +86,11 @@ fun ShellDetailScaffold(
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        containerColor = colors.background,
+        containerColor = colors.surface,
         topBar = {
             SmallTopAppBar(
                 title = title,
-                color = colors.background,
+                color = colors.surface,
                 titleColor = colors.onBackground,
                 navigationIcon = {
                     IconButton(onClick = onBack) {
@@ -129,7 +129,7 @@ fun ShellSectionCard(
                 modifier = baseModifier,
                 cornerRadius = CardCornerRadius,
                 colors = CardColors(
-                    color = colors.surface,
+                    color = colors.surfaceContainer,
                     contentColor = colors.onSurface
                 ),
                 pressFeedbackType = PressFeedbackType.Sink,
@@ -146,7 +146,7 @@ fun ShellSectionCard(
                 modifier = baseModifier,
                 cornerRadius = CardCornerRadius,
                 colors = CardColors(
-                    color = colors.surface,
+                    color = colors.surfaceContainer,
                     contentColor = colors.onSurface
                 )
             ) {

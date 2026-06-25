@@ -452,7 +452,7 @@ private fun ScreenshotGridCard(
             .scale(scale),
         cornerRadius = CardCornerRadius,
         colors = CardColors(
-            color = colors.surface,
+            color = colors.surfaceContainer,
             contentColor = colors.onSurface
         ),
         pressFeedbackType = PressFeedbackType.Sink,
