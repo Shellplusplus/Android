@@ -3,7 +3,8 @@ package com.shell.liangyi.ui.screenshot
 import android.util.Base64
 import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,22 +18,29 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -43,10 +51,25 @@ import coil.request.ImageRequest
 import com.shell.liangyi.core.ConnectionState
 import com.shell.liangyi.core.ScreenshotReceiver
 import com.shell.liangyi.model.Screenshot
-import androidx.compose.material3.Scaffold
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.io.File
+import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardColors
+import top.yukonga.miuix.kmp.basic.Checkbox
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.PressFeedbackType
+
+private val PagePadding = 16.dp
+private val CardCornerRadius = 16.dp
+private val ButtonCornerRadius = 8.dp
+private val ImageCornerRadius = 12.dp
+private val GridSpacing = 12.dp
+private val statusDotDisconnected = Color(0xFFFF4444)
+private val statusDotConnected = Color(0xFF4CAF50)
 
 @Composable
 fun ScreenshotScreen(
@@ -57,82 +80,161 @@ fun ScreenshotScreen(
     val receiveProgress by viewModel.receiveProgress.collectAsState()
     val connectionState by viewModel.connectionState.collectAsState(initial = ConnectionState.DISCONNECTED)
     val context = LocalContext.current
-    val c = MiuixTheme.colorScheme
+    val colors = MiuixTheme.colorScheme
+    val gridState = rememberLazyGridState()
 
-    Scaffold(containerColor = c.background) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(innerPadding),
-            contentPadding = PaddingValues(top = 12.dp, bottom = 32.dp)
-        ) {
-            // 连接状态
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-                    cornerRadius = 16.dp
-                ) {
-                    Column {
-                        ConnectionRow(connectionState) { viewModel.checkConnection() }
-                        Text("进入设置可开启调试日志，排查连接问题。", color = Color(0x99FFFFFF), fontSize = 14.sp,
-                            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp))
+    var selectMode by rememberSaveable { mutableStateOf(false) }
+    var selectedIds by rememberSaveable { mutableStateOf(setOf<String>()) }
+
+    val previewScreenshot = viewModel.previewScreenshot
+    val allSelected = screenshots.isNotEmpty() && selectedIds.size == screenshots.size
+
+    fun exitSelectMode() {
+        selectMode = false
+        selectedIds = emptySet()
+    }
+
+    fun toggleShotSelection(item: Screenshot) {
+        selectedIds = selectedIds.toMutableSet().apply {
+            if (!add(item.shotId)) {
+                remove(item.shotId)
+            }
+        }
+        if (selectedIds.isEmpty()) {
+            selectMode = false
+        }
+    }
+
+    fun enterSelectMode(item: Screenshot) {
+        selectMode = true
+        selectedIds = selectedIds.toMutableSet().apply { add(item.shotId) }
+    }
+
+    fun toggleSelectAll() {
+        selectedIds = if (allSelected) {
+            emptySet()
+        } else {
+            screenshots.map { it.shotId }.toSet()
+        }
+        selectMode = selectedIds.isNotEmpty()
+    }
+
+    Scaffold(
+        containerColor = colors.background,
+        content = { innerPadding ->
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                state = gridState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                contentPadding = PaddingValues(
+                    start = PagePadding,
+                    end = PagePadding,
+                    top = 20.dp,
+                    bottom = 28.dp
+                ),
+                verticalArrangement = Arrangement.spacedBy(GridSpacing),
+                horizontalArrangement = Arrangement.spacedBy(GridSpacing)
+            ) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Text(
+                        text = "截图同步",
+                        color = colors.onBackground,
+                        fontSize = 32.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    ConnectionStatusCard(
+                        connectionState = connectionState,
+                        onRefresh = { viewModel.checkConnection() }
+                    )
+                }
+
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Text(
+                        text = "进入设置可开启调试日志，排查连接问题。",
+                        color = colors.onBackgroundVariant,
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    )
+                }
+
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Button(
+                        onClick = { viewModel.requestFromWatch() },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = syncState !is ScreenshotReceiver.SyncState.Receiving,
+                        cornerRadius = ButtonCornerRadius,
+                        colors = ButtonDefaults.buttonColorsPrimary()
+                    ) {
+                        Text(
+                            text = "从手表获取截图",
+                            color = colors.onPrimary,
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
                     }
                 }
-            }
 
-            // 从手表获取
-            item {
-                Spacer(modifier = Modifier.height(18.dp))
-                PrimaryButton(
-                    text = "从手表获取截图",
-                    enabled = syncState !is ScreenshotReceiver.SyncState.Receiving,
-                    onClick = { viewModel.requestFromWatch() }
-                )
-            }
+                if (receiveProgress.isNotEmpty() && syncState !is ScreenshotReceiver.SyncState.Idle) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        SyncProgressCard(syncState = syncState, progress = receiveProgress)
+                    }
+                }
 
-            // 同步进度
-            if (syncState !is ScreenshotReceiver.SyncState.Idle && receiveProgress.isNotEmpty()) {
-                item { SyncBanner(syncState, receiveProgress) }
-            }
+                if (selectMode) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        SelectionActionCard(
+                            selectedCount = selectedIds.size,
+                            allSelected = allSelected,
+                            onToggleSelectAll = { toggleSelectAll() },
+                            onDone = { exitSelectMode() }
+                        )
+                    }
+                }
 
-            // 截图列表
-            item {
-                SectionHeader(
-                    text = if (screenshots.isEmpty()) "截图" else "截图 · ${screenshots.size}"
-                )
-            }
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Text(
+                        text = "截图 · ${screenshots.size}",
+                        color = colors.onBackground,
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
 
-            if (screenshots.isEmpty()) {
-                item { EmptyState() }
-            } else {
-                items(screenshots.chunked(2)) { rowItems ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 6.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        for (shot in rowItems) {
-                            Box(modifier = Modifier.weight(1f)) {
-                                ScreenshotCard(
-                                    screenshot = shot,
-                                    onClick = { viewModel.onScreenshotClick(shot) },
-                                    onLongClick = {
-                                        viewModel.deleteScreenshot(shot.shotId)
-                                        Toast.makeText(context, "已删除", Toast.LENGTH_SHORT).show()
-                                    }
-                                )
-                            }
-                        }
-                        if (rowItems.size == 1) {
-                            Spacer(modifier = Modifier.weight(1f))
-                        }
+                if (screenshots.isEmpty()) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        EmptyState()
+                    }
+                } else {
+                    items(
+                        items = screenshots,
+                        key = { it.shotId }
+                    ) { screenshot ->
+                        ScreenshotGridCard(
+                            screenshot = screenshot,
+                            selected = selectedIds.contains(screenshot.shotId),
+                            selectMode = selectMode,
+                            onClick = { viewModel.onScreenshotClick(screenshot) },
+                            onLongClick = {
+                                if (selectMode) {
+                                    toggleShotSelection(screenshot)
+                                } else {
+                                    enterSelectMode(screenshot)
+                                }
+                            },
+                            onToggleSelection = { toggleShotSelection(screenshot) }
+                        )
                     }
                 }
             }
         }
-    }
+    )
 
-    // 预览对话框
-    viewModel.previewScreenshot?.let { screenshot ->
+    previewScreenshot?.let { screenshot ->
         ScreenshotPreviewDialog(
             screenshot = screenshot,
             onDismiss = { viewModel.dismissPreview() },
@@ -147,210 +249,327 @@ fun ScreenshotScreen(
             },
             onDelete = {
                 viewModel.deleteScreenshot(screenshot.shotId)
+                selectedIds = selectedIds - screenshot.shotId
+                if (selectedIds.isEmpty()) {
+                    selectMode = false
+                }
                 viewModel.dismissPreview()
                 Toast.makeText(context, "已删除", Toast.LENGTH_SHORT).show()
-            }
+            },
+            selectMode = selectMode,
+            previewSelected = selectedIds.contains(screenshot.shotId),
+            onToggleSelection = { toggleShotSelection(screenshot) }
         )
     }
 }
 
 @Composable
-private fun ConnectionRow(
+private fun ConnectionStatusCard(
     connectionState: ConnectionState,
     onRefresh: () -> Unit
 ) {
-    val c = MiuixTheme.colorScheme
+    val colors = MiuixTheme.colorScheme
     val statusColor = when (connectionState) {
-        ConnectionState.CONNECTED -> Color(0xFF4CAF50)
+        ConnectionState.CONNECTED -> statusDotConnected
         ConnectionState.CONNECTING -> Color(0xFFFF9F0A)
-        ConnectionState.DISCONNECTED -> Color(0xFFFF4444)
-        ConnectionState.ERROR -> Color(0xFFFF4444)
+        ConnectionState.DISCONNECTED,
+        ConnectionState.ERROR -> statusDotDisconnected
     }
     val statusText = when (connectionState) {
-        ConnectionState.CONNECTED -> "已连接手表快应用"
-        ConnectionState.CONNECTING -> "正在连接手表快应用…"
+        ConnectionState.CONNECTED -> "手表快应用已连接"
+        ConnectionState.CONNECTING -> "正在连接手表快应用"
         ConnectionState.DISCONNECTED -> "手表快应用未连接"
         ConnectionState.ERROR -> "手表快应用连接错误"
     }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .size(10.dp)
-                .background(statusColor, CircleShape)
-        )
-        Spacer(modifier = Modifier.width(10.dp))
-        Text(text = statusText, color = c.onSurface, fontSize = 17.sp, modifier = Modifier.weight(1f))
-        Text(
-            text = "刷新",
-            color = c.primary,
-            fontSize = 17.sp,
-            modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
-                .clickable { onRefresh() }
-                .padding(horizontal = 8.dp, vertical = 4.dp)
-        )
-    }
-}
 
-@Composable
-private fun PrimaryButton(text: String, enabled: Boolean, onClick: () -> Unit) {
-    val c = MiuixTheme.colorScheme
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(if (enabled) c.primary else c.primary.copy(alpha = 0.4f))
-            .clickable(enabled = enabled) { onClick() }
-            .padding(vertical = 15.dp),
-        contentAlignment = Alignment.Center
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        cornerRadius = CardCornerRadius,
+        colors = CardColors(
+            color = colors.surface,
+            contentColor = colors.onSurface
+        )
     ) {
-        Text(text = text, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-    }
-}
-
-@Composable
-private fun SyncBanner(syncState: ScreenshotReceiver.SyncState, progress: String) {
-    val c = MiuixTheme.colorScheme
-    val tint = when (syncState) {
-        is ScreenshotReceiver.SyncState.Success -> Color(0xFF4CAF50)
-        is ScreenshotReceiver.SyncState.Error -> Color(0xFFFF4444)
-        else -> c.primary
-    }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 16.dp, end = 16.dp, top = 16.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(tint.copy(alpha = 0.12f))
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        if (syncState is ScreenshotReceiver.SyncState.Receiving ||
-            syncState is ScreenshotReceiver.SyncState.WaitingAck
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(16.dp),
-                strokeWidth = 2.dp,
-                color = tint
+            Box(
+                modifier = Modifier
+                    .size(10.dp)
+                    .clip(CircleShape)
+                    .background(statusColor)
             )
-            Spacer(modifier = Modifier.width(10.dp))
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = statusText,
+                color = colors.onSurface,
+                fontSize = 17.sp,
+                modifier = Modifier.weight(1f)
+            )
+            TextButton(
+                text = "刷新",
+                onClick = onRefresh,
+                colors = ButtonDefaults.textButtonColorsPrimary(
+                    color = Color.Transparent,
+                    disabledColor = Color.Transparent,
+                    textColor = colors.primary,
+                    disabledTextColor = colors.primary.copy(alpha = 0.4f)
+                ),
+                insideMargin = PaddingValues(horizontal = 0.dp, vertical = 0.dp),
+                minWidth = 0.dp
+            )
         }
-        Text(text = progress, color = tint, fontSize = 15.sp, fontWeight = FontWeight.Medium)
     }
 }
 
 @Composable
-private fun SectionHeader(text: String) {
-    val c = MiuixTheme.colorScheme
-    Text(
-        text = text.uppercase(),
-        color = Color(0x99FFFFFF),
-        fontSize = 13.sp,
-        modifier = Modifier.padding(start = 32.dp, end = 32.dp, top = 22.dp, bottom = 8.dp)
-    )
+private fun SyncProgressCard(
+    syncState: ScreenshotReceiver.SyncState,
+    progress: String
+) {
+    val colors = MiuixTheme.colorScheme
+    val tint = when (syncState) {
+        is ScreenshotReceiver.SyncState.Success -> statusDotConnected
+        is ScreenshotReceiver.SyncState.Error -> colors.error
+        else -> colors.primary
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        cornerRadius = CardCornerRadius,
+        colors = CardColors(
+            color = colors.surface,
+            contentColor = colors.onSurface
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (syncState is ScreenshotReceiver.SyncState.Receiving ||
+                syncState is ScreenshotReceiver.SyncState.WaitingAck
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(16.dp),
+                    strokeWidth = 2.dp,
+                    color = tint
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+            }
+            Text(
+                text = progress,
+                color = tint,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
+    }
+}
+
+@Composable
+private fun SelectionActionCard(
+    selectedCount: Int,
+    allSelected: Boolean,
+    onToggleSelectAll: () -> Unit,
+    onDone: () -> Unit
+) {
+    val colors = MiuixTheme.colorScheme
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        cornerRadius = CardCornerRadius,
+        colors = CardColors(
+            color = colors.surface,
+            contentColor = colors.onSurface
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            TextButton(
+                text = if (allSelected) "取消全选" else "全选",
+                onClick = onToggleSelectAll,
+                colors = ButtonDefaults.textButtonColorsPrimary(
+                    color = Color.Transparent,
+                    disabledColor = Color.Transparent,
+                    textColor = colors.primary,
+                    disabledTextColor = colors.primary.copy(alpha = 0.4f)
+                ),
+                insideMargin = PaddingValues(0.dp),
+                minWidth = 0.dp
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = "已选 $selectedCount",
+                color = colors.onSurfaceSecondary,
+                fontSize = 14.sp,
+                modifier = Modifier.weight(1f)
+            )
+            TextButton(
+                text = "完成",
+                onClick = onDone,
+                colors = ButtonDefaults.textButtonColorsPrimary(
+                    color = Color.Transparent,
+                    disabledColor = Color.Transparent,
+                    textColor = colors.primary,
+                    disabledTextColor = colors.primary.copy(alpha = 0.4f)
+                ),
+                insideMargin = PaddingValues(0.dp),
+                minWidth = 0.dp
+            )
+        }
+    }
 }
 
 @Composable
 private fun EmptyState() {
-    val c = MiuixTheme.colorScheme
+    val colors = MiuixTheme.colorScheme
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 40.dp),
+            .padding(top = 48.dp, bottom = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(text = "暂无截图", color = c.onSurface, fontSize = 17.sp, fontWeight = FontWeight.Medium)
-        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = "暂无截图",
+            color = colors.onSurface,
+            fontSize = 17.sp,
+            fontWeight = FontWeight.Medium
+        )
+        Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = "点击上方「从手表获取截图」开始同步",
-            color = Color(0x99FFFFFF),
+            color = colors.onSurfaceSecondary,
             fontSize = 14.sp
         )
     }
 }
 
 @Composable
-private fun ScreenshotCard(
+private fun ScreenshotGridCard(
     screenshot: Screenshot,
+    selected: Boolean,
+    selectMode: Boolean,
     onClick: () -> Unit,
-    onLongClick: () -> Unit
+    onLongClick: () -> Unit,
+    onToggleSelection: () -> Unit
 ) {
-    val c = MiuixTheme.colorScheme
+    val colors = MiuixTheme.colorScheme
     val imageModel = remember(screenshot.localFilePath, screenshot.imageData) {
-        if (screenshot.localFilePath.isNotEmpty()) {
-            File(screenshot.localFilePath)
-        } else if (screenshot.imageData.isNotEmpty()) {
-            try {
-                Base64.decode(screenshot.imageData, Base64.DEFAULT)
-            } catch (e: Exception) {
-                null
+        when {
+            screenshot.localFilePath.isNotEmpty() -> File(screenshot.localFilePath)
+            screenshot.imageData.isNotEmpty() -> {
+                try {
+                    Base64.decode(screenshot.imageData, Base64.DEFAULT)
+                } catch (_: Exception) {
+                    null
+                }
             }
-        } else {
-            null
+
+            else -> null
         }
     }
-    Column(
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale = if (pressed) 0.97f else 1f
+
+    Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(c.surface)
-            .clickable { onClick() }
-            .padding(6.dp)
+            .scale(scale),
+        cornerRadius = CardCornerRadius,
+        colors = CardColors(
+            color = colors.surface,
+            contentColor = colors.onSurface
+        ),
+        pressFeedbackType = PressFeedbackType.Sink,
+        holdDownState = true,
+        onClick = onClick,
+        onLongPress = onLongClick
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(1f)
-                .clip(RoundedCornerShape(11.dp))
-                .background(Color(0xFF2C2C2E)),
-            contentAlignment = Alignment.Center
-        ) {
-            if (imageModel != null) {
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(imageModel)
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = "截图",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.padding(12.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(1f)
+                        .clip(RoundedCornerShape(ImageCornerRadius))
+                        .background(colors.surfaceContainer),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (imageModel != null) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data(imageModel)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = "截图预览",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(22.dp),
+                            strokeWidth = 2.dp,
+                            color = colors.primary
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Text(
+                    text = screenshot.displayTitle.ifEmpty { screenshot.shotId },
+                    color = colors.onSurface,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
-            } else {
-                CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+
+                if (screenshot.transferHint.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = screenshot.transferHint,
+                        color = colors.error,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = screenshot.capturedAt,
+                    color = colors.onSurfaceSecondary,
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            if (selectMode) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(10.dp)
+                ) {
+                    Checkbox(
+                        state = if (selected) ToggleableState.On else ToggleableState.Off,
+                        onClick = onToggleSelection
+                    )
+                }
             }
         }
-        Text(
-            text = screenshot.displayTitle.ifEmpty { screenshot.shotId },
-            color = c.onSurface,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(start = 4.dp, top = 6.dp)
-        )
-        if (screenshot.transferHint.isNotEmpty()) {
-            Text(
-                text = screenshot.transferHint,
-                color = Color(0xFFFF453A),
-                fontSize = 11.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = 4.dp, top = 2.dp)
-            )
-        }
-        Text(
-            text = screenshot.capturedAt,
-            color = Color(0x99FFFFFF),
-            fontSize = 12.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(start = 4.dp, top = 2.dp, bottom = 2.dp)
-        )
     }
 }
