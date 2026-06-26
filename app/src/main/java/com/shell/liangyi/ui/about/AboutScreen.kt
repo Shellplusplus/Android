@@ -4,8 +4,10 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,7 +35,7 @@ fun AboutScreen(navController: NavHostController
     val shellColors = ShellTheme.colors
 
     Box(modifier = Modifier.fillMaxSize().background(shellColors.pageBackground)) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             Spacer(modifier = Modifier.height(43.dp))
             Row(modifier = Modifier.fillMaxWidth()) {
                 Spacer(modifier = Modifier.width(29.dp))
@@ -106,6 +108,77 @@ fun AboutScreen(navController: NavHostController
             Spacer(modifier = Modifier.height(6.dp))
 
             DeveloperCard()
+
+            Spacer(modifier = Modifier.height(14.dp))
+            Row(modifier = Modifier.fillMaxWidth()) {
+                Spacer(modifier = Modifier.width(27.dp))
+                Text(
+                    text = "开源组件",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = FontFamily.Default,
+                    color = shellColors.mutedText
+                )
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            OpenSourceCard()
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = "本应用使用了上述开源项目，感谢所有贡献者。" +
+                       "hyperos-bg 项目基于 MIT 许可证的 miuix 重新实现，" +
+                       "相关版权归原作者所有。",
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Default,
+                color = shellColors.mutedText,
+                modifier = Modifier.padding(horizontal = 27.dp)
+            )
+
+            Spacer(modifier = Modifier.height(13.dp))
+        }
+    }
+}
+
+@Composable
+private fun OpenSourceCard() {
+    val shellColors = ShellTheme.colors
+    val colors = MiuixTheme.colorScheme
+    val libraries = listOf(
+        "MIUIX (MIT) — HyperOS 设计系统",
+        "hyperos-bg (MIT) — 动态背景效果",
+        "Kotlin Coroutines (Apache-2.0)"
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp)
+            .clip(RoundedCornerShape(15.dp))
+            .background(shellColors.cardBackground)
+    ) {
+        Column(modifier = Modifier.padding(start = 16.dp, top = 15.dp, end = 16.dp, bottom = 15.dp)) {
+            libraries.forEachIndexed { i, text ->
+                if (i > 0) Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = text,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Normal,
+                    fontFamily = FontFamily.Default,
+                    color = colors.onSurface
+                )
+                if (i < libraries.lastIndex) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(0.5.dp)
+                            .background(shellColors.mutedText.copy(alpha = 0.2f))
+                    )
+                }
+            }
         }
     }
 }
