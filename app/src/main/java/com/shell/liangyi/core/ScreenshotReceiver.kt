@@ -240,12 +240,18 @@ class ScreenshotReceiver(
         return File(transferRootDir, "${stableShotKey(shotId)}.json")
     }
 
-    private fun safeDelete(file: File) {
-        if (file.exists()) {
-            try {
-                file.delete()
-            } catch (_: Exception) {
+    private fun safeDelete(file: File): Boolean {
+        if (!file.exists()) return true
+        return try {
+            if (!file.delete()) {
+                Log.w(TAG, "Failed to delete file: ${file.absolutePath}")
+                false
+            } else {
+                true
             }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to delete file: ${file.absolutePath}", e)
+            false
         }
     }
 
