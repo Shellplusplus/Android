@@ -39,12 +39,11 @@ fun IndexScreen(navController: NavHostController) {
                 title = "截图同步（蓝牙）",
                 onClick = { navController.navigate(Routes.BLUETOOTH) }
             )
-            Spacer(modifier = Modifier.height(3.dp))
             MenuItem(
                 title = "截图同步（局域网）",
                 onClick = { navController.navigate(Routes.FETCH) }
             )
-            Spacer(modifier = Modifier.height(7.dp))
+            Spacer(modifier = Modifier.height(9.dp))
             MenuItem(
                 title = "远程终端",
                 onClick = { navController.navigate(Routes.TERMINAL) }
