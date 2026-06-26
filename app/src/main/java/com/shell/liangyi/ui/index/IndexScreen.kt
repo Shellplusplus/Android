@@ -1,96 +1,108 @@
 package com.shell.liangyi.ui.index
 
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontFamily
-import androidx.navigation.NavHostController
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.shell.liangyi.R
-import com.shell.liangyi.ui.Routes
-import top.yukonga.miuix.kmp.basic.Text
+import androidx.navigation.NavHostController
+import top.yukonga.miuix.kmp.basic.CardColors
+import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-
-// Scale: Figma 1080px → 360dp (÷3)
+import com.shell.liangyi.ui.Routes
 
 @Composable
-fun IndexScreen(navController: NavHostController
-) {
+fun IndexScreen(navController: NavHostController) {
     val colors = MiuixTheme.colorScheme
 
-    Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
-        Image(
-            painter = painterResource(id = R.drawable.setting),
-            contentDescription = "Settings",
+    Scaffold(
+        containerColor = colors.background
+    ) {
+        Column(
             modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(end = 23.dp, top = 43.dp)
-                .size(16.dp, 18.dp)
-        )
-
-        Column(modifier = Modifier.fillMaxSize()) {
-            Spacer(modifier = Modifier.height(71.dp))
-            Row(modifier = Modifier.fillMaxWidth()) {
-                Spacer(modifier = Modifier.width(23.dp))
+                .fillMaxSize()
+                .padding(horizontal = 16.dp)
+        ) {
+            // 标题 + 设置
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 56.dp, bottom = 24.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
                     text = "Shell++",
-                    modifier = Modifier.width(108.dp).height(42.dp),
-                    fontSize = 30.sp,
-                    fontWeight = FontWeight.Normal,
-                    fontFamily = FontFamily.Default,
-                    color = colors.onSurface
+                    style = MiuixTheme.textStyles.title1,
+                    color = colors.onBackground
                 )
+                IconButton(onClick = { /* TODO: 设置 */ }) {
+                    Icon(
+                        imageVector = Icons.Outlined.Settings,
+                        contentDescription = "设置",
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.height(9.dp))
-
-            MenuCard("截图同步（蓝牙）", onClick = { navController.navigate("bluetooth") })
-            Spacer(modifier = Modifier.height(10.dp))
-            MenuCard("截图同步（局域网）", onClick = { navController.navigate("fetch") })
-            Spacer(modifier = Modifier.height(10.dp))
-            MenuCard("远程终端", onClick = { navController.navigate("terminal") })
-            Spacer(modifier = Modifier.height(10.dp))
-            MenuCard("关于", onClick = { navController.navigate("about") })
+            // 列表项
+            MenuItem(
+                title = "截图同步（蓝牙）",
+                onClick = { navController.navigate(Routes.BLUETOOTH) }
+            )
+            MenuItem(
+                title = "截图同步（局域网）",
+                onClick = { navController.navigate(Routes.FETCH) }
+            )
+            MenuItem(
+                title = "远程终端",
+                onClick = { navController.navigate(Routes.TERMINAL) }
+            )
+            MenuItem(
+                title = "关于",
+                onClick = { navController.navigate(Routes.ABOUT) }
+            )
         }
     }
 }
 
-// Card: 1013×168 → 338×56dp, border 45→15dp
 @Composable
-private fun MenuCard(title: String, onClick: () -> Unit) {
+private fun MenuItem(title: String, onClick: () -> Unit) {
     val colors = MiuixTheme.colorScheme
-    Box(
+
+    Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 11.dp)
-            .height(72.dp)
-            .clip(RoundedCornerShape(15.dp))
-            .background(colors.surface)
-            .clickable(onClick = onClick)
+            .padding(vertical = 6.dp)
+            .clickable(onClick = onClick),
+        colors = CardColors(
+            color = colors.surface,
+            contentColor = colors.onSurface
+        ),
+        cornerRadius = 16.dp
     ) {
         Row(
-            modifier = Modifier.fillMaxSize().padding(start = 13.dp, end = 13.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 20.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 text = title,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Medium,
-                fontFamily = FontFamily.Default,
+                style = MiuixTheme.textStyles.body1,
                 color = colors.onSurface
             )
-            Image(painter = painterResource(id = R.drawable.arrow_right), contentDescription = null, modifier = Modifier.size(7.dp, 12.dp))
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = colors.outline
+            )
         }
     }
 }
