@@ -8,6 +8,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import com.shell.liangyi.ui.theme.ShellTheme
 import top.yukonga.miuix.kmp.basic.CardColors
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -16,9 +17,10 @@ import com.shell.liangyi.ui.Routes
 @Composable
 fun IndexScreen(navController: NavHostController) {
     val colors = MiuixTheme.colorScheme
+    val shellColors = ShellTheme.colors
 
     Scaffold(
-        containerColor = colors.surface
+        containerColor = shellColors.pageBackground
     ) {
         Column(
             modifier = Modifier
@@ -57,13 +59,14 @@ fun IndexScreen(navController: NavHostController) {
 @Composable
 private fun MenuItem(title: String, onClick: () -> Unit) {
     val colors = MiuixTheme.colorScheme
+    val shellColors = ShellTheme.colors
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 6.dp),
         colors = CardColors(
-            color = colors.background,
+            color = shellColors.cardBackground,
             contentColor = colors.onSurface
         ),
         cornerRadius = 16.dp,

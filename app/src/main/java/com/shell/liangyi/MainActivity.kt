@@ -6,7 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import com.shell.liangyi.ui.ShellScreen
 import com.shell.liangyi.ui.ShellViewModel
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.shell.liangyi.ui.theme.ShellAppTheme
 
 class MainActivity : ComponentActivity() {
 
@@ -18,7 +18,7 @@ class MainActivity : ComponentActivity() {
         shellViewModel.initialize(this)
 
         setContent {
-            MiuixTheme {
+            ShellAppTheme {
                 ShellScreen(shellViewModel)
             }
         }

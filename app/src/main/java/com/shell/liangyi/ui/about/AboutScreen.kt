@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -21,6 +22,7 @@ import androidx.navigation.NavHostController
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.shell.liangyi.R
+import com.shell.liangyi.ui.theme.ShellTheme
 
 // Scale: Figma 1080px → 360dp (÷3)
 
@@ -28,8 +30,9 @@ import com.shell.liangyi.R
 fun AboutScreen(navController: NavHostController
 ) {
     val colors = MiuixTheme.colorScheme
+    val shellColors = ShellTheme.colors
 
-    Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
+    Box(modifier = Modifier.fillMaxSize().background(shellColors.pageBackground)) {
         Column(modifier = Modifier.fillMaxSize()) {
             Spacer(modifier = Modifier.height(43.dp))
             Row(modifier = Modifier.fillMaxWidth()) {
@@ -38,6 +41,7 @@ fun AboutScreen(navController: NavHostController
                     painter = painterResource(id = R.drawable.back),
                     contentDescription = "Back",
                     modifier = Modifier.size(18.dp, 13.dp).clickable(onClick = { navController.popBackStack() }),
+                    colorFilter = ColorFilter.tint(colors.onSurface),
                     contentScale = ContentScale.Fit
                 )
             }
@@ -100,7 +104,7 @@ fun AboutScreen(navController: NavHostController
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
                     fontFamily = FontFamily.Default,
-                    color = Color(0x66000000)
+                    color = shellColors.mutedText
                 )
             }
 
@@ -114,6 +118,7 @@ fun AboutScreen(navController: NavHostController
 @Composable
 private fun DeveloperCard() {
     val colors = MiuixTheme.colorScheme
+    val shellColors = ShellTheme.colors
     val devs = listOf(
         Triple("AzumaChiaki", "Devloper", R.drawable.avatar_azumachiaki),
         Triple("IKUN-CXKPRO", "Devloper", R.drawable.avatar_ikun),
@@ -126,7 +131,7 @@ private fun DeveloperCard() {
             .padding(horizontal = 12.dp)
             .height(200.dp)
             .clip(RoundedCornerShape(15.dp))
-            .background(colors.surface)
+            .background(shellColors.cardBackground)
     ) {
         Column(modifier = Modifier.padding(start = 16.dp, top = 15.dp)) {
             devs.forEachIndexed { i, (name, role, avatar) ->
@@ -154,7 +159,7 @@ private fun DeveloperCard() {
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Normal,
                             fontFamily = FontFamily.Default,
-                            color = Color(0xFF9E9E9E)
+                            color = colors.onSurfaceContainerVariant
                         )
                     }
                 }

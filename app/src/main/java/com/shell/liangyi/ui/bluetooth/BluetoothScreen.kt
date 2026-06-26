@@ -6,7 +6,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -28,6 +27,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import top.yukonga.miuix.kmp.basic.Text
 import androidx.compose.ui.layout.ContentScale
+import com.shell.liangyi.ui.theme.ShellTheme
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 // Scale: Figma 1080px → 360dp (÷3)
@@ -38,6 +38,7 @@ fun BluetoothScreen(
     shellViewModel: ShellViewModel
 ) {
     val colors = MiuixTheme.colorScheme
+    val shellColors = ShellTheme.colors
 
     val connectionState by shellViewModel.connectionState.collectAsState(initial = ConnectionState.DISCONNECTED)
     val screenshots by shellViewModel.screenshots.collectAsState()
@@ -46,7 +47,7 @@ fun BluetoothScreen(
     val isConnected = connectionState == ConnectionState.CONNECTED
     val isBusy = syncState is ScreenshotReceiver.SyncState.Receiving || syncState is ScreenshotReceiver.SyncState.WaitingAck
 
-    Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
+    Box(modifier = Modifier.fillMaxSize().background(shellColors.pageBackground)) {
         Column(modifier = Modifier.fillMaxSize()) {
             // 返回 — (88, 128) ÷3
             Spacer(modifier = Modifier.height(43.dp))
@@ -88,7 +89,7 @@ fun BluetoothScreen(
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
                 fontFamily = FontFamily.Default,
-                color = Color(0x66000000)
+                color = shellColors.mutedText
             )
 
             // 截图卡片 — y=925 ÷3=308, gap=12dp
@@ -118,7 +119,7 @@ fun BluetoothScreen(
                         .padding(horizontal = 9.dp)
                         .height(214.dp)
                         .clip(RoundedCornerShape(15.dp))
-                        .background(colors.surface),
+                        .background(shellColors.cardBackground),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -137,10 +138,11 @@ fun BluetoothScreen(
 @Composable
 private fun StatusCard(isConnected: Boolean, isBusy: Boolean, progress: String = "") {
     val colors = MiuixTheme.colorScheme
+    val shellColors = ShellTheme.colors
     val dotColor = when {
-        isBusy -> Color(0xFFFFA500)
-        isConnected -> Color(0xFF00C853)
-        else -> Color(0xFFFF0000)
+        isBusy -> shellColors.warning
+        isConnected -> shellColors.success
+        else -> shellColors.danger
     }
     val statusText = when {
         isBusy -> "正在同步截图..."
@@ -155,7 +157,7 @@ private fun StatusCard(isConnected: Boolean, isBusy: Boolean, progress: String =
             .padding(horizontal = 11.dp)
             .height(cardHeight)
             .clip(RoundedCornerShape(15.dp))
-            .background(colors.surface)
+            .background(shellColors.cardBackground)
     ) {
         Column(
             modifier = Modifier.fillMaxSize().padding(start = 13.dp, end = 13.dp, top = 12.dp, bottom = 12.dp)
@@ -192,13 +194,14 @@ private fun StatusCard(isConnected: Boolean, isBusy: Boolean, progress: String =
 @Composable
 private fun ActionButton(text: String, enabled: Boolean, onClick: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
+    val shellColors = ShellTheme.colors
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 10.dp)
             .height(52.dp)
             .clip(RoundedCornerShape(15.dp))
-            .background(if (enabled) Color(0xFF3482FF) else Color(0xFF9E9E9E))
+            .background(if (enabled) shellColors.primaryAction else shellColors.disabledAction)
             .clickable(
                 enabled = enabled,
                 indication = null,
@@ -220,13 +223,14 @@ private fun ActionButton(text: String, enabled: Boolean, onClick: () -> Unit) {
 @Composable
 private fun ScreenshotCard(shot: Screenshot, modifier: Modifier, onClick: () -> Unit, shellViewModel: ShellViewModel) {
     val colors = MiuixTheme.colorScheme
+    val shellColors = ShellTheme.colors
     val interactionSource = remember { MutableInteractionSource() }
     val previewPath = remember(shot.shotId) { shellViewModel.getScreenshotFilePath(shot.shotId) }
     Box(
         modifier = modifier
             .height(214.dp)
             .clip(RoundedCornerShape(15.dp))
-            .background(colors.surface)
+            .background(shellColors.cardBackground)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
@@ -240,8 +244,7 @@ private fun ScreenshotCard(shot: Screenshot, modifier: Modifier, onClick: () -> 
                 .padding(top = 9.dp)
                 .width(112.dp)
                 .height(160.dp)
-                
-                .background(Color(0xFF3D3D3D)),
+                .background(shellColors.previewBackground),
             contentAlignment = Alignment.Center
         ) {
             if (previewPath != null) {
@@ -268,7 +271,7 @@ private fun ScreenshotCard(shot: Screenshot, modifier: Modifier, onClick: () -> 
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 4.dp),
             fontSize = 10.sp,
             fontWeight = FontWeight.Medium,
-            color = Color(0x80000000)
+            color = shellColors.secondaryText
         )
     }
 }

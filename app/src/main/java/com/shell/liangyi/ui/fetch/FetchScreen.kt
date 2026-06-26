@@ -24,6 +24,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import top.yukonga.miuix.kmp.basic.Text
 import androidx.compose.ui.layout.ContentScale
+import com.shell.liangyi.ui.theme.ShellTheme
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -32,6 +33,7 @@ fun FetchScreen(
     shellViewModel: ShellViewModel
 ) {
     val colors = MiuixTheme.colorScheme
+    val shellColors = ShellTheme.colors
 
     val httpRunning by shellViewModel.httpServerRunning.collectAsState()
     val httpIp by shellViewModel.httpServerIp.collectAsState()
@@ -40,7 +42,7 @@ fun FetchScreen(
 
     val serverAddress = if (httpRunning && httpIp.isNotEmpty()) "${httpIp}:${httpPort}" else ""
 
-    Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
+    Box(modifier = Modifier.fillMaxSize().background(shellColors.pageBackground)) {
         Column(modifier = Modifier.fillMaxSize()) {
             // 返回
             Spacer(modifier = Modifier.height(43.dp))
@@ -86,7 +88,7 @@ fun FetchScreen(
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
                 fontFamily = FontFamily.Default,
-                color = Color(0x66000000)
+                color = shellColors.mutedText
             )
 
             // 截图卡片
@@ -116,7 +118,7 @@ fun FetchScreen(
                         .padding(horizontal = 9.dp)
                         .height(214.dp)
                         .clip(RoundedCornerShape(15.dp))
-                        .background(colors.surface),
+                        .background(shellColors.cardBackground),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -135,7 +137,8 @@ fun FetchScreen(
 @Composable
 private fun LanStatusCard(isRunning: Boolean, address: String) {
     val colors = MiuixTheme.colorScheme
-    val dotColor = if (isRunning) Color(0xFF00C853) else Color(0xFFFF0000)
+    val shellColors = ShellTheme.colors
+    val dotColor = if (isRunning) shellColors.success else shellColors.danger
     val statusText = if (isRunning) "\u670d\u52a1\u5668\u5df2\u542f\u52a8" else "\u670d\u52a1\u5668\u672a\u542f\u52a8"
     val cardHeight = if (isRunning && address.isNotEmpty()) 80.dp else 56.dp
 
@@ -145,7 +148,7 @@ private fun LanStatusCard(isRunning: Boolean, address: String) {
             .padding(horizontal = 11.dp)
             .height(cardHeight)
             .clip(RoundedCornerShape(15.dp))
-            .background(colors.surface)
+            .background(shellColors.cardBackground)
     ) {
         Column(
             modifier = Modifier.fillMaxSize().padding(start = 13.dp, end = 13.dp, top = 12.dp, bottom = 12.dp)
@@ -182,13 +185,14 @@ private fun LanStatusCard(isRunning: Boolean, address: String) {
 @Composable
 private fun ActionButton(text: String, enabled: Boolean, primary: Boolean, onClick: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
+    val shellColors = ShellTheme.colors
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 10.dp)
             .height(52.dp)
             .clip(RoundedCornerShape(15.dp))
-            .background(if (primary) Color(0xFF3482FF) else Color(0xFFDD4031))
+            .background(if (primary) shellColors.primaryAction else shellColors.destructiveAction)
             .clickable(
                 enabled = enabled,
                 indication = null,
@@ -210,14 +214,20 @@ private fun ActionButton(text: String, enabled: Boolean, primary: Boolean, onCli
 @Composable
 private fun ScreenshotCard(shot: Screenshot, modifier: Modifier, onClick: () -> Unit, shellViewModel: ShellViewModel) {
     val colors = MiuixTheme.colorScheme
+    val shellColors = ShellTheme.colors
+    val interactionSource = remember { MutableInteractionSource() }
 
     val previewPath = remember(shot.shotId) { shellViewModel.getScreenshotFilePath(shot.shotId) }
     Box(
         modifier = modifier
             .height(214.dp)
             .clip(RoundedCornerShape(15.dp))
-            .background(colors.surface)
-            .clickable(onClick = onClick)
+            .background(shellColors.cardBackground)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            )
     ) {
         Box(
             modifier = Modifier
@@ -225,7 +235,7 @@ private fun ScreenshotCard(shot: Screenshot, modifier: Modifier, onClick: () -> 
                 .padding(top = 9.dp)
                 .width(112.dp)
                 .height(160.dp)
-                .background(Color(0xFF3D3D3D)),
+                .background(shellColors.previewBackground),
             contentAlignment = Alignment.Center
         ) {
             if (previewPath != null) {
@@ -252,7 +262,7 @@ private fun ScreenshotCard(shot: Screenshot, modifier: Modifier, onClick: () -> 
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 4.dp),
             fontSize = 10.sp,
             fontWeight = FontWeight.Medium,
-            color = Color(0x80000000)
+            color = shellColors.secondaryText
         )
     }
 }

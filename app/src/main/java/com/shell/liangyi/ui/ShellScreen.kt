@@ -28,6 +28,7 @@ import com.shell.liangyi.ui.bluetooth.BluetoothScreen
 import com.shell.liangyi.ui.fetch.FetchScreen
 import com.shell.liangyi.ui.screenshot.ScreenshotDetailScreen
 import com.shell.liangyi.ui.about.AboutScreen
+import com.shell.liangyi.ui.theme.ShellTheme
 
 object Routes {
     const val INDEX = "index"
@@ -47,35 +48,33 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
     val density = LocalDensity.current
     val windowWidth = (configuration.screenWidthDp * density.density).toInt()
 
-    MiuixTheme {
-        NavHost(
-            navController = navController,
-            startDestination = Routes.INDEX,
-            enterTransition = { AnimTools.enterTransition(windowWidth) },
-            exitTransition = { AnimTools.exitTransition(windowWidth) },
-            popEnterTransition = { AnimTools.popEnterTransition(windowWidth) },
-            popExitTransition = { AnimTools.popExitTransition(windowWidth) }
-        ) {
-            composable(Routes.INDEX) {
-                IndexScreen(navController)
-            }
-            composable(Routes.BLUETOOTH) {
-                BluetoothScreen(navController, shellViewModel)
-            }
-            composable(Routes.FETCH) {
-                FetchScreen(navController, shellViewModel)
-            }
-            composable(Routes.TERMINAL) {
-                PlaceholderScreen("远程终端", "远程终端功能开发中", navController)
-            }
-            composable(Routes.SCREENSHOT_DETAIL) { backStackEntry ->
-                val rawShotId = backStackEntry.arguments?.getString("shotId") ?: "0"
-                val shotId = Uri.decode(rawShotId)
-                ScreenshotDetailScreen(shotId, navController, shellViewModel)
-            }
-            composable(Routes.ABOUT) {
-                AboutScreen(navController)
-            }
+    NavHost(
+        navController = navController,
+        startDestination = Routes.INDEX,
+        enterTransition = { AnimTools.enterTransition(windowWidth) },
+        exitTransition = { AnimTools.exitTransition(windowWidth) },
+        popEnterTransition = { AnimTools.popEnterTransition(windowWidth) },
+        popExitTransition = { AnimTools.popExitTransition(windowWidth) }
+    ) {
+        composable(Routes.INDEX) {
+            IndexScreen(navController)
+        }
+        composable(Routes.BLUETOOTH) {
+            BluetoothScreen(navController, shellViewModel)
+        }
+        composable(Routes.FETCH) {
+            FetchScreen(navController, shellViewModel)
+        }
+        composable(Routes.TERMINAL) {
+            PlaceholderScreen("远程终端", "远程终端功能开发中", navController)
+        }
+        composable(Routes.SCREENSHOT_DETAIL) { backStackEntry ->
+            val rawShotId = backStackEntry.arguments?.getString("shotId") ?: "0"
+            val shotId = Uri.decode(rawShotId)
+            ScreenshotDetailScreen(shotId, navController, shellViewModel)
+        }
+        composable(Routes.ABOUT) {
+            AboutScreen(navController)
         }
     }
 }
@@ -83,7 +82,8 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
 @Composable
 private fun PlaceholderScreen(title: String, subtitle: String, navController: NavHostController) {
     val colors = MiuixTheme.colorScheme
-    Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
+    val shellColors = ShellTheme.colors
+    Box(modifier = Modifier.fillMaxSize().background(shellColors.pageBackground)) {
         Column(modifier = Modifier.fillMaxSize()) {
             Spacer(modifier = Modifier.height(43.dp))
             Text(
@@ -107,14 +107,14 @@ private fun PlaceholderScreen(title: String, subtitle: String, navController: Na
                     .padding(horizontal = 11.dp)
                     .height(56.dp)
                     .clip(RoundedCornerShape(15.dp))
-                    .background(colors.surface),
+                    .background(shellColors.cardBackground),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = subtitle,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium,
-                    color = Color(0xFF9E9E9E)
+                    color = shellColors.secondaryText
                 )
             }
         }

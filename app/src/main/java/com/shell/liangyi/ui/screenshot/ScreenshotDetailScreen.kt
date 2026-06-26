@@ -20,6 +20,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.shell.liangyi.model.Screenshot
 import com.shell.liangyi.ui.ShellViewModel
+import com.shell.liangyi.ui.theme.ShellTheme
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.io.File
@@ -31,6 +32,7 @@ fun ScreenshotDetailScreen(
     shellViewModel: ShellViewModel
 ) {
     val colors = MiuixTheme.colorScheme
+    val shellColors = ShellTheme.colors
     val screenshots by shellViewModel.screenshots.collectAsState()
     val shot = screenshots.find { it.shotId == shotId }
 
@@ -48,7 +50,7 @@ fun ScreenshotDetailScreen(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
+    Box(modifier = Modifier.fillMaxSize().background(shellColors.pageBackground)) {
         Column(modifier = Modifier.fillMaxSize()) {
             // 返回
             Spacer(modifier = Modifier.height(43.dp))
@@ -77,7 +79,7 @@ fun ScreenshotDetailScreen(
                     text = shot.capturedAt,
                     modifier = Modifier.padding(start = 26.dp, top = 4.dp),
                     fontSize = 10.sp,
-                    color = Color(0x80000000)
+                    color = shellColors.secondaryText
                 )
             }
 
@@ -92,8 +94,7 @@ fun ScreenshotDetailScreen(
                         .fillMaxWidth()
                         .padding(horizontal = 48.dp)
                         .heightIn(max = 400.dp)
-                        
-                        .background(Color(0xFF3D3D3D)),
+                        .background(shellColors.previewBackground),
                     contentAlignment = Alignment.Center
                 ) {
                 if (resolvedPath != null && File(resolvedPath).exists()) {
@@ -116,7 +117,7 @@ fun ScreenshotDetailScreen(
                     Text(
                         text = "暂无预览",
                         fontSize = 14.sp,
-                        color = Color(0x80FFFFFF)
+                        color = colors.onSurfaceVariantSummary
                     )
                 }
                 }
@@ -126,7 +127,7 @@ fun ScreenshotDetailScreen(
 
             ActionButton(
                 text = "保存到相册",
-                color = Color(0xFF3482FF),
+                color = shellColors.primaryAction,
                 enabled = resolvedPath != null,
                 onClick = { /* TODO: 保存到相册 */ }
             )
@@ -134,7 +135,7 @@ fun ScreenshotDetailScreen(
 
             ActionButton(
                 text = "删除截图",
-                color = Color(0xFFDD4031),
+                color = shellColors.destructiveAction,
                 enabled = shot != null,
                 onClick = {
                     shot?.shotId?.let { shellViewModel.deleteScreenshot(it) }
@@ -149,13 +150,14 @@ fun ScreenshotDetailScreen(
 @Composable
 private fun ActionButton(text: String, color: Color, enabled: Boolean, onClick: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
+    val shellColors = ShellTheme.colors
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 10.dp)
             .height(52.dp)
             .clip(RoundedCornerShape(15.dp))
-            .background(if (enabled) color else Color(0xFF9E9E9E))
+            .background(if (enabled) color else shellColors.disabledAction)
             .clickable(
                 enabled = enabled,
                 interactionSource = interactionSource,
