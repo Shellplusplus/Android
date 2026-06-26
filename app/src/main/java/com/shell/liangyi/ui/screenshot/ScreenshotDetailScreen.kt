@@ -1,5 +1,6 @@
 package com.shell.liangyi.ui.screenshot
 
+import android.graphics.BitmapFactory
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -11,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -48,6 +50,16 @@ fun ScreenshotDetailScreen(
                 if (candidate.exists()) candidate.absolutePath else null
             }
         }
+    }
+
+    // 根据原图分辨率计算圆角：336×480 → 16dp，其他按宽度等比缩放
+    val previewCornerRadius = remember(resolvedPath) {
+        if (resolvedPath != null && File(resolvedPath).exists()) {
+            val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeFile(resolvedPath, opts)
+            val imgWidth = opts.outWidth
+            if (imgWidth > 0) (16f * imgWidth / 336f).dp else 16.dp
+        } else 16.dp
     }
 
     Box(modifier = Modifier.fillMaxSize().background(shellColors.pageBackground)) {
@@ -94,7 +106,7 @@ fun ScreenshotDetailScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 48.dp)
                     .heightIn(max = 400.dp)
-                    .clip(RoundedCornerShape(16.dp)),
+                    .clip(RoundedCornerShape(previewCornerRadius)),
                     contentAlignment = Alignment.Center
                 ) {
                 if (resolvedPath != null && File(resolvedPath).exists()) {
