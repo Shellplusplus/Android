@@ -91,9 +91,10 @@ fun ScreenshotDetailScreen(
             ) {
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 48.dp)
-                        .heightIn(max = 400.dp),
+                    .fillMaxWidth()
+                    .padding(horizontal = 48.dp)
+                    .heightIn(max = 400.dp)
+                    .clip(RoundedCornerShape(16.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                 if (resolvedPath != null && File(resolvedPath).exists()) {
