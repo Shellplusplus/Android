@@ -142,13 +142,13 @@ fun ScreenshotDetailScreen(
             ActionButton(
                 text = "带壳截图",
                 color = shellColors.primaryAction,
-                enabled = roundedPath != null && File(roundedPath).exists(),
+                enabled = resolvedPath != null && File(resolvedPath).exists(),
                 onClick = {
-                    if (roundedPath != null) {
+                    if (resolvedPath != null) {
                         val deviceFile = prepareDevice(context, cacheDir)
                         if (deviceFile != null) {
-                            val out = File(cacheDir, "framed_${File(roundedPath).name}")
-                            val ok = ImageProcessor.compositeWithFrame(roundedPath, deviceFile.absolutePath, out.absolutePath)
+                            val out = File(cacheDir, "framed_${File(resolvedPath).name}")
+                            val ok = ImageProcessor.compositeWithFrame(resolvedPath, deviceFile.absolutePath, out.absolutePath)
                             if (ok) {
                                 val fileName = "Shell++_framed_${shot?.index ?: System.currentTimeMillis()}"
                                 val saved = gallerySaver.saveFileToGallery(out.absolutePath, fileName)
