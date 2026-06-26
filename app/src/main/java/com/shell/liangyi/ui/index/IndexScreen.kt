@@ -31,7 +31,7 @@ fun IndexScreen(navController: NavHostController) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 56.dp, bottom = 24.dp),
+                    .padding(top = 72.dp, bottom = 24.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
