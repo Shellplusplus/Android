@@ -1,6 +1,5 @@
 package com.shell.liangyi.ui.screenshot
 
-import android.graphics.BitmapFactory
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -12,7 +11,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -49,17 +47,6 @@ fun ScreenshotDetailScreen(
         }
     }
 
-    val density = LocalDensity.current
-    var imgWidth by remember { mutableIntStateOf(0) }
-
-    LaunchedEffect(resolvedPath) {
-        if (resolvedPath != null && File(resolvedPath).exists()) {
-            val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            BitmapFactory.decodeFile(resolvedPath, opts)
-            imgWidth = opts.outWidth
-        }
-    }
-
     Box(modifier = Modifier.fillMaxSize().background(shellColors.pageBackground)) {
         Column(modifier = Modifier.fillMaxSize()) {
             Spacer(modifier = Modifier.height(43.dp))
@@ -92,23 +79,16 @@ fun ScreenshotDetailScreen(
             }
 
             Spacer(modifier = Modifier.height(16.dp))
-            BoxWithConstraints(
+            Box(
                 modifier = Modifier.fillMaxWidth(),
                 contentAlignment = Alignment.Center
             ) {
-                val cornerRadius = if (imgWidth > 0) {
-                    val containerPx = with(density) { maxWidth.toPx() }
-                    val basePx = 48f * imgWidth / 336f
-                    val scale = if (containerPx < imgWidth) containerPx / imgWidth else 1f
-                    with(density) { (basePx * scale).toDp() }
-                } else 16.dp
-
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 48.dp)
                         .heightIn(max = 400.dp)
-                        .clip(RoundedCornerShape(cornerRadius)),
+                        .clip(RoundedCornerShape(48.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     if (resolvedPath != null && File(resolvedPath).exists()) {
