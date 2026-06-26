@@ -59,7 +59,7 @@ fun HyperOSBackground(modifier: Modifier = Modifier) {
         initialValue = 0f,
         targetValue = 62.83f,
         animationSpec = infiniteRepeatable(
-            animation = tween(15000, easing = LinearEasing),
+            animation = tween(50000, easing = LinearEasing),
             repeatMode = RepeatMode.Restart,
         ),
         label = "hyperos_time",
@@ -68,7 +68,7 @@ fun HyperOSBackground(modifier: Modifier = Modifier) {
         initialValue = 0f,
         targetValue = 3f,
         animationSpec = infiniteRepeatable(
-            animation = tween((colorPeriod * 2500 * 4 / 3).toInt(), easing = LinearEasing),
+            animation = tween((colorPeriod * 2500 * 40 / 9).toInt(), easing = LinearEasing),
             repeatMode = RepeatMode.Restart,
         ),
         label = "hyperos_stage",
