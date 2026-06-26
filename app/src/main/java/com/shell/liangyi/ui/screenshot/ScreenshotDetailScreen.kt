@@ -84,9 +84,8 @@ fun ScreenshotDetailScreen(
             Spacer(modifier = Modifier.height(16.dp))
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 96.dp)
-                    .height(240.dp)
+                    .fillMaxWidth(0.7f)
+                    .aspectRatio(336f / 480f)
                     .clip(RoundedCornerShape(16.dp))
                     .background(Color(0xFF3D3D3D)),
                 contentAlignment = Alignment.Center
