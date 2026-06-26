@@ -64,7 +64,7 @@ fun IndexScreen(navController: NavHostController) {
                 onClick = { /* TODO: 设置 */ },
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(top = 20.dp, end = 16.dp)
+                    .padding(top = 30.dp, end = 16.dp)
                     .size(24.dp)
             ) {
                 Icon(
