@@ -11,6 +11,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -194,7 +195,7 @@ private fun ActionButton(text: String, enabled: Boolean, onClick: () -> Unit) {
             .fillMaxWidth()
             .padding(horizontal = 10.dp)
             .height(52.dp)
-            .clip(RoundedCornerShape(15.dp))
+            .graphicsLayer(shape = RoundedCornerShape(15.dp), clip = true)
     ) {
         Box(
             modifier = Modifier
