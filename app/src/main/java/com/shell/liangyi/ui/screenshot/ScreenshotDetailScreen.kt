@@ -33,6 +33,20 @@ fun ScreenshotDetailScreen(
     val screenshots by shellViewModel.screenshots.collectAsState()
     val shot = screenshots.find { it.shotId == shotId }
 
+    // 兜底：如果 localFilePath 为空，按 shotId 推算文件路径
+    val resolvedPath = remember(shot, shotId) {
+        when {
+            !shot?.localFilePath.isNullOrEmpty() -> shot.localFilePath
+            else -> {
+                val dir = File(shellViewModel.appContext().filesDir, "screenshot_sync")
+                // stableShotKey: 去掉路径不安全字符，仅保留字母数字和 # -
+                val safeKey = shotId.replace(Regex("[^a-zA-Z0-9#_\\-]"), "_")
+                val candidate = File(dir, "${safeKey}.png")
+                if (candidate.exists()) candidate.absolutePath else null
+            }
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
         Column(modifier = Modifier.fillMaxSize()) {
             // 返回
@@ -66,7 +80,7 @@ fun ScreenshotDetailScreen(
                 )
             }
 
-            // 截图预览 — 使用 Coil 加载本地文件
+            // 截图预览
             Spacer(modifier = Modifier.height(16.dp))
             Box(
                 modifier = Modifier
@@ -77,11 +91,10 @@ fun ScreenshotDetailScreen(
                     .background(Color(0xFF3D3D3D)),
                 contentAlignment = Alignment.Center
             ) {
-                val localPath = shot?.localFilePath
-                if (!localPath.isNullOrEmpty() && File(localPath).exists()) {
+                if (resolvedPath != null && File(resolvedPath).exists()) {
                     AsyncImage(
                         model = ImageRequest.Builder(shellViewModel.appContext())
-                            .data(File(localPath))
+                            .data(File(resolvedPath))
                             .crossfade(true)
                             .build(),
                         contentDescription = "截图预览",
@@ -90,13 +103,13 @@ fun ScreenshotDetailScreen(
                     )
                 } else if (shot != null && !shot.isComplete) {
                     Text(
-                        text = "${shot.receivedChunks}/${shot.totalChunks}",
+                        text = "传输中 ${shot.receivedChunks}/${shot.totalChunks}",
                         fontSize = 14.sp,
                         color = Color.White
                     )
                 } else {
                     Text(
-                        text = if (localPath.isNullOrEmpty()) "无本地文件" else "文件不存在",
+                        text = "未下载截图中…",
                         fontSize = 14.sp,
                         color = Color(0x80FFFFFF)
                     )
@@ -105,16 +118,14 @@ fun ScreenshotDetailScreen(
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // 保存到相册
             ActionButton(
                 text = "保存到相册",
                 color = Color(0xFF3482FF),
-                enabled = shot?.localFilePath?.let { File(it).exists() } == true,
+                enabled = resolvedPath != null,
                 onClick = { /* TODO: 保存到相册 */ }
             )
             Spacer(modifier = Modifier.height(8.dp))
 
-            // 删除截图
             ActionButton(
                 text = "删除截图",
                 color = Color(0xFFDD4031),
