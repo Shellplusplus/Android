@@ -58,8 +58,8 @@ fun ScreenshotDetailScreen(
             val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeFile(resolvedPath, opts)
             val imgWidth = opts.outWidth
-            if (imgWidth > 0) (16f * imgWidth / 336f).dp else 16.dp
-        } else 16.dp
+            if (imgWidth > 0) (48f * imgWidth / 336f).dp else 48.dp
+        } else 48.dp
     }
 
     Box(modifier = Modifier.fillMaxSize().background(shellColors.pageBackground)) {
