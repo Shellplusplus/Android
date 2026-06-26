@@ -17,6 +17,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavHostController
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.shell.liangyi.R
@@ -24,8 +25,7 @@ import com.shell.liangyi.R
 // Scale: Figma 1080px → 360dp (÷3)
 
 @Composable
-fun AboutScreen(
-    onBack: () -> Unit
+fun AboutScreen(navController: NavHostController
 ) {
     val colors = MiuixTheme.colorScheme
 
@@ -37,7 +37,7 @@ fun AboutScreen(
                 Image(
                     painter = painterResource(id = R.drawable.back),
                     contentDescription = "Back",
-                    modifier = Modifier.size(18.dp, 13.dp).clickable(onClick = onBack),
+                    modifier = Modifier.size(18.dp, 13.dp).clickable(onClick = { navController.popBackStack() }),
                     contentScale = ContentScale.Fit
                 )
             }

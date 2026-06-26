@@ -106,6 +106,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime)
     implementation(libs.androidx.lifecycle.viewmodel)
     implementation(libs.androidx.activity.compose)
+    implementation(libs.navigation.compose)
     implementation(libs.coroutines.core)
     implementation(libs.coroutines.android)
     implementation(libs.coil.compose)

@@ -18,16 +18,15 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.painterResource
 import com.shell.liangyi.R
+import androidx.navigation.NavHostController
+import com.shell.liangyi.ui.Routes
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 // Scale: Figma 1080px → 360dp (÷3)
 
 @Composable
-fun BluetoothScreen(
-    onBack: () -> Unit,
-    onGetScreenshot: () -> Unit,
-    onOpenDetail: (String) -> Unit
+fun BluetoothScreen(navController: NavHostController
 ) {
     val colors = MiuixTheme.colorScheme
 
@@ -39,7 +38,7 @@ fun BluetoothScreen(
                 Image(
                     painter = painterResource(id = R.drawable.back),
                     contentDescription = "Back",
-                    modifier = Modifier.size(18.dp, 13.dp).clickable(onClick = onBack),
+                    modifier = Modifier.size(18.dp, 13.dp).clickable(onClick = { navController.popBackStack() }),
                     contentScale = ContentScale.Fit
                 )
             }
@@ -77,9 +76,9 @@ fun BluetoothScreen(
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 9.dp)
             ) {
-                ScreenshotCard("#9", Modifier.weight(1f), onClick = { onOpenDetail("9") })
+                ScreenshotCard("#9", Modifier.weight(1f), onClick = { navController.navigate(Routes.screenshotDetail("9")) })
                 Spacer(modifier = Modifier.width(12.dp))
-                ScreenshotCard("#1", Modifier.weight(1f), onClick = { onOpenDetail("1") })
+                ScreenshotCard("#1", Modifier.weight(1f), onClick = { navController.navigate(Routes.screenshotDetail("1")) })
             }
 
             Spacer(modifier = Modifier.weight(1f))
@@ -91,7 +90,7 @@ fun BluetoothScreen(
                     .height(52.dp)
                     .clip(RoundedCornerShape(15.dp))
                     .background(Color(0xFF3482FF))
-                    .clickable(onClick = onGetScreenshot),
+                    .clickable(onClick = { /* TODO */ }),
                 contentAlignment = Alignment.Center
             ) {
                 Text(

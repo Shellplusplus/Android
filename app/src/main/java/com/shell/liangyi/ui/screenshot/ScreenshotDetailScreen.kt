@@ -17,6 +17,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import com.shell.liangyi.R
+import androidx.navigation.NavHostController
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -25,9 +26,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 @Composable
 fun ScreenshotDetailScreen(
     screenshotNumber: String,
-    onBack: () -> Unit,
-    onSave: () -> Unit,
-    onDelete: () -> Unit
+    navController: NavHostController
 ) {
     val colors = MiuixTheme.colorScheme
 
@@ -39,7 +38,7 @@ fun ScreenshotDetailScreen(
                 Image(
                     painter = painterResource(id = R.drawable.back),
                     contentDescription = "Back",
-                    modifier = Modifier.size(18.dp, 13.dp).clickable(onClick = onBack),
+                    modifier = Modifier.size(18.dp, 13.dp).clickable(onClick = { navController.popBackStack() }),
                     contentScale = ContentScale.Fit
                 )
             }
@@ -69,9 +68,9 @@ fun ScreenshotDetailScreen(
 
             Spacer(modifier = Modifier.weight(1f))
 
-            ActionButton("保存到相册", Color(0xFF3482FF), onClick = onSave)
+            ActionButton("保存到相册", Color(0xFF3482FF), onClick = { /* TODO */ })
             Spacer(modifier = Modifier.height(8.dp))
-            ActionButton("删除截图", Color(0xFFDD4031), onClick = onDelete)
+            ActionButton("删除截图", Color(0xFFDD4031), onClick = { /* TODO */ })
             Spacer(modifier = Modifier.height(13.dp))
         }
     }

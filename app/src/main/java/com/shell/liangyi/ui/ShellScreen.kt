@@ -1,5 +1,7 @@
 package com.shell.liangyi.ui
 
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -9,62 +11,82 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+
 import com.shell.liangyi.ui.index.IndexScreen
 import com.shell.liangyi.ui.bluetooth.BluetoothScreen
 import com.shell.liangyi.ui.screenshot.ScreenshotDetailScreen
 import com.shell.liangyi.ui.about.AboutScreen
 
-private enum class Screen {
-    INDEX, BLUETOOTH, FETCH, TERMINAL, SCREENSHOT_DETAIL, ABOUT
+object Routes {
+    const val INDEX = "index"
+    const val BLUETOOTH = "bluetooth"
+    const val FETCH = "fetch"
+    const val TERMINAL = "terminal"
+    const val SCREENSHOT_DETAIL = "screenshot_detail/{number}"
+    const val ABOUT = "about"
+
+    fun screenshotDetail(number: String) = "screenshot_detail/$number"
 }
 
 @Composable
 fun ShellScreen() {
-    var currentScreen by remember { mutableStateOf(Screen.INDEX) }
-    var screenshotNumber by remember { mutableStateOf("9") }
+    val navController = rememberNavController()
+    val configuration = LocalConfiguration.current
+    val windowWidth = configuration.screenWidthDp
 
-    when (currentScreen) {
-        Screen.INDEX -> IndexScreen(
-            onNavigateToBluetooth = { currentScreen = Screen.BLUETOOTH },
-            onNavigateToFetch = { currentScreen = Screen.FETCH },
-            onNavigateToTerminal = { currentScreen = Screen.TERMINAL },
-            onNavigateToAbout = { currentScreen = Screen.ABOUT }
-        )
-        Screen.BLUETOOTH -> BluetoothScreen(
-            onBack = { currentScreen = Screen.INDEX },
-            onGetScreenshot = { /* TODO */ },
-            onOpenDetail = { num ->
-                screenshotNumber = num
-                currentScreen = Screen.SCREENSHOT_DETAIL
+    MiuixTheme {
+        NavHost(
+            navController = navController,
+            startDestination = Routes.INDEX,
+            enterTransition = { AnimTools.enterTransition(windowWidth) },
+            exitTransition = { AnimTools.exitTransition(windowWidth) },
+            popEnterTransition = { AnimTools.popEnterTransition(windowWidth) },
+            popExitTransition = { AnimTools.popExitTransition(windowWidth) }
+        ) {
+            composable(Routes.INDEX) {
+                IndexScreen(navController)
             }
-        )
-        Screen.FETCH -> PlaceholderScreen("截图同步（局域网）", "WiFi 传输功能开发中") { currentScreen = Screen.INDEX }
-        Screen.TERMINAL -> PlaceholderScreen("远程终端", "远程终端功能开发中") { currentScreen = Screen.INDEX }
-        Screen.SCREENSHOT_DETAIL -> ScreenshotDetailScreen(
-            screenshotNumber = screenshotNumber,
-            onBack = { currentScreen = Screen.BLUETOOTH },
-            onSave = { /* TODO */ },
-            onDelete = { /* TODO */ }
-        )
-        Screen.ABOUT -> AboutScreen(onBack = { currentScreen = Screen.INDEX })
+            composable(Routes.BLUETOOTH) {
+                BluetoothScreen(navController)
+            }
+            composable(Routes.FETCH) {
+                PlaceholderScreen("截图同步（局域网）", "WiFi 传输功能开发中", navController)
+            }
+            composable(Routes.TERMINAL) {
+                PlaceholderScreen("远程终端", "远程终端功能开发中", navController)
+            }
+            composable(Routes.SCREENSHOT_DETAIL) { backStackEntry ->
+                val number = backStackEntry.arguments?.getString("number") ?: "9"
+                ScreenshotDetailScreen(number, navController)
+            }
+            composable(Routes.ABOUT) {
+                AboutScreen(navController)
+            }
+        }
     }
 }
 
 @Composable
-private fun PlaceholderScreen(title: String, subtitle: String, onBack: () -> Unit) {
+private fun PlaceholderScreen(title: String, subtitle: String, navController: NavHostController) {
     val colors = MiuixTheme.colorScheme
     Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
         Column(modifier = Modifier.fillMaxSize()) {
             Spacer(modifier = Modifier.height(43.dp))
             Text(
                 text = "←",
-                modifier = Modifier.padding(start = 29.dp).clickable(onClick = onBack),
+                modifier = Modifier.padding(start = 29.dp).clickable { navController.popBackStack() },
                 fontSize = 13.sp,
                 color = colors.onSurface
             )

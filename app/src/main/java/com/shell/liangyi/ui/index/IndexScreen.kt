@@ -12,21 +12,19 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
+import androidx.navigation.NavHostController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.shell.liangyi.R
+import com.shell.liangyi.ui.Routes
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 // Scale: Figma 1080px → 360dp (÷3)
 
 @Composable
-fun IndexScreen(
-    onNavigateToBluetooth: () -> Unit,
-    onNavigateToFetch: () -> Unit,
-    onNavigateToTerminal: () -> Unit,
-    onNavigateToAbout: () -> Unit
+fun IndexScreen(navController: NavHostController
 ) {
     val colors = MiuixTheme.colorScheme
 
@@ -56,13 +54,13 @@ fun IndexScreen(
 
             Spacer(modifier = Modifier.height(9.dp))
 
-            MenuCard("截图同步（蓝牙）", onClick = onNavigateToBluetooth)
+            MenuCard("截图同步（蓝牙）", onClick = { navController.navigate("bluetooth") })
             Spacer(modifier = Modifier.height(10.dp))
-            MenuCard("截图同步（局域网）", onClick = onNavigateToFetch)
+            MenuCard("截图同步（局域网）", onClick = { navController.navigate("fetch") })
             Spacer(modifier = Modifier.height(10.dp))
-            MenuCard("远程终端", onClick = onNavigateToTerminal)
+            MenuCard("远程终端", onClick = { navController.navigate("terminal") })
             Spacer(modifier = Modifier.height(10.dp))
-            MenuCard("关于", onClick = onNavigateToAbout)
+            MenuCard("关于", onClick = { navController.navigate("about") })
         }
     }
 }
@@ -75,7 +73,7 @@ private fun MenuCard(title: String, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 11.dp)
-            .height(56.dp)
+            .height(72.dp)
             .clip(RoundedCornerShape(15.dp))
             .background(colors.surface)
             .clickable(onClick = onClick)
