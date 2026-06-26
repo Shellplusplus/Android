@@ -6,56 +6,51 @@ import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 
-// 参考 StatusBarLyric/AnimTools + PortraitLayout 的动画曲线
+// 严格参考 StatusBarLyric PortraitLayout 的动画曲线
 
 object AnimTools {
 
-    // 页面进入动画：从右侧滑入 + 淡入 + 缩放
+    // 统一的缓动曲线（与参考项目一致）
+    private val easing = CubicBezierEasing(0.12f, 0.38f, 0.2f, 1f)
+
+    // 进入：仅右滑，500ms
     fun enterTransition(windowWidth: Int): EnterTransition {
-        val easing = CubicBezierEasing(0.12f, 0.38f, 0.2f, 1f)
         return slideInHorizontally(
             initialOffsetX = { windowWidth },
-            animationSpec = tween(500, easing = easing)
-        ) + fadeIn(animationSpec = tween(500, easing = easing)) +
-            scaleIn(
-                initialScale = 0.95f,
-                animationSpec = tween(500, easing = CubicBezierEasing(0.36f, 1.44f, 0.48f, 1f))
-            )
+            animationSpec = tween(durationMillis = 500, easing = easing)
+        )
     }
 
-    // 页面退出动画：向左滑出 + 淡出 + 缩放
+    // 退出：左滑 + 淡出到 0.5，500ms
     fun exitTransition(windowWidth: Int): ExitTransition {
-        val easing = CubicBezierEasing(0.12f, 0.38f, 0.2f, 1f)
         return slideOutHorizontally(
             targetOffsetX = { -windowWidth / 5 },
-            animationSpec = tween(500, easing = easing)
-        ) + fadeOut(animationSpec = tween(500), targetAlpha = 0.5f) +
-            scaleOut(
-                targetScale = 0.95f,
-                animationSpec = tween(300, easing = CubicBezierEasing(0.36f, 1.44f, 0.48f, 1f))
-            )
+            animationSpec = tween(durationMillis = 500, easing = easing)
+        ) + fadeOut(
+            animationSpec = tween(durationMillis = 500),
+            targetAlpha = 0.5f
+        )
     }
 
-    // 返回进入动画：从左侧滑入 + 淡入
+    // 返回进入：左滑 + 从 0.5 淡入，500ms
     fun popEnterTransition(windowWidth: Int): EnterTransition {
-        val easing = CubicBezierEasing(0.12f, 0.38f, 0.2f, 1f)
         return slideInHorizontally(
             initialOffsetX = { -windowWidth / 5 },
-            animationSpec = tween(500, easing = easing)
-        ) + fadeIn(animationSpec = tween(500), initialAlpha = 0.5f)
+            animationSpec = tween(durationMillis = 500, easing = easing)
+        ) + fadeIn(
+            animationSpec = tween(durationMillis = 500),
+            initialAlpha = 0.5f
+        )
     }
 
-    // 返回退出动画：向右滑出 + 淡出
+    // 返回退出：仅右滑，500ms
     fun popExitTransition(windowWidth: Int): ExitTransition {
-        val easing = CubicBezierEasing(0.12f, 0.38f, 0.2f, 1f)
         return slideOutHorizontally(
             targetOffsetX = { windowWidth },
-            animationSpec = tween(500, easing = easing)
+            animationSpec = tween(durationMillis = 500, easing = easing)
         )
     }
 }
