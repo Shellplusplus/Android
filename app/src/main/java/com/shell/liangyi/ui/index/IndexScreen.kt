@@ -34,7 +34,7 @@ fun IndexScreen(navController: NavHostController) {
                 modifier = Modifier.padding(start = 5.dp, top = 82.dp, bottom = 24.dp)
             )
 
-            Spacer(modifier = Modifier.height(17.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
             // 列表项
             MenuItem(
