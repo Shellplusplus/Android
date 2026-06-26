@@ -12,17 +12,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import com.shell.liangyi.model.Screenshot
 import com.shell.liangyi.ui.ShellViewModel
 import com.shell.liangyi.ui.theme.ShellTheme
 import top.yukonga.miuix.kmp.basic.Text
@@ -40,13 +37,11 @@ fun ScreenshotDetailScreen(
     val screenshots by shellViewModel.screenshots.collectAsState()
     val shot = screenshots.find { it.shotId == shotId }
 
-    // 兜底：如果 localFilePath 为空，按 shotId 推算文件路径
     val resolvedPath = remember(shot, shotId) {
         when {
             !shot?.localFilePath.isNullOrEmpty() -> shot.localFilePath
             else -> {
                 val dir = File(shellViewModel.appContext().filesDir, "screenshot_sync")
-                // stableShotKey: 去掉路径不安全字符，仅保留字母数字和 # -
                 val safeKey = shotId.replace(Regex("[^a-zA-Z0-9#_\\-]"), "_")
                 val candidate = File(dir, "${safeKey}.png")
                 if (candidate.exists()) candidate.absolutePath else null
@@ -54,46 +49,30 @@ fun ScreenshotDetailScreen(
         }
     }
 
-    // 根据原图分辨率计算圆角：336×480 → 48dp，其他按宽度等比缩放
-    // 但需考虑实际显示缩放比，避免圆角过大裁切图片
     val density = LocalDensity.current
-    var containerWidthPx by remember { mutableIntStateOf(0) }
     var imgWidth by remember { mutableIntStateOf(0) }
-    var imgHeight by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(resolvedPath) {
         if (resolvedPath != null && File(resolvedPath).exists()) {
             val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeFile(resolvedPath, opts)
             imgWidth = opts.outWidth
-            imgHeight = opts.outHeight
         }
-    }
-
-    val previewCornerRadiusDp = remember(containerWidthPx, imgWidth, imgHeight) {
-        if (imgWidth > 0 && imgHeight > 0 && containerWidthPx > 0) {
-            val baseRadiusPx = 48f * imgWidth / 336f
-            val scale = if (containerWidthPx < imgWidth) containerWidthPx.toFloat() / imgWidth else 1f
-            val radiusPx = baseRadiusPx * scale
-            with(density) { radiusPx.toDp() }
-        } else 16.dp
     }
 
     Box(modifier = Modifier.fillMaxSize().background(shellColors.pageBackground)) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // 返回
             Spacer(modifier = Modifier.height(43.dp))
             Row(modifier = Modifier.fillMaxWidth()) {
                 Spacer(modifier = Modifier.width(29.dp))
                 Text(
-                    text = "←",
+                    text = "\u2190",
                     modifier = Modifier.clickable { navController.popBackStack() },
                     fontSize = 13.sp,
                     color = colors.onSurface
                 )
             }
 
-            // 标题
             Spacer(modifier = Modifier.height(21.dp))
             Text(
                 text = "#${shot?.index ?: shotId}",
@@ -112,44 +91,49 @@ fun ScreenshotDetailScreen(
                 )
             }
 
-            // 截图预览
             Spacer(modifier = Modifier.height(16.dp))
-            Box(
+            BoxWithConstraints(
                 modifier = Modifier.fillMaxWidth(),
                 contentAlignment = Alignment.Center
             ) {
+                val cornerRadius = if (imgWidth > 0) {
+                    val containerPx = with(density) { maxWidth.toPx() }
+                    val basePx = 48f * imgWidth / 336f
+                    val scale = if (containerPx < imgWidth) containerPx / imgWidth else 1f
+                    with(density) { (basePx * scale).toDp() }
+                } else 16.dp
+
                 Box(
                     modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 48.dp)
-                    .heightIn(max = 400.dp)
-                    .onSizeChanged { containerWidthPx = it.width }
-                    .clip(RoundedCornerShape(previewCornerRadiusDp)),
+                        .fillMaxWidth()
+                        .padding(horizontal = 48.dp)
+                        .heightIn(max = 400.dp)
+                        .clip(RoundedCornerShape(cornerRadius)),
                     contentAlignment = Alignment.Center
                 ) {
-                if (resolvedPath != null && File(resolvedPath).exists()) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(shellViewModel.appContext())
-                            .data(File(resolvedPath))
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = "截图预览",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Fit
-                    )
-                } else if (shot != null && !shot.isComplete) {
-                    Text(
-                        text = "传输中 ${shot.receivedChunks}/${shot.totalChunks}",
-                        fontSize = 14.sp,
-                        color = Color.White
-                    )
-                } else {
-                    Text(
-                        text = "暂无预览",
-                        fontSize = 14.sp,
-                        color = colors.onSurfaceVariantSummary
-                    )
-                }
+                    if (resolvedPath != null && File(resolvedPath).exists()) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(shellViewModel.appContext())
+                                .data(File(resolvedPath))
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = "截图预览",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Fit
+                        )
+                    } else if (shot != null && !shot.isComplete) {
+                        Text(
+                            text = "传输中 ${shot.receivedChunks}/${shot.totalChunks}",
+                            fontSize = 14.sp,
+                            color = Color.White
+                        )
+                    } else {
+                        Text(
+                            text = "暂无预览",
+                            fontSize = 14.sp,
+                            color = colors.onSurfaceVariantSummary
+                        )
+                    }
                 }
             }
 
