@@ -1,5 +1,6 @@
 package com.shell.liangyi.ui.screenshot
 
+import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -28,8 +29,6 @@ import com.shell.liangyi.util.ImageProcessor
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.io.File
-
-private const val CORNER_RADIUS_PX = 48f
 
 @Composable
 fun ScreenshotDetailScreen(
@@ -60,24 +59,15 @@ fun ScreenshotDetailScreen(
         else {
             val cacheDir = File(shellViewModel.appContext().cacheDir, "processed_screenshots")
             cacheDir.mkdirs()
-            val out = File(cacheDir, File(resolvedPath).nameWithoutExtension + "_rounded.png")
+            val out = File(cacheDir, File(resolvedPath).nameWithoutExtension + "_framed.png")
             if (out.exists()) out.absolutePath
-            else if (ImageProcessor.addRoundedCorners(resolvedPath, out.absolutePath, CORNER_RADIUS_PX)) out.absolutePath
-            else null
-        }
-    }
-
-    val framePath = remember {
-        val cacheDir = File(shellViewModel.appContext().cacheDir, "processed_screenshots")
-        cacheDir.mkdirs()
-        val out = File(cacheDir, "frame_336.png")
-        if (!out.exists()) {
-            val res = context.resources
-            res.openRawResource(R.drawable.frame_336).use { input ->
-                out.outputStream().use { output -> input.copyTo(output) }
+            else {
+                val devicePath = prepareDeviceFrame(shellViewModel.appContext(), cacheDir)
+                if (devicePath != null && ImageProcessor.compositeWithFrame(resolvedPath, devicePath, out.absolutePath))
+                    out.absolutePath
+                else null
             }
         }
-        out.absolutePath
     }
 
     val gallerySaver = remember { GallerySaver(shellViewModel.appContext()) }
@@ -159,16 +149,9 @@ fun ScreenshotDetailScreen(
                 enabled = processedPath != null && File(processedPath).exists(),
                 onClick = {
                     if (processedPath != null) {
-                        val cacheDir = File(shellViewModel.appContext().cacheDir, "processed_screenshots")
-                        val out = File(cacheDir, File(processedPath).nameWithoutExtension + "_framed.png")
-                        val ok = ImageProcessor.compositeWithFrame(processedPath, framePath, out.absolutePath)
-                        if (ok) {
-                            val fileName = "Shell++_framed_${shot?.index ?: System.currentTimeMillis()}"
-                            val saved = gallerySaver.saveFileToGallery(out.absolutePath, fileName)
-                            Toast.makeText(context, if (saved) "已保存到相册" else "保存失败", Toast.LENGTH_SHORT).show()
-                        } else {
-                            Toast.makeText(context, "合成失败", Toast.LENGTH_SHORT).show()
-                        }
+                        val fileName = "Shell++_framed_${shot?.index ?: System.currentTimeMillis()}"
+                        val saved = gallerySaver.saveFileToGallery(processedPath, fileName)
+                        Toast.makeText(context, if (saved) "已保存到相册" else "保存失败", Toast.LENGTH_SHORT).show()
                     }
                 }
             )
@@ -177,11 +160,11 @@ fun ScreenshotDetailScreen(
             ActionButton(
                 text = "保存到相册",
                 color = shellColors.primaryAction,
-                enabled = processedPath != null,
+                enabled = resolvedPath != null,
                 onClick = {
-                    if (processedPath != null) {
+                    if (resolvedPath != null) {
                         val fileName = "Shell++_${shot?.index ?: System.currentTimeMillis()}"
-                        val ok = gallerySaver.saveFileToGallery(processedPath, fileName)
+                        val ok = gallerySaver.saveFileToGallery(resolvedPath, fileName)
                         Toast.makeText(context, if (ok) "已保存到相册" else "保存失败", Toast.LENGTH_SHORT).show()
                     }
                 }
@@ -200,6 +183,16 @@ fun ScreenshotDetailScreen(
             Spacer(modifier = Modifier.height(13.dp))
         }
     }
+}
+
+private fun prepareDeviceFrame(context: Context, cacheDir: File): String? {
+    val out = File(cacheDir, "device_9pro.png")
+    if (!out.exists()) {
+        context.resources.openRawResource(R.drawable.device_9pro).use { input ->
+            out.outputStream().use { output -> input.copyTo(output) }
+        }
+    }
+    return if (out.exists()) out.absolutePath else null
 }
 
 @Composable

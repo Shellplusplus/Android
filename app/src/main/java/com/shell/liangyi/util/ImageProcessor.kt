@@ -6,9 +6,7 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
-import android.graphics.Rect
 import android.graphics.RectF
-import java.io.File
 import java.io.FileOutputStream
 
 object ImageProcessor {
@@ -29,10 +27,9 @@ object ImageProcessor {
             paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
             canvas.drawBitmap(src, 0f, 0f, paint)
 
-            val out = FileOutputStream(outputPath)
-            result.compress(Bitmap.CompressFormat.PNG, 100, out)
-            out.flush()
-            out.close()
+            FileOutputStream(outputPath).use { out ->
+                result.compress(Bitmap.CompressFormat.PNG, 100, out)
+            }
 
             src.recycle()
             result.recycle()
@@ -45,24 +42,25 @@ object ImageProcessor {
     fun compositeWithFrame(screenshotPath: String, framePath: String, outputPath: String): Boolean {
         return try {
             val screenshot = BitmapFactory.decodeFile(screenshotPath) ?: return false
-            val frame = BitmapFactory.decodeFile(framePath) ?: run {
+            val frameRaw = BitmapFactory.decodeFile(framePath) ?: run {
                 screenshot.recycle()
                 return false
             }
 
-            val result = Bitmap.createBitmap(frame.width, frame.height, Bitmap.Config.ARGB_8888)
+            val sw = screenshot.width
+            val sh = screenshot.height
+
+            val frame = Bitmap.createScaledBitmap(frameRaw, sw, sh, true)
+            if (frame !== frameRaw) frameRaw.recycle()
+
+            val result = Bitmap.createBitmap(sw, sh, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(result)
-
-            val offsetX = (frame.width - screenshot.width) / 2f
-            val offsetY = (frame.height - screenshot.height) / 2f
-            canvas.drawBitmap(screenshot, offsetX, offsetY, null)
-
+            canvas.drawBitmap(screenshot, 0f, 0f, null)
             canvas.drawBitmap(frame, 0f, 0f, null)
 
-            val out = FileOutputStream(outputPath)
-            result.compress(Bitmap.CompressFormat.PNG, 100, out)
-            out.flush()
-            out.close()
+            FileOutputStream(outputPath).use { out ->
+                result.compress(Bitmap.CompressFormat.PNG, 100, out)
+            }
 
             screenshot.recycle()
             frame.recycle()
