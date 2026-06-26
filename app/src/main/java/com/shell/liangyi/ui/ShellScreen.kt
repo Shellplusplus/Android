@@ -1,7 +1,5 @@
 package com.shell.liangyi.ui
 
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -11,11 +9,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -23,7 +20,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-
 import com.shell.liangyi.ui.index.IndexScreen
 import com.shell.liangyi.ui.bluetooth.BluetoothScreen
 import com.shell.liangyi.ui.screenshot.ScreenshotDetailScreen
@@ -43,17 +39,18 @@ object Routes {
 @Composable
 fun ShellScreen() {
     val navController = rememberNavController()
-    val configuration = LocalConfiguration.current
-    val windowWidth = configuration.screenWidthDp
+    // 使用 px 值而非 dp，与参考项目 getWindowSize().width 一致
+    val density = LocalDensity.current
+    val windowWidthPx = with(density) { 360.dp.toPx() }.toInt()
 
     MiuixTheme {
         NavHost(
             navController = navController,
             startDestination = Routes.INDEX,
-            enterTransition = { AnimTools.enterTransition(windowWidth) },
-            exitTransition = { AnimTools.exitTransition(windowWidth) },
-            popEnterTransition = { AnimTools.popEnterTransition(windowWidth) },
-            popExitTransition = { AnimTools.popExitTransition(windowWidth) }
+            enterTransition = { AnimTools.enterTransition(windowWidthPx) },
+            exitTransition = { AnimTools.exitTransition(windowWidthPx) },
+            popEnterTransition = { AnimTools.popEnterTransition(windowWidthPx) },
+            popExitTransition = { AnimTools.popExitTransition(windowWidthPx) }
         ) {
             composable(Routes.INDEX) {
                 IndexScreen(navController)
