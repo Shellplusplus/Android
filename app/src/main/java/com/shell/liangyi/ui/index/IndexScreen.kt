@@ -1,6 +1,5 @@
 package com.shell.liangyi.ui.index
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -62,13 +61,13 @@ private fun MenuItem(title: String, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 6.dp)
-            .clickable(onClick = onClick),
+            .padding(vertical = 6.dp),
         colors = CardColors(
             color = colors.background,
             contentColor = colors.onSurface
         ),
-        cornerRadius = 16.dp
+        cornerRadius = 16.dp,
+        onClick = onClick
     ) {
         Row(
             modifier = Modifier

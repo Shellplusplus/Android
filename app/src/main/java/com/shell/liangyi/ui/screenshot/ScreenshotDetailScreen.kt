@@ -2,6 +2,7 @@ package com.shell.liangyi.ui.screenshot
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
@@ -147,6 +148,7 @@ fun ScreenshotDetailScreen(
 
 @Composable
 private fun ActionButton(text: String, color: Color, enabled: Boolean, onClick: () -> Unit) {
+    val interactionSource = remember { MutableInteractionSource() }
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -154,7 +156,12 @@ private fun ActionButton(text: String, color: Color, enabled: Boolean, onClick: 
             .height(52.dp)
             .clip(RoundedCornerShape(15.dp))
             .background(if (enabled) color else Color(0xFF9E9E9E))
-            .clickable(enabled = enabled, onClick = onClick),
+            .clickable(
+                enabled = enabled,
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            ),
         contentAlignment = Alignment.Center
     ) {
         Text(

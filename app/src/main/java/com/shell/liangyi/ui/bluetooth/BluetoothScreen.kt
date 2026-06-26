@@ -220,14 +220,18 @@ private fun ActionButton(text: String, enabled: Boolean, onClick: () -> Unit) {
 @Composable
 private fun ScreenshotCard(shot: Screenshot, modifier: Modifier, onClick: () -> Unit, shellViewModel: ShellViewModel) {
     val colors = MiuixTheme.colorScheme
-
+    val interactionSource = remember { MutableInteractionSource() }
     val previewPath = remember(shot.shotId) { shellViewModel.getScreenshotFilePath(shot.shotId) }
     Box(
         modifier = modifier
             .height(214.dp)
             .clip(RoundedCornerShape(15.dp))
             .background(colors.surface)
-            .clickable(onClick = onClick)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            )
     ) {
         // 手环预览
         Box(
