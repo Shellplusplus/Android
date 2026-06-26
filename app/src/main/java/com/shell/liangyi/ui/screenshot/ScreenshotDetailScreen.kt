@@ -12,9 +12,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
@@ -52,14 +54,29 @@ fun ScreenshotDetailScreen(
         }
     }
 
-    // 根据原图分辨率计算圆角：336×480 → 16dp，其他按宽度等比缩放
-    val previewCornerRadius = remember(resolvedPath) {
+    // 根据原图分辨率计算圆角：336×480 → 48dp，其他按宽度等比缩放
+    // 但需考虑实际显示缩放比，避免圆角过大裁切图片
+    val density = LocalDensity.current
+    var containerWidthPx by remember { mutableIntStateOf(0) }
+    var imgWidth by remember { mutableIntStateOf(0) }
+    var imgHeight by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(resolvedPath) {
         if (resolvedPath != null && File(resolvedPath).exists()) {
             val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeFile(resolvedPath, opts)
-            val imgWidth = opts.outWidth
-            if (imgWidth > 0) (48f * imgWidth / 336f).dp else 48.dp
-        } else 48.dp
+            imgWidth = opts.outWidth
+            imgHeight = opts.outHeight
+        }
+    }
+
+    val previewCornerRadiusDp = remember(containerWidthPx, imgWidth, imgHeight) {
+        if (imgWidth > 0 && imgHeight > 0 && containerWidthPx > 0) {
+            val baseRadiusPx = 48f * imgWidth / 336f
+            val scale = if (containerWidthPx < imgWidth) containerWidthPx.toFloat() / imgWidth else 1f
+            val radiusPx = baseRadiusPx * scale
+            with(density) { radiusPx.toDp() }
+        } else 16.dp
     }
 
     Box(modifier = Modifier.fillMaxSize().background(shellColors.pageBackground)) {
@@ -106,7 +123,8 @@ fun ScreenshotDetailScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 48.dp)
                     .heightIn(max = 400.dp)
-                    .clip(RoundedCornerShape(previewCornerRadius)),
+                    .onSizeChanged { containerWidthPx = it.width }
+                    .clip(RoundedCornerShape(previewCornerRadiusDp)),
                     contentAlignment = Alignment.Center
                 ) {
                 if (resolvedPath != null && File(resolvedPath).exists()) {
