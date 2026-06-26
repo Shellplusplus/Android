@@ -83,13 +83,17 @@ fun ScreenshotDetailScreen(
             // 截图预览
             Spacer(modifier = Modifier.height(16.dp))
             Box(
-                modifier = Modifier
-                    .fillMaxWidth(0.7f)
-                    .aspectRatio(336f / 480f)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color(0xFF3D3D3D)),
+                modifier = Modifier.fillMaxWidth(),
                 contentAlignment = Alignment.Center
             ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.7f)
+                        .aspectRatio(336f / 480f)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color(0xFF3D3D3D)),
+                    contentAlignment = Alignment.Center
+                ) {
                 if (resolvedPath != null && File(resolvedPath).exists()) {
                     AsyncImage(
                         model = ImageRequest.Builder(shellViewModel.appContext())
@@ -112,6 +116,7 @@ fun ScreenshotDetailScreen(
                         fontSize = 14.sp,
                         color = Color(0x80FFFFFF)
                     )
+                }
                 }
             }
 
