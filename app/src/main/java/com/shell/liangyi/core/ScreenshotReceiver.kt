@@ -623,7 +623,7 @@ class ScreenshotReceiver(
         }
         val completed = receivedCount.coerceAtMost(totalCount)
         val current = if (completed >= totalCount) totalCount else completed + 1
-        _receiveProgress.value = "接收图片 $current/$totalCount"
+        _receiveProgress.value = "图片 $current/$totalCount"
     }
 
     private fun updateChunkProgressText(chunkReceived: Int, chunkTotal: Int) {
@@ -638,19 +638,14 @@ class ScreenshotReceiver(
         startedAtMs: Long
     ) {
         val speedText = formatSpeed(receivedBytes, startedAtMs)
-        val byteText = if (totalBytes > 0L) {
-            "，${formatBytes(receivedBytes)}/${formatBytes(totalBytes)}"
-        } else {
-            ""
-        }
-        val detailText = "分片 $chunkReceived/$chunkTotal$byteText，$speedText"
+        val detailText = "分块 $chunkReceived/$chunkTotal  速度 $speedText"
         if (totalCount > 0) {
             val completed = receivedCount.coerceAtMost(totalCount)
             val current = if (completed >= totalCount) totalCount else completed + 1
-            _receiveProgress.value = "接收图片 $current/$totalCount（$detailText）"
+            _receiveProgress.value = "图片 $current/$totalCount  $detailText"
             return
         }
-        _receiveProgress.value = "接收中（$detailText）"
+        _receiveProgress.value = detailText
     }
 
     private fun formatBytes(bytes: Long): String {
