@@ -127,7 +127,7 @@ private fun DeveloperCard() {
             .clip(RoundedCornerShape(15.dp))
             .background(shellColors.cardBackground)
     ) {
-        Column(modifier = Modifier.padding(start = 16.dp, top = 15.dp)) {
+        Column(modifier = Modifier.padding(start = 16.dp, top = 15.dp, bottom = 15.dp)) {
             devs.forEachIndexed { i, (name, role, avatar) ->
                 if (i > 0) Spacer(modifier = Modifier.height(9.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
