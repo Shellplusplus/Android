@@ -193,10 +193,11 @@ private fun ActionButton(text: String, enabled: Boolean, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 10.dp)
-            .height(52.dp)
-            .clickable(enabled = enabled, onClick = onClick),
+            .height(52.dp),
         shape = RoundedCornerShape(15.dp),
         color = if (enabled) Color(0xFF3482FF) else Color(0xFF9E9E9E),
+        onClick = { onClick() },
+        enabled = enabled,
     ) {
         Box(
             modifier = Modifier.fillMaxSize(),
