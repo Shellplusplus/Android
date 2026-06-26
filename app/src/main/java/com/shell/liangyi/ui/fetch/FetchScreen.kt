@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -188,23 +189,27 @@ private fun StatusCard(isConnected: Boolean, isBusy: Boolean, progress: String =
 
 @Composable
 private fun ActionButton(text: String, enabled: Boolean, onClick: () -> Unit) {
-    Box(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 10.dp)
             .height(52.dp)
-            .clickable(enabled = enabled, onClick = onClick)
-            .clip(RoundedCornerShape(15.dp))
-            .background(if (enabled) Color(0xFF3482FF) else Color(0xFF9E9E9E)),
-        contentAlignment = Alignment.Center
+            .clickable(enabled = enabled, onClick = onClick),
+        shape = RoundedCornerShape(15.dp),
+        color = if (enabled) Color(0xFF3482FF) else Color(0xFF9E9E9E),
     ) {
-        Text(
-            text = text,
-            fontSize = 17.sp,
-            fontWeight = FontWeight.Medium,
-            fontFamily = FontFamily.Default,
-            color = Color.White
-        )
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = text,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Medium,
+                fontFamily = FontFamily.Default,
+                color = Color.White
+            )
+        }
     }
 }
 
