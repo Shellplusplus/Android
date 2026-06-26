@@ -31,7 +31,7 @@ fun IndexScreen(navController: NavHostController) {
                 text = "Shell++",
                 style = MiuixTheme.textStyles.title1,
                 color = colors.onBackground,
-                modifier = Modifier.padding(start = 5.dp, top = 82.dp, bottom = 10.dp)
+                modifier = Modifier.padding(start = 5.dp, top = 82.dp, bottom = 6.dp)
             )
 
             // 列表项
