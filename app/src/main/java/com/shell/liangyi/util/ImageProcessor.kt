@@ -7,12 +7,27 @@ import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
 import android.graphics.RectF
-import java.io.File
 import java.io.FileOutputStream
 
 object ImageProcessor {
 
     private const val CORNER_RADIUS_PX = 48f
+
+    fun addRoundedCorners(inputPath: String, outputPath: String): Boolean {
+        return try {
+            val src = BitmapFactory.decodeFile(inputPath) ?: return false
+            val result = addRoundedCornersToBitmap(src, CORNER_RADIUS_PX)
+            src.recycle()
+            val out = FileOutputStream(outputPath)
+            result.compress(Bitmap.CompressFormat.PNG, 100, out)
+            out.flush()
+            out.close()
+            result.recycle()
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
 
     fun compositeWithFrame(screenshotPath: String, framePath: String, outputPath: String): Boolean {
         return try {
@@ -55,10 +70,8 @@ object ImageProcessor {
         val h = src.height
         val result = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(result)
-
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         canvas.drawRoundRect(RectF(0f, 0f, w.toFloat(), h.toFloat()), radiusPx, radiusPx, paint)
-
         paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
         canvas.drawBitmap(src, 0f, 0f, paint)
         return result

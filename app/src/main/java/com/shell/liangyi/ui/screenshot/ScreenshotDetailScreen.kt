@@ -54,6 +54,18 @@ fun ScreenshotDetailScreen(
         }
     }
 
+    val cacheDir = remember { File(shellViewModel.appContext().cacheDir, "processed").apply { mkdirs() } }
+
+    val roundedPath = remember(resolvedPath) {
+        if (resolvedPath == null) null
+        else {
+            val out = File(cacheDir, "rounded_${File(resolvedPath).name}")
+            if (out.exists()) out.delete()
+            if (ImageProcessor.addRoundedCorners(resolvedPath, out.absolutePath)) out.absolutePath
+            else null
+        }
+    }
+
     val gallerySaver = remember { GallerySaver(shellViewModel.appContext()) }
 
     Box(modifier = Modifier.fillMaxSize().background(shellColors.pageBackground)) {
@@ -99,10 +111,10 @@ fun ScreenshotDetailScreen(
                         .heightIn(max = 400.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (resolvedPath != null && File(resolvedPath).exists()) {
+                    if (roundedPath != null && File(roundedPath).exists()) {
                         AsyncImage(
                             model = ImageRequest.Builder(shellViewModel.appContext())
-                                .data(File(resolvedPath))
+                                .data(File(roundedPath))
                                 .crossfade(true)
                                 .build(),
                             contentDescription = "截图预览",
@@ -130,16 +142,20 @@ fun ScreenshotDetailScreen(
             ActionButton(
                 text = "带壳截图",
                 color = shellColors.primaryAction,
-                enabled = resolvedPath != null && File(resolvedPath).exists(),
+                enabled = roundedPath != null && File(roundedPath).exists(),
                 onClick = {
-                    if (resolvedPath != null) {
-                        val out = generateFramedScreenshot(shellViewModel.appContext(), resolvedPath)
-                        if (out != null) {
-                            val fileName = "Shell++_framed_${shot?.index ?: System.currentTimeMillis()}"
-                            val saved = gallerySaver.saveFileToGallery(out, fileName)
-                            Toast.makeText(context, if (saved) "已保存到相册" else "保存失败", Toast.LENGTH_SHORT).show()
-                        } else {
-                            Toast.makeText(context, "合成失败", Toast.LENGTH_SHORT).show()
+                    if (roundedPath != null) {
+                        val deviceFile = prepareDevice(context, cacheDir)
+                        if (deviceFile != null) {
+                            val out = File(cacheDir, "framed_${File(roundedPath).name}")
+                            val ok = ImageProcessor.compositeWithFrame(roundedPath, deviceFile.absolutePath, out.absolutePath)
+                            if (ok) {
+                                val fileName = "Shell++_framed_${shot?.index ?: System.currentTimeMillis()}"
+                                val saved = gallerySaver.saveFileToGallery(out.absolutePath, fileName)
+                                Toast.makeText(context, if (saved) "已保存到相册" else "保存失败", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, "合成失败", Toast.LENGTH_SHORT).show()
+                            }
                         }
                     }
                 }
@@ -174,22 +190,14 @@ fun ScreenshotDetailScreen(
     }
 }
 
-private fun generateFramedScreenshot(context: Context, screenshotPath: String): String? {
-    val cacheDir = File(context.cacheDir, "framed_screenshots")
-    cacheDir.mkdirs()
-    val out = File(cacheDir, File(screenshotPath).nameWithoutExtension + "_framed.png")
-    if (out.exists()) return out.absolutePath
-
-    val devicePath = File(cacheDir, "device_9pro.png")
-    if (!devicePath.exists()) {
+private fun prepareDevice(context: Context, cacheDir: File): File? {
+    val out = File(cacheDir, "device_9pro.png")
+    if (!out.exists()) {
         context.resources.openRawResource(R.drawable.device_9pro).use { input ->
-            devicePath.outputStream().use { output -> input.copyTo(output) }
+            out.outputStream().use { output -> input.copyTo(output) }
         }
     }
-
-    return if (ImageProcessor.compositeWithFrame(screenshotPath, devicePath.absolutePath, out.absolutePath))
-        out.absolutePath
-    else null
+    return if (out.exists()) out else null
 }
 
 @Composable
