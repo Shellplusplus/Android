@@ -91,7 +91,7 @@ fun ScreenshotDetailScreen(
                         .fillMaxWidth()
                         .padding(horizontal = 48.dp)
                         .heightIn(max = 400.dp)
-                        .clip(RoundedCornerShape(48.dp))
+                        
                         .background(Color(0xFF3D3D3D)),
                     contentAlignment = Alignment.Center
                 ) {

@@ -227,7 +227,7 @@ private fun ScreenshotCard(shot: Screenshot, modifier: Modifier, onClick: () -> 
                 .padding(top = 9.dp)
                 .width(112.dp)
                 .height(160.dp)
-                .clip(RoundedCornerShape(48.dp))
+                
                 .background(Color(0xFF3D3D3D)),
             contentAlignment = Alignment.Center
         ) {
