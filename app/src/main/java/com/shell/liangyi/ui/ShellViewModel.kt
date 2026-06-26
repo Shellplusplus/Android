@@ -50,10 +50,15 @@ class ShellViewModel : ViewModel() {
     val httpServerIp: StateFlow<String>
         get() = screenshotReceiver.httpServerIp
 
+    val httpServerPort: StateFlow<Int>
+        get() = screenshotReceiver.httpServerPort
+
     // ---- 操作方法 ----
     fun requestFromWatch() = screenshotReceiver.requestFromWatch()
     fun requestScreenshot(shotId: String) = screenshotReceiver.requestScreenshot(shotId)
     fun deleteScreenshot(shotId: String) = screenshotReceiver.deleteScreenshot(shotId)
+    fun startHttpServer(): String? = screenshotReceiver.startHttpServer()
+    fun stopHttpServer() = screenshotReceiver.stopHttpServer()
     fun appContext(): Context = appCtx!!
 
     fun getScreenshotFilePath(shotId: String): String? {

@@ -6,9 +6,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -19,8 +17,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.net.Uri
 import androidx.navigation.NavHostController
-import com.shell.liangyi.core.ConnectionState
-import com.shell.liangyi.core.ScreenshotReceiver
 import com.shell.liangyi.model.Screenshot
 import com.shell.liangyi.ui.Routes
 import com.shell.liangyi.ui.ShellViewModel
@@ -30,8 +26,6 @@ import top.yukonga.miuix.kmp.basic.Text
 import androidx.compose.ui.layout.ContentScale
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-// Scale: Figma 1080px → 360dp (÷3)
-
 @Composable
 fun FetchScreen(
     navController: NavHostController,
@@ -39,28 +33,28 @@ fun FetchScreen(
 ) {
     val colors = MiuixTheme.colorScheme
 
-    val connectionState by shellViewModel.connectionState.collectAsState(initial = ConnectionState.DISCONNECTED)
+    val httpRunning by shellViewModel.httpServerRunning.collectAsState()
+    val httpIp by shellViewModel.httpServerIp.collectAsState()
+    val httpPort by shellViewModel.httpServerPort.collectAsState()
     val screenshots by shellViewModel.screenshots.collectAsState()
-    val syncState by shellViewModel.syncState.collectAsState(initial = ScreenshotReceiver.SyncState.Idle)
-    val progress by shellViewModel.receiveProgress.collectAsState(initial = "")
-    val isConnected = connectionState == ConnectionState.CONNECTED
-    val isBusy = syncState is ScreenshotReceiver.SyncState.Receiving || syncState is ScreenshotReceiver.SyncState.WaitingAck
+
+    val serverAddress = if (httpRunning && httpIp.isNotEmpty()) "${httpIp}:${httpPort}" else ""
 
     Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // 返回 — (88, 128) ÷3
+            // 返回
             Spacer(modifier = Modifier.height(43.dp))
             Text(
-                text = "←",
+                text = "\u2190",
                 modifier = Modifier.padding(start = 29.dp).clickable { navController.popBackStack() },
                 fontSize = 13.sp,
                 color = colors.onSurface
             )
 
-            // 标题 — (79, 230) ÷3
+            // 标题
             Spacer(modifier = Modifier.height(21.dp))
             Text(
-                text = "局域网传输",
+                text = "\u5c40\u57df\u7f51\u4f20\u8f93",
                 modifier = Modifier.padding(start = 26.dp),
                 fontSize = 30.sp,
                 fontWeight = FontWeight.Normal,
@@ -68,22 +62,26 @@ fun FetchScreen(
                 color = colors.onSurface
             )
 
-            // 状态卡片 — y=391 ÷3=130, gap=21dp
+            // 状态卡片
             Spacer(modifier = Modifier.height(14.dp))
-            StatusCard(isConnected = isConnected, isBusy = isBusy, progress = progress)
+            LanStatusCard(isRunning = httpRunning, address = serverAddress)
 
-            // 获取截图按钮 — y=623 ÷3=208, gap=23dp
+            // 操作按钮
             Spacer(modifier = Modifier.height(23.dp))
             ActionButton(
-                text = if (isBusy) "同步中..." else if (isConnected) "获取截图" else "未连接",
-                enabled = isConnected && !isBusy,
-                onClick = { shellViewModel.requestFromWatch() }
+                text = if (httpRunning) "\u505c\u6b62\u670d\u52a1\u5668" else "\u542f\u52a8\u670d\u52a1\u5668",
+                enabled = true,
+                primary = httpRunning,
+                onClick = {
+                    if (httpRunning) shellViewModel.stopHttpServer()
+                    else shellViewModel.startHttpServer()
+                }
             )
 
-            // 已获取截图 — y=822 ÷3=274, gap=22dp
+            // 已获取截图
             Spacer(modifier = Modifier.height(22.dp))
             Text(
-                text = "已获取截图",
+                text = "\u5df2\u83b7\u53d6\u622a\u56fe",
                 modifier = Modifier.padding(start = 26.dp),
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -91,7 +89,7 @@ fun FetchScreen(
                 color = Color(0x66000000)
             )
 
-            // 截图卡片 — y=925 ÷3=308, gap=12dp
+            // 截图卡片
             Spacer(modifier = Modifier.height(12.dp))
             if (screenshots.isNotEmpty()) {
                 val previewShots = screenshots.take(2)
@@ -108,8 +106,8 @@ fun FetchScreen(
                         )
                     }
                     if (previewShots.size == 1) {
-                            Spacer(modifier = Modifier.weight(1f))
-                        }
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
                 }
             } else {
                 Box(
@@ -122,7 +120,7 @@ fun FetchScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "暂无截图",
+                        text = "\u6682\u65e0\u622a\u56fe",
                         fontSize = 16.sp,
                         color = colors.onSurface.copy(alpha = 0.4f)
                     )
@@ -135,19 +133,11 @@ fun FetchScreen(
 }
 
 @Composable
-private fun StatusCard(isConnected: Boolean, isBusy: Boolean, progress: String = "") {
+private fun LanStatusCard(isRunning: Boolean, address: String) {
     val colors = MiuixTheme.colorScheme
-    val dotColor = when {
-        isBusy -> Color(0xFFFFA500)
-        isConnected -> Color(0xFF00C853)
-        else -> Color(0xFFFF0000)
-    }
-    val statusText = when {
-        isBusy -> "正在同步截图..."
-        isConnected -> "已连接到快应用"
-        else -> "设备端快应用未连接"
-    }
-    val cardHeight = if (isBusy && progress.isNotEmpty()) 80.dp else 56.dp
+    val dotColor = if (isRunning) Color(0xFF00C853) else Color(0xFFFF0000)
+    val statusText = if (isRunning) "\u670d\u52a1\u5668\u5df2\u542f\u52a8" else "\u670d\u52a1\u5668\u672a\u542f\u52a8"
+    val cardHeight = if (isRunning && address.isNotEmpty()) 80.dp else 56.dp
 
     Box(
         modifier = Modifier
@@ -176,10 +166,10 @@ private fun StatusCard(isConnected: Boolean, isBusy: Boolean, progress: String =
                     color = colors.onSurface
                 )
             }
-            if (isBusy && progress.isNotEmpty()) {
+            if (isRunning && address.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = progress,
+                    text = address,
                     modifier = Modifier.padding(start = 23.dp),
                     fontSize = 12.sp,
                     color = colors.onSurface.copy(alpha = 0.6f)
@@ -190,7 +180,7 @@ private fun StatusCard(isConnected: Boolean, isBusy: Boolean, progress: String =
 }
 
 @Composable
-private fun ActionButton(text: String, enabled: Boolean, onClick: () -> Unit) {
+private fun ActionButton(text: String, enabled: Boolean, primary: Boolean, onClick: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
     Box(
         modifier = Modifier
@@ -198,7 +188,7 @@ private fun ActionButton(text: String, enabled: Boolean, onClick: () -> Unit) {
             .padding(horizontal = 10.dp)
             .height(52.dp)
             .clip(RoundedCornerShape(15.dp))
-            .background(if (enabled) Color(0xFF3482FF) else Color(0xFF9E9E9E))
+            .background(if (primary) Color(0xFF3482FF) else Color(0xFFDD4031))
             .clickable(
                 enabled = enabled,
                 indication = null,
@@ -220,27 +210,21 @@ private fun ActionButton(text: String, enabled: Boolean, onClick: () -> Unit) {
 @Composable
 private fun ScreenshotCard(shot: Screenshot, modifier: Modifier, onClick: () -> Unit, shellViewModel: ShellViewModel) {
     val colors = MiuixTheme.colorScheme
-    val interactionSource = remember { MutableInteractionSource() }
+
     val previewPath = remember(shot.shotId) { shellViewModel.getScreenshotFilePath(shot.shotId) }
     Box(
         modifier = modifier
             .height(214.dp)
             .clip(RoundedCornerShape(15.dp))
             .background(colors.surface)
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick
-            )
+            .clickable(onClick = onClick)
     ) {
-        // 手环预览
         Box(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .padding(top = 9.dp)
                 .width(112.dp)
                 .height(160.dp)
-                
                 .background(Color(0xFF3D3D3D)),
             contentAlignment = Alignment.Center
         ) {
