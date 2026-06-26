@@ -25,6 +25,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.shell.liangyi.ui.index.IndexScreen
 import com.shell.liangyi.ui.bluetooth.BluetoothScreen
+import com.shell.liangyi.ui.fetch.FetchScreen
 import com.shell.liangyi.ui.screenshot.ScreenshotDetailScreen
 import com.shell.liangyi.ui.about.AboutScreen
 
@@ -62,7 +63,7 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
                 BluetoothScreen(navController, shellViewModel)
             }
             composable(Routes.FETCH) {
-                PlaceholderScreen("截图同步（局域网）", "WiFi 传输功能开发中", navController)
+                FetchScreen(navController, shellViewModel)
             }
             composable(Routes.TERMINAL) {
                 PlaceholderScreen("远程终端", "远程终端功能开发中", navController)
