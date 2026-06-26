@@ -62,7 +62,7 @@ private fun MenuItem(title: String, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 7.dp)
+            .padding(vertical = 6.dp)
             .clickable(onClick = onClick),
         colors = CardColors(
             color = colors.background,
