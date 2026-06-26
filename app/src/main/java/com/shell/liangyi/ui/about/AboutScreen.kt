@@ -1,5 +1,6 @@
 package com.shell.liangyi.ui.about
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -10,12 +11,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import com.shell.liangyi.R
 
 // Scale: Figma 1080px → 360dp (÷3)
 
@@ -53,15 +57,20 @@ fun AboutScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Cover
+            // Cover with real background image
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp)
                     .height(171.dp)
                     .clip(RoundedCornerShape(15.dp))
-                    .background(Color(0xFF3482FF))
             ) {
+                Image(
+                    painter = painterResource(id = R.drawable.cover_bg),
+                    contentDescription = "Cover",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
                 Column(
                     modifier = Modifier.align(Alignment.BottomStart).padding(start = 9.dp, bottom = 9.dp)
                 ) {
@@ -106,7 +115,9 @@ fun AboutScreen(
 private fun DeveloperCard() {
     val colors = MiuixTheme.colorScheme
     val devs = listOf(
-        "AzumaChiaki", "IKUN-CXKPRO", "梁逸"
+        Triple("AzumaChiaki", "Devloper", R.drawable.avatar_azumachiaki),
+        Triple("IKUN-CXKPRO", "Devloper", R.drawable.avatar_ikun),
+        Triple("梁逸", "Devloper", R.drawable.avatar_liangyi)
     )
 
     Box(
@@ -118,14 +129,16 @@ private fun DeveloperCard() {
             .background(colors.surface)
     ) {
         Column(modifier = Modifier.padding(start = 16.dp, top = 15.dp)) {
-            devs.forEachIndexed { i, name ->
+            devs.forEachIndexed { i, (name, role, avatar) ->
                 if (i > 0) Spacer(modifier = Modifier.height(9.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
+                    Image(
+                        painter = painterResource(id = avatar),
+                        contentDescription = name,
                         modifier = Modifier
                             .size(37.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFFE0E0E0))
+                            .clip(CircleShape),
+                        contentScale = ContentScale.Crop
                     )
                     Spacer(modifier = Modifier.width(14.dp))
                     Column {
@@ -137,7 +150,7 @@ private fun DeveloperCard() {
                             color = colors.onSurface
                         )
                         Text(
-                            text = "Devloper",
+                            text = role,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Normal,
                             fontFamily = FontFamily.Default,
