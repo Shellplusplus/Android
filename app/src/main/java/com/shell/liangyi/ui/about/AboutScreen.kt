@@ -61,7 +61,7 @@ fun AboutScreen(navController: NavHostController
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Cover with real background image
+            // Cover with HyperOS animated background
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -69,12 +69,7 @@ fun AboutScreen(navController: NavHostController
                     .height(171.dp)
                     .clip(RoundedCornerShape(15.dp))
             ) {
-                Image(
-                    painter = painterResource(id = R.drawable.cover_bg),
-                    contentDescription = "Cover",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
+                HyperOSBackground()
                 Column(
                     modifier = Modifier.align(Alignment.BottomStart).padding(start = 9.dp, bottom = 9.dp)
                 ) {
