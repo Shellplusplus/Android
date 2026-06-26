@@ -193,9 +193,9 @@ private fun ActionButton(text: String, enabled: Boolean, onClick: () -> Unit) {
             .fillMaxWidth()
             .padding(horizontal = 10.dp)
             .height(52.dp)
+            .clickable(enabled = enabled, onClick = onClick)
             .clip(RoundedCornerShape(15.dp))
-            .background(if (enabled) Color(0xFF3482FF) else Color(0xFF9E9E9E))
-            .clickable(enabled = enabled, onClick = onClick),
+            .background(if (enabled) Color(0xFF3482FF) else Color(0xFF9E9E9E)),
         contentAlignment = Alignment.Center
     ) {
         Text(
