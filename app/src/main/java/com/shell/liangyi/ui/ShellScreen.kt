@@ -9,11 +9,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -30,33 +31,32 @@ object Routes {
     const val BLUETOOTH = "bluetooth"
     const val FETCH = "fetch"
     const val TERMINAL = "terminal"
-    const val SCREENSHOT_DETAIL = "screenshot_detail/{number}"
+    const val SCREENSHOT_DETAIL = "screenshot_detail/{shotId}"
     const val ABOUT = "about"
 
-    fun screenshotDetail(number: String) = "screenshot_detail/$number"
+    fun screenshotDetail(shotId: String) = "screenshot_detail/$shotId"
 }
 
 @Composable
-fun ShellScreen() {
+fun ShellScreen(shellViewModel: ShellViewModel) {
     val navController = rememberNavController()
-    // 使用 px 值而非 dp，与参考项目 getWindowSize().width 一致
-    val density = LocalDensity.current
-    val windowWidthPx = with(density) { 360.dp.toPx() }.toInt()
+    val configuration = LocalConfiguration.current
+    val windowWidth = configuration.screenWidthDp
 
     MiuixTheme {
         NavHost(
             navController = navController,
             startDestination = Routes.INDEX,
-            enterTransition = { AnimTools.enterTransition(windowWidthPx) },
-            exitTransition = { AnimTools.exitTransition(windowWidthPx) },
-            popEnterTransition = { AnimTools.popEnterTransition(windowWidthPx) },
-            popExitTransition = { AnimTools.popExitTransition(windowWidthPx) }
+            enterTransition = { AnimTools.enterTransition(windowWidth) },
+            exitTransition = { AnimTools.exitTransition(windowWidth) },
+            popEnterTransition = { AnimTools.popEnterTransition(windowWidth) },
+            popExitTransition = { AnimTools.popExitTransition(windowWidth) }
         ) {
             composable(Routes.INDEX) {
                 IndexScreen(navController)
             }
             composable(Routes.BLUETOOTH) {
-                BluetoothScreen(navController)
+                BluetoothScreen(navController, shellViewModel)
             }
             composable(Routes.FETCH) {
                 PlaceholderScreen("截图同步（局域网）", "WiFi 传输功能开发中", navController)
@@ -65,8 +65,8 @@ fun ShellScreen() {
                 PlaceholderScreen("远程终端", "远程终端功能开发中", navController)
             }
             composable(Routes.SCREENSHOT_DETAIL) { backStackEntry ->
-                val number = backStackEntry.arguments?.getString("number") ?: "9"
-                ScreenshotDetailScreen(number, navController)
+                val shotId = backStackEntry.arguments?.getString("shotId") ?: "9"
+                ScreenshotDetailScreen(shotId, navController, shellViewModel)
             }
             composable(Routes.ABOUT) {
                 AboutScreen(navController)
