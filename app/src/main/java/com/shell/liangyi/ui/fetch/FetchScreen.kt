@@ -189,18 +189,18 @@ private fun StatusCard(isConnected: Boolean, isBusy: Boolean, progress: String =
 
 @Composable
 private fun ActionButton(text: String, enabled: Boolean, onClick: () -> Unit) {
-    Surface(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 10.dp)
-            .height(52.dp),
-        shape = RoundedCornerShape(15.dp),
-        color = if (enabled) Color(0xFF3482FF) else Color(0xFF9E9E9E),
-        onClick = { onClick() },
-        enabled = enabled,
+            .height(52.dp)
+            .clip(RoundedCornerShape(15.dp))
     ) {
         Box(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .background(if (enabled) Color(0xFF3482FF) else Color(0xFF9E9E9E))
+                .clickable(enabled = enabled, onClick = onClick),
             contentAlignment = Alignment.Center
         ) {
             Text(
