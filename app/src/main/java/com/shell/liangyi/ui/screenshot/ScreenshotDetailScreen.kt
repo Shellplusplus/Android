@@ -93,8 +93,7 @@ fun ScreenshotDetailScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 48.dp)
-                        .heightIn(max = 400.dp)
-                        .background(shellColors.previewBackground),
+                        .heightIn(max = 400.dp),
                     contentAlignment = Alignment.Center
                 ) {
                 if (resolvedPath != null && File(resolvedPath).exists()) {
