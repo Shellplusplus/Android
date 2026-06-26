@@ -125,12 +125,6 @@ fun ScreenshotDetailScreen(
                                     }
                                 }
                             )
-                            Image(
-                                painter = painterResource(id = frameRes),
-                                contentDescription = null,
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Fit
-                            )
                         }
                     } else if (shot != null && !shot.isComplete) {
                         Text(
