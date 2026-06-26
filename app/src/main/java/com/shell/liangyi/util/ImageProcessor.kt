@@ -7,31 +7,42 @@ import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
 import android.graphics.RectF
+import java.io.File
 import java.io.FileOutputStream
 
 object ImageProcessor {
 
-    fun addRoundedCorners(inputPath: String, outputPath: String, radiusPx: Float): Boolean {
+    private const val CORNER_RADIUS_PX = 48f
+
+    fun compositeWithFrame(screenshotPath: String, framePath: String, outputPath: String): Boolean {
         return try {
-            val src = BitmapFactory.decodeFile(inputPath) ?: return false
-            val w = src.width
-            val h = src.height
-
-            val result = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-            val canvas = Canvas(result)
-
-            val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-            val rect = RectF(0f, 0f, w.toFloat(), h.toFloat())
-            canvas.drawRoundRect(rect, radiusPx, radiusPx, paint)
-
-            paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
-            canvas.drawBitmap(src, 0f, 0f, paint)
-
-            FileOutputStream(outputPath).use { out ->
-                result.compress(Bitmap.CompressFormat.PNG, 100, out)
+            val src = BitmapFactory.decodeFile(screenshotPath) ?: return false
+            val frame = BitmapFactory.decodeFile(framePath) ?: run {
+                src.recycle()
+                return false
             }
 
+            val canvasW = frame.width
+            val canvasH = frame.height
+
+            val result = Bitmap.createBitmap(canvasW, canvasH, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(result)
+
+            val rounded = addRoundedCornersToBitmap(src, CORNER_RADIUS_PX)
             src.recycle()
+
+            val offsetX = (canvasW - rounded.width) / 2f
+            val offsetY = (canvasH - rounded.height) / 2f
+            canvas.drawBitmap(rounded, offsetX, offsetY, null)
+            rounded.recycle()
+
+            canvas.drawBitmap(frame, 0f, 0f, null)
+            frame.recycle()
+
+            val out = FileOutputStream(outputPath)
+            result.compress(Bitmap.CompressFormat.PNG, 100, out)
+            out.flush()
+            out.close()
             result.recycle()
             true
         } catch (e: Exception) {
@@ -39,35 +50,17 @@ object ImageProcessor {
         }
     }
 
-    fun compositeWithFrame(screenshotPath: String, framePath: String, outputPath: String): Boolean {
-        return try {
-            val screenshot = BitmapFactory.decodeFile(screenshotPath) ?: return false
-            val frameRaw = BitmapFactory.decodeFile(framePath) ?: run {
-                screenshot.recycle()
-                return false
-            }
+    private fun addRoundedCornersToBitmap(src: Bitmap, radiusPx: Float): Bitmap {
+        val w = src.width
+        val h = src.height
+        val result = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(result)
 
-            val sw = screenshot.width
-            val sh = screenshot.height
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        canvas.drawRoundRect(RectF(0f, 0f, w.toFloat(), h.toFloat()), radiusPx, radiusPx, paint)
 
-            val frame = Bitmap.createScaledBitmap(frameRaw, sw, sh, true)
-            if (frame !== frameRaw) frameRaw.recycle()
-
-            val result = Bitmap.createBitmap(sw, sh, Bitmap.Config.ARGB_8888)
-            val canvas = Canvas(result)
-            canvas.drawBitmap(screenshot, 0f, 0f, null)
-            canvas.drawBitmap(frame, 0f, 0f, null)
-
-            FileOutputStream(outputPath).use { out ->
-                result.compress(Bitmap.CompressFormat.PNG, 100, out)
-            }
-
-            screenshot.recycle()
-            frame.recycle()
-            result.recycle()
-            true
-        } catch (e: Exception) {
-            false
-        }
+        paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
+        canvas.drawBitmap(src, 0f, 0f, paint)
+        return result
     }
 }
