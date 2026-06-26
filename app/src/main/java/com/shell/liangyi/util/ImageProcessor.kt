@@ -46,13 +46,13 @@ object ImageProcessor {
             val rounded = addRoundedCornersToBitmap(src, CORNER_RADIUS_PX)
             src.recycle()
 
+            canvas.drawBitmap(frame, 0f, 0f, null)
+            frame.recycle()
+
             val offsetX = (canvasW - rounded.width) / 2f
             val offsetY = (canvasH - rounded.height) / 2f
             canvas.drawBitmap(rounded, offsetX, offsetY, null)
             rounded.recycle()
-
-            canvas.drawBitmap(frame, 0f, 0f, null)
-            frame.recycle()
 
             val out = FileOutputStream(outputPath)
             result.compress(Bitmap.CompressFormat.PNG, 100, out)
