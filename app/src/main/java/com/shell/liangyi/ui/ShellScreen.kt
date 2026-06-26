@@ -19,6 +19,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import android.net.Uri
 import androidx.navigation.compose.rememberNavController
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -67,7 +68,8 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
                 PlaceholderScreen("远程终端", "远程终端功能开发中", navController)
             }
             composable(Routes.SCREENSHOT_DETAIL) { backStackEntry ->
-                val shotId = backStackEntry.arguments?.getString("shotId") ?: "9"
+                val rawShotId = backStackEntry.arguments?.getString("shotId") ?: "0"
+                val shotId = Uri.decode(rawShotId)
                 ScreenshotDetailScreen(shotId, navController, shellViewModel)
             }
             composable(Routes.ABOUT) {

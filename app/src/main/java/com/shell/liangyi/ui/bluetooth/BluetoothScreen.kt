@@ -14,6 +14,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.net.Uri
 import androidx.navigation.NavHostController
 import com.shell.liangyi.core.ConnectionState
 import com.shell.liangyi.core.ScreenshotReceiver
@@ -96,7 +97,7 @@ fun BluetoothScreen(
                         ScreenshotCard(
                             shot = shot,
                             modifier = Modifier.weight(1f),
-                            onClick = { navController.navigate(Routes.screenshotDetail(shot.shotId)) }
+                            onClick = { navController.navigate(Routes.screenshotDetail(Uri.encode(shot.shotId))) }
                         )
                     }
                     if (previewShots.size == 1) Spacer(modifier = Modifier.weight(1f))
