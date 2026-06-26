@@ -51,12 +51,15 @@ fun HyperOSBackground(modifier: Modifier = Modifier) {
     val isDark = isSystemInDarkTheme()
     val colors = remember(isDark) { if (isDark) DARK_COLORS else LIGHT_COLORS }
 
+    val colorPeriod = remember(isDark) { if (isDark) 8f else 5f }
+    val pointOffset = remember(isDark) { if (isDark) 0.4f else 0.2f }
+
     val transition = rememberInfiniteTransition(label = "hyperos_bg")
     val time by transition.animateFloat(
         initialValue = 0f,
-        targetValue = 100f,
+        targetValue = 62.83f,
         animationSpec = infiniteRepeatable(
-            animation = tween(60000, easing = LinearEasing),
+            animation = tween(15000, easing = LinearEasing),
             repeatMode = RepeatMode.Restart,
         ),
         label = "hyperos_time",
@@ -65,13 +68,11 @@ fun HyperOSBackground(modifier: Modifier = Modifier) {
         initialValue = 0f,
         targetValue = 3f,
         animationSpec = infiniteRepeatable(
-            animation = tween(15000, easing = LinearEasing),
+            animation = tween((colorPeriod * 2500 * 4 / 3).toInt(), easing = LinearEasing),
             repeatMode = RepeatMode.Restart,
         ),
         label = "hyperos_stage",
     )
-
-    val offset = remember(isDark) { if (isDark) 0.3f else 0.15f }
 
     Canvas(modifier = modifier.fillMaxSize()) {
         val w = size.width
@@ -83,8 +84,8 @@ fun HyperOSBackground(modifier: Modifier = Modifier) {
         val endColors = colors[(stageIdx + 1) % 3]
 
         BLOB_CONFIGS.forEachIndexed { i, cfg ->
-            val cx = (cfg.baseX + sin(time * 0.08f + cfg.phaseX) * offset) * w
-            val cy = (cfg.baseY + cos(time * 0.08f + cfg.phaseY) * offset) * h
+            val cx = (cfg.baseX + sin(time + cfg.phaseX) * pointOffset) * w
+            val cy = (cfg.baseY + cos(time + cfg.phaseY) * pointOffset) * h
             val r = cfg.radius * maxOf(w, h)
 
             val baseColor = lerpColor(startColors[i], endColors[i], stageFrac)
