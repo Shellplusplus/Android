@@ -20,7 +20,7 @@ fun IndexScreen(navController: NavHostController) {
     val colors = MiuixTheme.colorScheme
 
     Scaffold(
-        containerColor = colors.background
+        containerColor = colors.surface
     ) {
         Column(
             modifier = Modifier
@@ -80,7 +80,7 @@ private fun MenuItem(title: String, onClick: () -> Unit) {
             .padding(vertical = 6.dp)
             .clickable(onClick = onClick),
         colors = CardColors(
-            color = colors.surface,
+            color = colors.background,
             contentColor = colors.onSurface
         ),
         cornerRadius = 16.dp
