@@ -13,6 +13,10 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.Image
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import com.shell.liangyi.R
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -32,11 +36,11 @@ fun ScreenshotDetailScreen(
             Spacer(modifier = Modifier.height(43.dp))
             Row(modifier = Modifier.fillMaxWidth()) {
                 Spacer(modifier = Modifier.width(29.dp))
-                Text(
-                    text = "←",
-                    modifier = Modifier.clickable(onClick = onBack),
-                    fontSize = 13.sp,
-                    color = colors.onSurface
+                Image(
+                    painter = painterResource(id = R.drawable.back_arrow),
+                    contentDescription = "Back",
+                    modifier = Modifier.size(18.dp, 13.dp).clickable(onClick = onBack),
+                    contentScale = ContentScale.Fit
                 )
             }
 

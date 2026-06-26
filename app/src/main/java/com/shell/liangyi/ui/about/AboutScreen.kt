@@ -34,11 +34,11 @@ fun AboutScreen(
             Spacer(modifier = Modifier.height(43.dp))
             Row(modifier = Modifier.fillMaxWidth()) {
                 Spacer(modifier = Modifier.width(29.dp))
-                Text(
-                    text = "←",
-                    modifier = Modifier.clickable(onClick = onBack),
-                    fontSize = 13.sp,
-                    color = colors.onSurface
+                Image(
+                    painter = painterResource(id = R.drawable.back_arrow),
+                    contentDescription = "Back",
+                    modifier = Modifier.size(18.dp, 13.dp).clickable(onClick = onBack),
+                    contentScale = ContentScale.Fit
                 )
             }
 

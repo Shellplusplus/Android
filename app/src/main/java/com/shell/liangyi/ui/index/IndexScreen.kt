@@ -15,6 +15,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.shell.liangyi.R
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
@@ -31,7 +32,7 @@ fun IndexScreen(
 
     Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
         Image(
-            painter = painterResource(id = android.R.drawable.ic_menu_manage),
+            painter = painterResource(id = android.R.drawable.ic_menu_preferences),
             contentDescription = "Settings",
             modifier = Modifier
                 .align(Alignment.TopEnd)
@@ -91,7 +92,7 @@ private fun MenuCard(title: String, onClick: () -> Unit) {
                 fontFamily = FontFamily.Default,
                 color = colors.onSurface
             )
-            Text(text = "›", fontSize = 11.sp, color = Color(0xFF9E9E9E))
+            Image(painter = painterResource(id = R.drawable.arrow_right), contentDescription = null, modifier = Modifier.size(7.dp, 12.dp))
         }
     }
 }
