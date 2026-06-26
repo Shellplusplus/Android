@@ -124,7 +124,6 @@ private fun DeveloperCard() {
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp)
-            .height(200.dp)
             .clip(RoundedCornerShape(15.dp))
             .background(shellColors.cardBackground)
     ) {
