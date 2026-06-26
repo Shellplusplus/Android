@@ -43,12 +43,10 @@ fun IndexScreen(navController: NavHostController) {
                 title = "截图同步（局域网）",
                 onClick = { navController.navigate(Routes.FETCH) }
             )
-            Spacer(modifier = Modifier.height(9.dp))
             MenuItem(
                 title = "远程终端",
                 onClick = { navController.navigate(Routes.TERMINAL) }
             )
-            Spacer(modifier = Modifier.height(10.dp))
             MenuItem(
                 title = "关于",
                 onClick = { navController.navigate(Routes.ABOUT) }
@@ -64,7 +62,7 @@ private fun MenuItem(title: String, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 6.dp)
+            .padding(vertical = 7.dp)
             .clickable(onClick = onClick),
         colors = CardColors(
             color = colors.background,
