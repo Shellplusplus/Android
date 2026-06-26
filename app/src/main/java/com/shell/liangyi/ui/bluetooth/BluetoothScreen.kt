@@ -35,6 +35,7 @@ fun BluetoothScreen(
     val connectionState by shellViewModel.connectionState.collectAsState(initial = ConnectionState.DISCONNECTED)
     val screenshots by shellViewModel.screenshots.collectAsState()
     val syncState by shellViewModel.syncState.collectAsState(initial = ScreenshotReceiver.SyncState.Idle)
+    val progress by shellViewModel.receiveProgress.collectAsState(initial = "")
     val isConnected = connectionState == ConnectionState.CONNECTED
     val isBusy = syncState is ScreenshotReceiver.SyncState.Receiving || syncState is ScreenshotReceiver.SyncState.WaitingAck
 
@@ -65,7 +66,7 @@ fun BluetoothScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             // 连接状态卡片
-            StatusCard(isConnected = isConnected, isBusy = isBusy)
+            StatusCard(isConnected = isConnected, isBusy = isBusy, progress = progress)
 
             // 截图列表
             if (screenshots.isNotEmpty()) {
@@ -126,7 +127,7 @@ fun BluetoothScreen(
 }
 
 @Composable
-private fun StatusCard(isConnected: Boolean, isBusy: Boolean) {
+private fun StatusCard(isConnected: Boolean, isBusy: Boolean, progress: String = "") {
     val colors = MiuixTheme.colorScheme
     val dotColor = when {
         isBusy -> Color(0xFFFFA500) // 橙色：同步中
@@ -139,32 +140,44 @@ private fun StatusCard(isConnected: Boolean, isBusy: Boolean) {
         else -> "设备端快应用未连接"
     }
 
+    val cardHeight = if (isBusy && progress.isNotEmpty()) 80.dp else 56.dp
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 11.dp)
-            .height(56.dp)
+            .height(cardHeight)
             .clip(RoundedCornerShape(15.dp))
             .background(colors.surface)
     ) {
-        Row(
-            modifier = Modifier.fillMaxSize().padding(start = 13.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier.fillMaxSize().padding(start = 13.dp, end = 13.dp, top = 12.dp, bottom = 12.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .size(10.dp)
-                    .clip(CircleShape)
-                    .background(dotColor)
-            )
-            Spacer(modifier = Modifier.width(13.dp))
-            Text(
-                text = statusText,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Medium,
-                fontFamily = FontFamily.Default,
-                color = colors.onSurface
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .clip(CircleShape)
+                        .background(dotColor)
+                )
+                Spacer(modifier = Modifier.width(13.dp))
+                Text(
+                    text = statusText,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                    fontFamily = FontFamily.Default,
+                    color = colors.onSurface
+                )
+            }
+            if (isBusy && progress.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = progress,
+                    modifier = Modifier.padding(start = 23.dp),
+                    fontSize = 12.sp,
+                    color = colors.onSurface.copy(alpha = 0.6f)
+                )
+            }
         }
     }
 }
