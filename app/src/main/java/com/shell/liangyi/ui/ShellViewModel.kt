@@ -21,7 +21,10 @@ class ShellViewModel : ViewModel() {
     lateinit var screenshotReceiver: ScreenshotReceiver
         private set
 
+    private var appCtx: Context? = null
+
     fun initialize(context: Context) {
+        appCtx = context
         wearMessageCenter = WearMessageCenter.getInstance(context)
         wearMessageCenter.initialize()
         screenshotReceiver = ScreenshotReceiver(context, scope)
@@ -51,6 +54,8 @@ class ShellViewModel : ViewModel() {
     fun requestFromWatch() = screenshotReceiver.requestFromWatch()
     fun requestScreenshot(shotId: String) = screenshotReceiver.requestScreenshot(shotId)
     fun deleteScreenshot(shotId: String) = screenshotReceiver.deleteScreenshot(shotId)
+    fun appContext(): Context = appCtx!!
+
     fun clearAll() = screenshotReceiver.clearAll()
 
     override fun onCleared() {

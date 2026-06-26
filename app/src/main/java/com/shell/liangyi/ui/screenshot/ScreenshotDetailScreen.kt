@@ -1,7 +1,5 @@
 package com.shell.liangyi.ui.screenshot
 
-import android.graphics.BitmapFactory
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -11,14 +9,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
-import com.shell.liangyi.R
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.shell.liangyi.model.Screenshot
 import com.shell.liangyi.ui.ShellViewModel
 import top.yukonga.miuix.kmp.basic.Text
@@ -34,16 +32,6 @@ fun ScreenshotDetailScreen(
     val colors = MiuixTheme.colorScheme
     val screenshots by shellViewModel.screenshots.collectAsState()
     val shot = screenshots.find { it.shotId == shotId }
-
-    // 加载本地图片
-    val bitmap = remember(shot?.localFilePath) {
-        shot?.localFilePath?.let { path ->
-            val file = File(path)
-            if (file.exists()) {
-                try { BitmapFactory.decodeFile(path)?.asImageBitmap() } catch (_: Exception) { null }
-            } else null
-        }
-    }
 
     Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -78,7 +66,7 @@ fun ScreenshotDetailScreen(
                 )
             }
 
-            // 截图预览
+            // 截图预览 — 使用 Coil 加载本地文件
             Spacer(modifier = Modifier.height(16.dp))
             Box(
                 modifier = Modifier
@@ -89,22 +77,26 @@ fun ScreenshotDetailScreen(
                     .background(Color(0xFF3D3D3D)),
                 contentAlignment = Alignment.Center
             ) {
-                if (bitmap != null) {
-                    Image(
-                        bitmap = bitmap,
+                val localPath = shot?.localFilePath
+                if (!localPath.isNullOrEmpty() && File(localPath).exists()) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(shellViewModel.appContext())
+                            .data(File(localPath))
+                            .crossfade(true)
+                            .build(),
                         contentDescription = "截图预览",
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Fit
                     )
-                } else if (shot?.isComplete == false) {
+                } else if (shot != null && !shot.isComplete) {
                     Text(
-                        text = "${shot.receivedChunks ?: 0}/${shot.totalChunks ?: 0}",
+                        text = "${shot.receivedChunks}/${shot.totalChunks}",
                         fontSize = 14.sp,
                         color = Color.White
                     )
                 } else {
                     Text(
-                        text = "暂无预览",
+                        text = if (localPath.isNullOrEmpty()) "无本地文件" else "文件不存在",
                         fontSize = 14.sp,
                         color = Color(0x80FFFFFF)
                     )
@@ -117,7 +109,7 @@ fun ScreenshotDetailScreen(
             ActionButton(
                 text = "保存到相册",
                 color = Color(0xFF3482FF),
-                enabled = bitmap != null,
+                enabled = shot?.localFilePath?.let { File(it).exists() } == true,
                 onClick = { /* TODO: 保存到相册 */ }
             )
             Spacer(modifier = Modifier.height(8.dp))
