@@ -21,7 +21,10 @@ import com.shell.liangyi.core.ScreenshotReceiver
 import com.shell.liangyi.model.Screenshot
 import com.shell.liangyi.ui.Routes
 import com.shell.liangyi.ui.ShellViewModel
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import top.yukonga.miuix.kmp.basic.Text
+import androidx.compose.ui.layout.ContentScale
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 // Scale: Figma 1080px → 360dp (÷3)
@@ -97,10 +100,13 @@ fun BluetoothScreen(
                         ScreenshotCard(
                             shot = shot,
                             modifier = Modifier.weight(1f),
-                            onClick = { navController.navigate(Routes.screenshotDetail(Uri.encode(shot.shotId))) }
+                            onClick = { navController.navigate(Routes.screenshotDetail(Uri.encode(shot.shotId))) },
+                            shellViewModel = shellViewModel
                         )
                     }
-                    if (previewShots.size == 1) Spacer(modifier = Modifier.weight(1f))
+                    if (previewShots.size == 1) {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
                 }
             } else {
                 Box(
@@ -203,9 +209,10 @@ private fun ActionButton(text: String, enabled: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ScreenshotCard(shot: Screenshot, modifier: Modifier, onClick: () -> Unit) {
+private fun ScreenshotCard(shot: Screenshot, modifier: Modifier, onClick: () -> Unit, shellViewModel: ShellViewModel) {
     val colors = MiuixTheme.colorScheme
 
+    val previewPath = remember(shot.shotId) { shellViewModel.getScreenshotFilePath(shot.shotId) }
     Box(
         modifier = modifier
             .height(214.dp)
@@ -221,8 +228,21 @@ private fun ScreenshotCard(shot: Screenshot, modifier: Modifier, onClick: () -> 
                 .width(112.dp)
                 .height(160.dp)
                 .clip(RoundedCornerShape(16.dp))
-                .background(Color(0xFF3D3D3D))
-        )
+                .background(Color(0xFF3D3D3D)),
+            contentAlignment = Alignment.Center
+        ) {
+            if (previewPath != null) {
+                AsyncImage(
+                    model = ImageRequest.Builder(shellViewModel.appContext())
+                        .data(java.io.File(previewPath))
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            }
+        }
         Text(
             text = "#${shot.index}",
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 18.dp),
