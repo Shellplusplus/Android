@@ -1,6 +1,7 @@
 package com.shell.liangyi.ui.screenshot
 
 import android.graphics.drawable.BitmapDrawable
+import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -25,6 +26,7 @@ import coil.size.Size
 import com.shell.liangyi.R
 import com.shell.liangyi.ui.ShellViewModel
 import com.shell.liangyi.ui.theme.ShellTheme
+import com.shell.liangyi.util.GallerySaver
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.io.File
@@ -54,6 +56,7 @@ fun ScreenshotDetailScreen(
 
     var imgNatW by remember { mutableIntStateOf(0) }
     var imgNatH by remember { mutableIntStateOf(0) }
+    val gallerySaver = remember { GallerySaver(shellViewModel.appContext()) }
 
     val frameRes = remember(imgNatW, imgNatH) {
         if (imgNatW <= 0 || imgNatH <= 0) R.drawable.frame_336
@@ -148,7 +151,17 @@ fun ScreenshotDetailScreen(
                 text = "保存到相册",
                 color = shellColors.primaryAction,
                 enabled = resolvedPath != null,
-                onClick = { /* TODO: 保存到相册 */ }
+                onClick = {
+                    if (resolvedPath != null) {
+                        val fileName = "Shell++_${shot?.index ?: System.currentTimeMillis()}"
+                        val ok = gallerySaver.saveFileToGallery(resolvedPath, fileName)
+                        Toast.makeText(
+                            shellViewModel.appContext(),
+                            if (ok) "已保存到相册" else "保存失败",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
             )
             Spacer(modifier = Modifier.height(8.dp))
 
