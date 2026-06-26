@@ -32,7 +32,7 @@ fun IndexScreen(
 
     Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
         Image(
-            painter = painterResource(id = android.R.drawable.ic_menu_preferences),
+            painter = painterResource(id = R.drawable.setting),
             contentDescription = "Settings",
             modifier = Modifier
                 .align(Alignment.TopEnd)

@@ -35,7 +35,7 @@ fun AboutScreen(
             Row(modifier = Modifier.fillMaxWidth()) {
                 Spacer(modifier = Modifier.width(29.dp))
                 Image(
-                    painter = painterResource(id = R.drawable.back_arrow),
+                    painter = painterResource(id = R.drawable.back),
                     contentDescription = "Back",
                     modifier = Modifier.size(18.dp, 13.dp).clickable(onClick = onBack),
                     contentScale = ContentScale.Fit
