@@ -2,16 +2,17 @@ package com.shell.liangyi.ui.fetch
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -190,28 +191,29 @@ private fun StatusCard(isConnected: Boolean, isBusy: Boolean, progress: String =
 
 @Composable
 private fun ActionButton(text: String, enabled: Boolean, onClick: () -> Unit) {
+    val interactionSource = remember { MutableInteractionSource() }
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 10.dp)
             .height(52.dp)
-            .graphicsLayer(shape = RoundedCornerShape(15.dp), clip = true)
+            .clip(RoundedCornerShape(15.dp))
+            .background(if (enabled) Color(0xFF3482FF) else Color(0xFF9E9E9E))
+            .clickable(
+                enabled = enabled,
+                indication = null,
+                interactionSource = interactionSource,
+                onClick = onClick
+            ),
+        contentAlignment = Alignment.Center
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(if (enabled) Color(0xFF3482FF) else Color(0xFF9E9E9E))
-                .clickable(enabled = enabled, onClick = onClick),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = text,
-                fontSize = 17.sp,
-                fontWeight = FontWeight.Medium,
-                fontFamily = FontFamily.Default,
-                color = Color.White
-            )
-        }
+        Text(
+            text = text,
+            fontSize = 17.sp,
+            fontWeight = FontWeight.Medium,
+            fontFamily = FontFamily.Default,
+            color = Color.White
+        )
     }
 }
 
