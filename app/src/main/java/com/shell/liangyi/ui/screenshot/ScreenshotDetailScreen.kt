@@ -1,8 +1,8 @@
 package com.shell.liangyi.ui.screenshot
 
-import androidx.compose.foundation.BorderStroke
+import android.graphics.drawable.BitmapDrawable
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -21,13 +22,12 @@ import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import coil.size.Size
+import com.shell.liangyi.R
 import com.shell.liangyi.ui.ShellViewModel
 import com.shell.liangyi.ui.theme.ShellTheme
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.io.File
-
-private val FRAME_SHAPE = RoundedCornerShape(48.dp)
 
 @Composable
 fun ScreenshotDetailScreen(
@@ -49,6 +49,17 @@ fun ScreenshotDetailScreen(
                 val candidate = File(dir, "${safeKey}.png")
                 if (candidate.exists()) candidate.absolutePath else null
             }
+        }
+    }
+
+    var imgNatW by remember { mutableIntStateOf(0) }
+    var imgNatH by remember { mutableIntStateOf(0) }
+
+    val frameRes = remember(imgNatW, imgNatH) {
+        if (imgNatW <= 0 || imgNatH <= 0) R.drawable.frame_336
+        else {
+            val ratio = imgNatW.toFloat() / imgNatH
+            if (ratio < 0.75f) R.drawable.frame_336 else R.drawable.frame_504
         }
     }
 
@@ -105,15 +116,20 @@ fun ScreenshotDetailScreen(
                                     .build(),
                                 contentDescription = "截图预览",
                                 modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Fit
+                                contentScale = ContentScale.Fit,
+                                onSuccess = {
+                                    val bmp = (it.result.drawable as? BitmapDrawable)?.bitmap
+                                    if (bmp != null) {
+                                        imgNatW = bmp.width
+                                        imgNatH = bmp.height
+                                    }
+                                }
                             )
-                            Box(
-                                modifier = Modifier
-                                    .matchParentSize()
-                                    .border(
-                                        BorderStroke(7.dp, shellColors.pageBackground),
-                                        FRAME_SHAPE
-                                    )
+                            Image(
+                                painter = painterResource(id = frameRes),
+                                contentDescription = null,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Fit
                             )
                         }
                     } else if (shot != null && !shot.isComplete) {
