@@ -24,15 +24,17 @@ fun IndexScreen(navController: NavHostController) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 16.dp)
+                .padding(horizontal = 13.dp)
         ) {
             // 标题
             Text(
                 text = "Shell++",
                 style = MiuixTheme.textStyles.title1,
                 color = colors.onBackground,
-                modifier = Modifier.padding(top = 82.dp, bottom = 24.dp)
+                modifier = Modifier.padding(start = 5.dp, top = 82.dp, bottom = 24.dp)
             )
+
+            Spacer(modifier = Modifier.height(17.dp))
 
             // 列表项
             MenuItem(
