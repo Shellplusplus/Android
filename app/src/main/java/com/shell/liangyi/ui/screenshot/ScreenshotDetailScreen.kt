@@ -109,7 +109,7 @@ fun ScreenshotDetailScreen(
                     )
                 } else {
                     Text(
-                        text = "未下载截图中…",
+                        text = "暂无预览",
                         fontSize = 14.sp,
                         color = Color(0x80FFFFFF)
                     )

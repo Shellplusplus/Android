@@ -56,6 +56,13 @@ class ShellViewModel : ViewModel() {
     fun deleteScreenshot(shotId: String) = screenshotReceiver.deleteScreenshot(shotId)
     fun appContext(): Context = appCtx!!
 
+    fun getScreenshotFilePath(shotId: String): String? {
+        val safe = shotId.replace(Regex("[^A-Za-z0-9._-]"), "_")
+        val hash = shotId.hashCode().toUInt().toString(16)
+        val file = java.io.File(appCtx!!.filesDir, "screenshot_sync/${safe}_$hash.png")
+        return if (file.exists()) file.absolutePath else null
+    }
+
     fun clearAll() = screenshotReceiver.clearAll()
 
     override fun onCleared() {
