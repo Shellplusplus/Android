@@ -1,7 +1,8 @@
 package com.shell.liangyi.ui.screenshot
 
-import android.graphics.drawable.BitmapDrawable
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -12,7 +13,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -26,6 +26,8 @@ import com.shell.liangyi.ui.theme.ShellTheme
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.io.File
+
+private val FRAME_SHAPE = RoundedCornerShape(48.dp)
 
 @Composable
 fun ScreenshotDetailScreen(
@@ -49,10 +51,6 @@ fun ScreenshotDetailScreen(
             }
         }
     }
-
-    val density = LocalDensity.current
-    var imgNatW by remember { mutableIntStateOf(0) }
-    var imgNatH by remember { mutableIntStateOf(0) }
 
     Box(modifier = Modifier.fillMaxSize().background(shellColors.pageBackground)) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -86,47 +84,38 @@ fun ScreenshotDetailScreen(
             }
 
             Spacer(modifier = Modifier.height(16.dp))
-            BoxWithConstraints(
+            Box(
                 modifier = Modifier.fillMaxWidth(),
                 contentAlignment = Alignment.Center
             ) {
-                val containerW = with(density) { (maxWidth - 96.dp).toPx() }
-                val containerH = with(density) { 400.dp.toPx() }
-
-                val radius = if (imgNatW > 0 && imgNatH > 0) {
-                    val scaleW = containerW / imgNatW
-                    val scaleH = containerH / imgNatH
-                    val scale = minOf(scaleW, scaleH, 1f)
-                    val displayedW = imgNatW * scale
-                    with(density) { (48f * displayedW / 336f).toDp() }
-                } else 16.dp
-
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 48.dp)
-                        .heightIn(max = 400.dp)
-                        .clip(RoundedCornerShape(radius)),
+                        .heightIn(max = 400.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     if (resolvedPath != null && File(resolvedPath).exists()) {
-                        AsyncImage(
-                            model = ImageRequest.Builder(shellViewModel.appContext())
-                                .data(File(resolvedPath))
-                                .size(Size.ORIGINAL)
-                                .crossfade(true)
-                                .build(),
-                            contentDescription = "截图预览",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Fit,
-                            onSuccess = {
-                                val bmp = (it.result.drawable as? BitmapDrawable)?.bitmap
-                                if (bmp != null) {
-                                    imgNatW = bmp.width
-                                    imgNatH = bmp.height
-                                }
-                            }
-                        )
+                        Box {
+                            AsyncImage(
+                                model = ImageRequest.Builder(shellViewModel.appContext())
+                                    .data(File(resolvedPath))
+                                    .size(Size.ORIGINAL)
+                                    .crossfade(true)
+                                    .build(),
+                                contentDescription = "截图预览",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Fit
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .matchParentSize()
+                                    .border(
+                                        BorderStroke(7.dp, shellColors.pageBackground),
+                                        FRAME_SHAPE
+                                    )
+                            )
+                        }
                     } else if (shot != null && !shot.isComplete) {
                         Text(
                             text = "传输中 ${shot.receivedChunks}/${shot.totalChunks}",
