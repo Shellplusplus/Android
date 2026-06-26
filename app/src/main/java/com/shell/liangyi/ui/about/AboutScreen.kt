@@ -17,7 +17,7 @@ import androidx.compose.ui.unit.sp
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-// Design Tokens (Figma: MIUIX/About, 1080×2340)
+// Scale: Figma 1080px → 360dp (÷3)
 
 @Composable
 fun AboutScreen(
@@ -27,79 +27,76 @@ fun AboutScreen(
 
     Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Back arrow — (88, 128.5)
-            Spacer(modifier = Modifier.height(128.dp))
+            Spacer(modifier = Modifier.height(43.dp))
             Row(modifier = Modifier.fillMaxWidth()) {
-                Spacer(modifier = Modifier.width(88.dp))
+                Spacer(modifier = Modifier.width(29.dp))
                 Text(
                     text = "←",
                     modifier = Modifier.clickable(onClick = onBack),
-                    fontSize = 38.sp,
+                    fontSize = 13.sp,
                     color = colors.onSurface
                 )
             }
 
-            // Title "关于" — (79, 230)
-            Spacer(modifier = Modifier.height(64.dp))
+            Spacer(modifier = Modifier.height(21.dp))
             Row(modifier = Modifier.fillMaxWidth()) {
-                Spacer(modifier = Modifier.width(79.dp))
+                Spacer(modifier = Modifier.width(26.dp))
                 Text(
                     text = "关于",
-                    modifier = Modifier.width(180.dp).height(126.dp),
-                    fontSize = 90.sp,
+                    modifier = Modifier.width(60.dp).height(42.dp),
+                    fontSize = 30.sp,
                     fontWeight = FontWeight.Normal,
                     fontFamily = FontFamily.Default,
                     color = colors.onSurface
                 )
             }
 
-            // Cover section — y=391
-            Spacer(modifier = Modifier.height(35.dp))
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Cover
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 36.dp)
-                    .height(512.dp)
-                    .clip(RoundedCornerShape(45.dp))
-                    .background(Color(0xFF3482FF)) // placeholder for cover image
+                    .padding(horizontal = 12.dp)
+                    .height(171.dp)
+                    .clip(RoundedCornerShape(15.dp))
+                    .background(Color(0xFF3482FF))
             ) {
                 Column(
-                    modifier = Modifier.align(Alignment.BottomStart).padding(start = 26.dp, bottom = 26.dp)
+                    modifier = Modifier.align(Alignment.BottomStart).padding(start = 9.dp, bottom = 9.dp)
                 ) {
                     Text(
                         text = "Beta 1",
-                        fontSize = 50.sp,
+                        fontSize = 17.sp,
                         fontWeight = FontWeight.Medium,
                         fontFamily = FontFamily.Default,
-                        color = Color(0x99FFFFFF) // rgba(255,255,255,0.6)
+                        color = Color(0x99FFFFFF)
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(3.dp))
                     Text(
                         text = "Shell++",
-                        fontSize = 120.sp,
-                        fontWeight = FontWeight.Bold, // 700
+                        fontSize = 40.sp,
+                        fontWeight = FontWeight.Bold,
                         fontFamily = FontFamily.Default,
                         color = Color.White
                     )
                 }
             }
 
-            // "开发者" label
-            Spacer(modifier = Modifier.height(42.dp))
+            Spacer(modifier = Modifier.height(14.dp))
             Row(modifier = Modifier.fillMaxWidth()) {
-                Spacer(modifier = Modifier.width(80.dp))
+                Spacer(modifier = Modifier.width(27.dp))
                 Text(
                     text = "开发者",
-                    fontSize = 39.sp,
+                    fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
                     fontFamily = FontFamily.Default,
-                    color = Color(0x66000000) // rgba(0,0,0,0.4)
+                    color = Color(0x66000000)
                 )
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
-            // Developer card — 1013×601
             DeveloperCard()
         }
     }
@@ -109,47 +106,42 @@ fun AboutScreen(
 private fun DeveloperCard() {
     val colors = MiuixTheme.colorScheme
     val devs = listOf(
-        Triple("AzumaChiaki", "Devloper", Color(0xFF9E9E9E)), // placeholder
-        Triple("IKUN-CXKPRO", "Devloper", Color(0xFF9E9E9E)),
-        Triple("梁逸", "Devloper", Color(0xFF9E9E9E))
+        "AzumaChiaki", "IKUN-CXKPRO", "梁逸"
     )
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 36.dp)
-            .height(601.dp)
-            .clip(RoundedCornerShape(45.dp))
+            .padding(horizontal = 12.dp)
+            .height(200.dp)
+            .clip(RoundedCornerShape(15.dp))
             .background(colors.surface)
     ) {
-        Column(modifier = Modifier.padding(start = 47.dp, top = 46.dp)) {
-            devs.forEachIndexed { index, (name, role, roleColor) ->
-                if (index > 0) {
-                    Spacer(modifier = Modifier.height(26.dp))
-                }
+        Column(modifier = Modifier.padding(start = 16.dp, top = 15.dp)) {
+            devs.forEachIndexed { i, name ->
+                if (i > 0) Spacer(modifier = Modifier.height(9.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    // Avatar placeholder
                     Box(
                         modifier = Modifier
-                            .size(110.dp)
+                            .size(37.dp)
                             .clip(CircleShape)
                             .background(Color(0xFFE0E0E0))
                     )
-                    Spacer(modifier = Modifier.width(41.dp))
+                    Spacer(modifier = Modifier.width(14.dp))
                     Column {
                         Text(
                             text = name,
-                            fontSize = 44.sp,
+                            fontSize = 15.sp,
                             fontWeight = FontWeight.Medium,
                             fontFamily = FontFamily.Default,
                             color = colors.onSurface
                         )
                         Text(
-                            text = role,
-                            fontSize = 40.sp,
+                            text = "Devloper",
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Normal,
                             fontFamily = FontFamily.Default,
-                            color = roleColor
+                            color = Color(0xFF9E9E9E)
                         )
                     }
                 }

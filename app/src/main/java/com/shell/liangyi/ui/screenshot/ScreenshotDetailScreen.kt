@@ -16,7 +16,7 @@ import androidx.compose.ui.unit.sp
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-// Design Tokens (Figma: MIUIX/bule #9 detail, 1080×2340)
+// Scale: Figma 1080px → 360dp (÷3)
 
 @Composable
 fun ScreenshotDetailScreen(
@@ -29,62 +29,46 @@ fun ScreenshotDetailScreen(
 
     Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Back arrow — (88, 128.5)
-            Spacer(modifier = Modifier.height(128.dp))
+            Spacer(modifier = Modifier.height(43.dp))
             Row(modifier = Modifier.fillMaxWidth()) {
-                Spacer(modifier = Modifier.width(88.dp))
+                Spacer(modifier = Modifier.width(29.dp))
                 Text(
                     text = "←",
                     modifier = Modifier.clickable(onClick = onBack),
-                    fontSize = 38.sp,
+                    fontSize = 13.sp,
                     color = colors.onSurface
                 )
             }
 
-            // Title "#9" — (79, 230)
-            Spacer(modifier = Modifier.height(64.dp))
+            Spacer(modifier = Modifier.height(21.dp))
             Row(modifier = Modifier.fillMaxWidth()) {
-                Spacer(modifier = Modifier.width(79.dp))
+                Spacer(modifier = Modifier.width(26.dp))
                 Text(
                     text = "#$screenshotNumber",
-                    modifier = Modifier.width(113.dp).height(126.dp),
-                    fontSize = 90.sp,
+                    modifier = Modifier.width(38.dp).height(42.dp),
+                    fontSize = 30.sp,
                     fontWeight = FontWeight.Normal,
                     fontFamily = FontFamily.Default,
                     color = colors.onSurface
                 )
             }
 
-            // Screenshot preview — y=450, 504×720, #3D3D3D
-            Spacer(modifier = Modifier.height(94.dp)) // 450-230-126 = 94
+            Spacer(modifier = Modifier.height(31.dp))
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 288.dp)
-                    .height(720.dp)
-                    .clip(RoundedCornerShape(48.dp))
+                    .padding(horizontal = 96.dp)
+                    .height(240.dp)
+                    .clip(RoundedCornerShape(16.dp))
                     .background(Color(0xFF3D3D3D))
             )
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // "保存到相册" button — y=1325, #3482FF
-            ActionButton(
-                text = "保存到相册",
-                color = Color(0xFF3482FF),
-                onClick = onSave
-            )
-
-            Spacer(modifier = Modifier.height(23.dp))
-
-            // "删除截图" button — y=1505, #DD4031
-            ActionButton(
-                text = "删除截图",
-                color = Color(0xFFDD4031),
-                onClick = onDelete
-            )
-
-            Spacer(modifier = Modifier.height(40.dp))
+            ActionButton("保存到相册", Color(0xFF3482FF), onClick = onSave)
+            Spacer(modifier = Modifier.height(8.dp))
+            ActionButton("删除截图", Color(0xFFDD4031), onClick = onDelete)
+            Spacer(modifier = Modifier.height(13.dp))
         }
     }
 }
@@ -94,16 +78,16 @@ private fun ActionButton(text: String, color: Color, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 31.dp)
-            .height(157.dp)
-            .clip(RoundedCornerShape(45.dp))
+            .padding(horizontal = 10.dp)
+            .height(52.dp)
+            .clip(RoundedCornerShape(15.dp))
             .background(color)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = text,
-            fontSize = 50.sp,
+            fontSize = 17.sp,
             fontWeight = FontWeight.Medium,
             fontFamily = FontFamily.Default,
             color = Color.White

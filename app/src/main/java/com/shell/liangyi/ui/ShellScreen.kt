@@ -20,7 +20,6 @@ import com.shell.liangyi.ui.bluetooth.BluetoothScreen
 import com.shell.liangyi.ui.screenshot.ScreenshotDetailScreen
 import com.shell.liangyi.ui.about.AboutScreen
 
-// Simple screen navigation
 private enum class Screen {
     INDEX, BLUETOOTH, FETCH, TERMINAL, SCREENSHOT_DETAIL, ABOUT
 }
@@ -45,64 +44,51 @@ fun ShellScreen() {
                 currentScreen = Screen.SCREENSHOT_DETAIL
             }
         )
-        Screen.FETCH -> PlaceholderScreen(
-            title = "截图同步（局域网）",
-            subtitle = "WiFi 传输功能开发中",
-            onBack = { currentScreen = Screen.INDEX }
-        )
-        Screen.TERMINAL -> PlaceholderScreen(
-            title = "远程终端",
-            subtitle = "远程终端功能开发中",
-            onBack = { currentScreen = Screen.INDEX }
-        )
+        Screen.FETCH -> PlaceholderScreen("截图同步（局域网）", "WiFi 传输功能开发中") { currentScreen = Screen.INDEX }
+        Screen.TERMINAL -> PlaceholderScreen("远程终端", "远程终端功能开发中") { currentScreen = Screen.INDEX }
         Screen.SCREENSHOT_DETAIL -> ScreenshotDetailScreen(
             screenshotNumber = screenshotNumber,
             onBack = { currentScreen = Screen.BLUETOOTH },
             onSave = { /* TODO */ },
             onDelete = { /* TODO */ }
         )
-        Screen.ABOUT -> AboutScreen(
-            onBack = { currentScreen = Screen.INDEX }
-        )
+        Screen.ABOUT -> AboutScreen(onBack = { currentScreen = Screen.INDEX })
     }
 }
 
 @Composable
 private fun PlaceholderScreen(title: String, subtitle: String, onBack: () -> Unit) {
     val colors = MiuixTheme.colorScheme
-
     Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
         Column(modifier = Modifier.fillMaxSize()) {
-            Spacer(modifier = Modifier.height(128.dp))
+            Spacer(modifier = Modifier.height(43.dp))
             Text(
                 text = "←",
-                modifier = Modifier
-                    .padding(start = 88.dp)
-                    .clickable(onClick = onBack),
-                fontSize = 38.sp,
+                modifier = Modifier.padding(start = 29.dp).clickable(onClick = onBack),
+                fontSize = 13.sp,
                 color = colors.onSurface
             )
-            Spacer(modifier = Modifier.height(64.dp))
+            Spacer(modifier = Modifier.height(21.dp))
             Text(
                 text = title,
-                modifier = Modifier.padding(start = 79.dp),
-                fontSize = 90.sp,
+                modifier = Modifier.padding(start = 26.dp),
+                fontSize = 30.sp,
                 fontWeight = FontWeight.Normal,
                 color = colors.onSurface
             )
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(13.dp))
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 34.dp)
-                    .height(168.dp)
-                    .clip(RoundedCornerShape(45.dp))
+                    .padding(horizontal = 11.dp)
+                    .height(56.dp)
+                    .clip(RoundedCornerShape(15.dp))
                     .background(colors.surface),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = subtitle,
-                    fontSize = 48.sp,
+                    fontSize = 16.sp,
                     fontWeight = FontWeight.Medium,
                     color = Color(0xFF9E9E9E)
                 )

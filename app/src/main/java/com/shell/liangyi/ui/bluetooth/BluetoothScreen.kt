@@ -17,7 +17,7 @@ import androidx.compose.ui.unit.sp
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-// Design Tokens (Figma: MIUIX/bule, 1080×2340)
+// Scale: Figma 1080px → 360dp (÷3)
 
 @Composable
 fun BluetoothScreen(
@@ -29,88 +29,76 @@ fun BluetoothScreen(
 
     Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Back arrow — (88, 128.5)
-            Spacer(modifier = Modifier.height(128.dp))
+            Spacer(modifier = Modifier.height(43.dp))
             Row(modifier = Modifier.fillMaxWidth()) {
-                Spacer(modifier = Modifier.width(88.dp))
+                Spacer(modifier = Modifier.width(29.dp))
                 Text(
                     text = "←",
                     modifier = Modifier.clickable(onClick = onBack),
-                    fontSize = 38.sp,
+                    fontSize = 13.sp,
                     color = colors.onSurface
                 )
             }
 
-            // Title "蓝牙传输" — (79, 230)
-            Spacer(modifier = Modifier.height(64.dp)) // 230-128-38 = 64
+            Spacer(modifier = Modifier.height(21.dp))
             Row(modifier = Modifier.fillMaxWidth()) {
-                Spacer(modifier = Modifier.width(79.dp))
+                Spacer(modifier = Modifier.width(26.dp))
                 Text(
                     text = "蓝牙传输",
-                    modifier = Modifier.width(360.dp).height(126.dp),
-                    fontSize = 90.sp,
+                    modifier = Modifier.width(120.dp).height(42.dp),
+                    fontSize = 30.sp,
                     fontWeight = FontWeight.Normal,
                     fontFamily = FontFamily.Default,
                     color = colors.onSurface
                 )
             }
 
-            // Status card — y=391
-            Spacer(modifier = Modifier.height(35.dp)) // 391-230-126 = 35
+            Spacer(modifier = Modifier.height(12.dp))
             StatusCard()
 
-            // "已获取截图" label — y=822
-            Spacer(modifier = Modifier.height(165.dp)) // 822-168(button)-... 
+            Spacer(modifier = Modifier.height(33.dp))
             Row(modifier = Modifier.fillMaxWidth()) {
-                Spacer(modifier = Modifier.width(78.dp))
+                Spacer(modifier = Modifier.width(26.dp))
                 Text(
                     text = "已获取截图",
-                    fontSize = 39.sp,
-                    fontWeight = FontWeight.SemiBold, // 600
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
                     fontFamily = FontFamily.Default,
-                    color = Color(0x66000000) // rgba(0,0,0,0.4)
+                    color = Color(0x66000000)
                 )
             }
 
-            Spacer(modifier = Modifier.height(48.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // Screenshot cards row
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 27.dp)
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 9.dp)
             ) {
-                ScreenshotCard(
-                    number = "#9",
-                    onClick = { onOpenDetail("9") }
-                )
-                Spacer(modifier = Modifier.width(36.dp))
-                ScreenshotCard(
-                    number = "#1",
-                    onClick = { onOpenDetail("1") }
-                )
+                ScreenshotCard("#9", Modifier.weight(1f), onClick = { onOpenDetail("9") })
+                Spacer(modifier = Modifier.width(12.dp))
+                ScreenshotCard("#1", Modifier.weight(1f), onClick = { onOpenDetail("1") })
             }
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // "获取截图" button — y=623 (relative to bottom area)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 31.dp)
-                    .height(157.dp)
-                    .clip(RoundedCornerShape(45.dp))
+                    .padding(horizontal = 10.dp)
+                    .height(52.dp)
+                    .clip(RoundedCornerShape(15.dp))
                     .background(Color(0xFF3482FF))
                     .clickable(onClick = onGetScreenshot),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = "获取截图",
-                    fontSize = 50.sp,
+                    fontSize = 17.sp,
                     fontWeight = FontWeight.Medium,
                     fontFamily = FontFamily.Default,
                     color = Color.White
                 )
             }
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(13.dp))
         }
     }
 }
@@ -118,30 +106,28 @@ fun BluetoothScreen(
 @Composable
 private fun StatusCard() {
     val colors = MiuixTheme.colorScheme
-
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 34.dp)
-            .height(168.dp)
-            .clip(RoundedCornerShape(45.dp))
+            .padding(horizontal = 11.dp)
+            .height(56.dp)
+            .clip(RoundedCornerShape(15.dp))
             .background(colors.surface)
     ) {
         Row(
-            modifier = Modifier.fillMaxSize().padding(start = 40.dp),
+            modifier = Modifier.fillMaxSize().padding(start = 13.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Red dot
             Box(
                 modifier = Modifier
-                    .size(30.dp)
+                    .size(10.dp)
                     .clip(CircleShape)
                     .background(Color(0xFFFF0000))
             )
-            Spacer(modifier = Modifier.width(40.dp))
+            Spacer(modifier = Modifier.width(13.dp))
             Text(
                 text = "设备端快应用未连接",
-                fontSize = 48.sp,
+                fontSize = 16.sp,
                 fontWeight = FontWeight.Medium,
                 fontFamily = FontFamily.Default,
                 color = colors.onSurface
@@ -151,48 +137,39 @@ private fun StatusCard() {
 }
 
 @Composable
-private fun ScreenshotCard(number: String, onClick: () -> Unit) {
+private fun ScreenshotCard(number: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val colors = MiuixTheme.colorScheme
-
     Box(
-        modifier = Modifier
-            .width(491.dp)
-            .height(643.dp)
-            .clip(RoundedCornerShape(45.dp))
+        modifier = modifier
+            .height(214.dp)
+            .clip(RoundedCornerShape(15.dp))
             .background(colors.surface)
             .clickable(onClick = onClick)
     ) {
-        // Handwatch preview — 336×480, #3D3D3D
         Box(
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .padding(top = 26.dp)
-                .width(336.dp)
-                .height(480.dp)
-                .clip(RoundedCornerShape(48.dp))
+                .padding(top = 9.dp)
+                .width(112.dp)
+                .height(160.dp)
+                .clip(RoundedCornerShape(16.dp))
                 .background(Color(0xFF3D3D3D))
         )
-        // Screenshot number
         Text(
             text = number,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 53.dp),
-            fontSize = 50.sp,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 18.dp),
+            fontSize = 17.sp,
             fontWeight = FontWeight.Medium,
             fontFamily = FontFamily.Default,
             color = colors.onSurface
         )
-        // Timestamp
         Text(
             text = "YYYY-MM-DD HH:MM:SS",
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 11.dp),
-            fontSize = 30.sp,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 4.dp),
+            fontSize = 10.sp,
             fontWeight = FontWeight.Medium,
             fontFamily = FontFamily.Default,
-            color = Color(0x80000000) // rgba(0,0,0,0.5)
+            color = Color(0x80000000)
         )
     }
 }
