@@ -414,7 +414,7 @@ class WearMessageCenter private constructor(private val context: Context) {
             addLog(if (state == ConnectionState.ERROR) "ERROR" else "SYSTEM", "disconnect", reason)
         }
         finishPendingReady(false)
-        if (state == ConnectionState.DISCONNECTED) {
+        if (state == ConnectionState.DISCONNECTED || state == ConnectionState.ERROR) {
             scheduleReconnect()
         }
     }
@@ -648,12 +648,14 @@ class WearMessageCenter private constructor(private val context: Context) {
 
     private fun handleHandshake(json: JSONObject) {
         val count = json.optInt("count", -1)
+        addLog("RECEIVE", "handshake", "收到握手 count=$count")
         if (count < 0) {
             return
         }
 
         lastHeartbeatAck = System.currentTimeMillis()
         if (count > 0) {
+            addLog("SYSTEM", "handshake", "握手确认 (count=$count)")
             confirmConnected()
         }
 
@@ -662,6 +664,7 @@ class WearMessageCenter private constructor(private val context: Context) {
                 put("count", count + 1)
                 put("version", appVersionCode)
             }
+            addLog("SEND", "handshake", "回复握手 count=${count + 1}")
             sendDirect(MessageType.HANDSHAKE, payload, logTraffic = false)
         }
     }
