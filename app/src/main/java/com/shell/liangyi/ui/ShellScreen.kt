@@ -59,7 +59,7 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
         popExitTransition = { AnimTools.popExitTransition(windowWidth) }
     ) {
         composable(Routes.INDEX) {
-            IndexScreen(navController)
+            IndexScreen(navController, shellViewModel)
         }
         composable(Routes.BLUETOOTH) {
             BluetoothScreen(navController, shellViewModel)
