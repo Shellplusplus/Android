@@ -217,7 +217,7 @@ class HttpScreenshotServer(
             respond(socket, 200, resp)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to save screenshot $shotId", e)
-            respond(socket, 500, """{"ok":false,"error":"${e.message}"}""")
+            respond(socket, 500, """{"ok":false,"error":"Internal server error"}""")
         }
     }
 
