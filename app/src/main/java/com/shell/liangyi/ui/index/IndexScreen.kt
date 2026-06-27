@@ -1,13 +1,19 @@
 package com.shell.liangyi.ui.index
 
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import com.shell.liangyi.R
 import com.shell.liangyi.ui.theme.ShellTheme
 import top.yukonga.miuix.kmp.basic.CardColors
 import top.yukonga.miuix.kmp.basic.*
@@ -27,13 +33,29 @@ fun IndexScreen(navController: NavHostController) {
                 .fillMaxSize()
                 .padding(horizontal = 13.dp)
         ) {
-            // 标题
-            Text(
-                text = "Shell++",
-                style = MiuixTheme.textStyles.title1,
-                color = colors.onBackground,
-                modifier = Modifier.padding(start = 5.dp, top = 82.dp, bottom = 6.dp)
-            )
+            // 标题 + 设置按钮
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 5.dp, top = 82.dp, end = 5.dp, bottom = 6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Shell++",
+                    style = MiuixTheme.textStyles.title1,
+                    color = colors.onBackground
+                )
+                Image(
+                    painter = painterResource(id = R.drawable.set),
+                    contentDescription = "设置",
+                    modifier = Modifier
+                        .size(16.dp, 18.dp)
+                        .clickable { navController.navigate(Routes.SETTINGS) },
+                    colorFilter = ColorFilter.tint(colors.onBackground),
+                    contentScale = ContentScale.Fit
+                )
+            }
 
             // 列表项
             MenuItem(

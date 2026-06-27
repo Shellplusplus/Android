@@ -37,6 +37,7 @@ object Routes {
     const val TERMINAL = "terminal"
     const val SCREENSHOT_DETAIL = "screenshot_detail/{shotId}"
     const val ABOUT = "about"
+    const val SETTINGS = "settings"
 
     fun screenshotDetail(shotId: String) = "screenshot_detail/$shotId"
 }
@@ -75,6 +76,9 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
         }
         composable(Routes.ABOUT) {
             AboutScreen(navController)
+        }
+        composable(Routes.SETTINGS) {
+            PlaceholderScreen("设置", "设置功能开发中", navController)
         }
     }
 }
