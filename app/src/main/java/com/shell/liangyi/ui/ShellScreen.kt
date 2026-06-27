@@ -28,6 +28,7 @@ import com.shell.liangyi.ui.bluetooth.BluetoothScreen
 import com.shell.liangyi.ui.fetch.FetchScreen
 import com.shell.liangyi.ui.screenshot.ScreenshotDetailScreen
 import com.shell.liangyi.ui.about.AboutScreen
+import com.shell.liangyi.ui.settings.SettingsScreen
 import com.shell.liangyi.ui.theme.ShellTheme
 
 object Routes {
@@ -78,7 +79,7 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
             AboutScreen(navController)
         }
         composable(Routes.SETTINGS) {
-            PlaceholderScreen("设置", "设置功能开发中", navController)
+            SettingsScreen(navController, shellViewModel)
         }
     }
 }

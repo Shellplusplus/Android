@@ -34,6 +34,11 @@ class ShellViewModel : ViewModel() {
     val connectionState: SharedFlow<com.shell.liangyi.core.ConnectionState>
         get() = wearMessageCenter.connectionState
 
+    val logs: SharedFlow<List<com.shell.liangyi.core.LogEntry>>
+        get() = wearMessageCenter.logs
+
+    fun clearLogs() = wearMessageCenter.clearLogs()
+
     // ---- ScreenshotReceiver 状态 ----
     val screenshots: StateFlow<List<Screenshot>>
         get() = screenshotReceiver.screenshots
