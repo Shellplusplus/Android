@@ -55,6 +55,7 @@ class ShellViewModel : ViewModel() {
 
     // ---- 操作方法 ----
     fun requestFromWatch() = screenshotReceiver.requestFromWatch()
+    fun ensureConnection() = wearMessageCenter.ensureConnection()
     fun requestScreenshot(shotId: String) = screenshotReceiver.requestScreenshot(shotId)
     fun deleteScreenshot(shotId: String) = screenshotReceiver.deleteScreenshot(shotId)
     fun startHttpServer(): String? = screenshotReceiver.startHttpServer()

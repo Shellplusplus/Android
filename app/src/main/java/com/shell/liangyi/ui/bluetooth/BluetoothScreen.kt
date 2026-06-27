@@ -73,6 +73,26 @@ fun BluetoothScreen(
             Spacer(modifier = Modifier.height(14.dp))
             StatusCard(isConnected = isConnected, isBusy = isBusy, progress = progress)
 
+            // 刷新连接
+            Spacer(modifier = Modifier.height(8.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 11.dp)
+                    .height(40.dp)
+                    .clip(RoundedCornerShape(15.dp))
+                    .background(shellColors.cardBackground)
+                    .clickable { shellViewModel.ensureConnection() },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "刷新连接",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = colors.onSurface
+                )
+            }
+
             // 获取截图按钮 — y=623 ÷3=208, gap=23dp
             Spacer(modifier = Modifier.height(23.dp))
             ActionButton(
