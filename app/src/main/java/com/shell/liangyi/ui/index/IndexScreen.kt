@@ -66,8 +66,8 @@ fun IndexScreen(navController: NavHostController) {
                 contentDescription = "设置",
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(top = 34.dp, end = 37.dp)
-                    .size(16.dp, 18.dp)
+                    .padding(top = 43.dp, end = 28.dp)
+                    .size(17.dp, 19.dp)
                     .clickable { navController.navigate(Routes.SETTINGS) },
                 colorFilter = ColorFilter.tint(colors.onBackground),
                 contentScale = ContentScale.Fit
