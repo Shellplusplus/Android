@@ -93,7 +93,7 @@ class ScreenshotReceiver(
         return try {
             val ok = httpServer.start()
             if (ok) {
-                val ip = httpServer.getWifiIp() ?: httpServer.getWifiIp() ?: "0.0.0.0"
+                val ip = httpServer.getWifiIp() ?: "0.0.0.0"
                 _httpServerIp.value = ip
                 _httpServerPort.value = httpServer.port
                 _httpServerRunning.value = true
