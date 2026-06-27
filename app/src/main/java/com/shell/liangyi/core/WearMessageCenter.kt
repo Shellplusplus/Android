@@ -459,6 +459,10 @@ class WearMessageCenter private constructor(private val context: Context) {
         }
     }
 
+    fun addExternalLog(direction: String, type: String, message: String = "") {
+        addLog(direction, type, message)
+    }
+
     fun clearLogs() {
         synchronized(logEntries) {
             logEntries.clear()

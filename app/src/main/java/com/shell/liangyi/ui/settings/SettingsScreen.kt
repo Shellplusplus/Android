@@ -79,7 +79,7 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(14.dp))
             Text(
-                text = "BLE 握手日志",
+                text = "连接与传输日志",
                 modifier = Modifier.padding(start = 27.dp),
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,

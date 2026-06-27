@@ -64,11 +64,19 @@ class ScreenshotReceiver(
     // HTTP 服务器（WiFi 直传）
     private val httpServer: HttpScreenshotServer by lazy {
         HttpScreenshotServer(
-                        screenshotsDir = transferRootDir,
+            screenshotsDir = transferRootDir,
             onScreenshotReceived = { shotId, file ->
                 scope.launch {
                     onHttpScreenshotReceived(shotId, file)
                 }
+            },
+            onTransferProgress = { progress ->
+                scope.launch {
+                    updateHttpTransferProgress(progress)
+                }
+            },
+            onTransferLog = { message ->
+                appendHttpLog(message)
             }
         )
     }
@@ -99,6 +107,8 @@ class ScreenshotReceiver(
                 _httpServerRunning.value = true
                 val address = "$ip:${httpServer.port}"
                 Log.i(TAG, "HTTP server ready at $address")
+                _receiveProgress.value = "HTTP 服务器已启动：$address"
+                appendHttpLog("HTTP 服务器已启动：$address")
                 notifyWatchWifiServer(address)
                 address
             } else {
@@ -114,6 +124,8 @@ class ScreenshotReceiver(
         httpServer.stop()
         _httpServerRunning.value = false
         _httpServerIp.value = ""
+        _receiveProgress.value = "HTTP 服务器已停止"
+        appendHttpLog("HTTP 服务器已停止")
     }
 
     private fun notifyWatchWifiServer(address: String) {
@@ -130,6 +142,8 @@ class ScreenshotReceiver(
 
     private suspend fun onHttpScreenshotReceived(shotId: String, file: File) {
         Log.i(TAG, "HTTP screenshot received: $shotId (${file.length()} bytes)")
+        _receiveProgress.value = "HTTP 接收完成：$shotId (${formatHttpBytes(file.length())})"
+        appendHttpLog("HTTP 接收完成：$shotId (${file.length()} bytes)")
         // 重新加载列表以包含新收到的截图
         loadStoredScreenshots()
         // 如果正在等待该 shotId，标记完成
@@ -138,6 +152,35 @@ class ScreenshotReceiver(
             requestTimeoutJob?.cancel()
             requestTimeoutJob = null
         }
+    }
+
+    private fun updateHttpTransferProgress(progress: HttpScreenshotServer.TransferProgress) {
+        val percent = if (progress.totalBytes > 0) {
+            ((progress.receivedBytes * 100) / progress.totalBytes).coerceIn(0, 100)
+        } else {
+            0
+        }
+        val text = if (progress.completed) {
+            "HTTP 接收完成：${progress.shotId} (${formatHttpBytes(progress.receivedBytes)})"
+        } else {
+            "HTTP 接收中：$percent% ${progress.chunkIndex + 1}/${progress.totalChunks} (${formatHttpBytes(progress.receivedBytes)}/${formatHttpBytes(progress.totalBytes)})"
+        }
+        _receiveProgress.value = text
+    }
+
+    private fun appendHttpLog(message: String) {
+        Log.i(TAG, "HTTP transfer: $message")
+        messageCenter.addExternalLog("HTTP", "transfer", message.take(240))
+    }
+
+    private fun formatHttpBytes(bytes: Long): String {
+        if (bytes >= 1024L * 1024L) {
+            return String.format(java.util.Locale.US, "%.1fMB", bytes.toDouble() / 1024.0 / 1024.0)
+        }
+        if (bytes >= 1024L) {
+            return String.format(java.util.Locale.US, "%.1fKB", bytes.toDouble() / 1024.0)
+        }
+        return "${bytes}B"
     }
 
     private data class TransferProfile(
