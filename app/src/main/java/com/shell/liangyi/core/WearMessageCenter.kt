@@ -148,6 +148,7 @@ class WearMessageCenter private constructor(private val context: Context) {
         try {
             val text = String(bytes, Charsets.UTF_8)
             Log.d(TAG, "onMessageReceived nodeId=$nodeId length=${text.length}")
+            addLog("RECEIVE", "raw", "nodeId=$nodeId len=${text.length} ${text.take(100)}")
             onMessageReceived(text)
         } catch (e: Throwable) {
             Log.e(TAG, "消息监听器内部异常", Exception(e))
