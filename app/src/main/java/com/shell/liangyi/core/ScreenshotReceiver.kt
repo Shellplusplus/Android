@@ -1059,6 +1059,7 @@ class ScreenshotReceiver(
             messageCenter.sendChunkAck(sessionId, "part", true, index)
         } catch (e: Exception) {
             Log.e(TAG, "chunkPart decode failed", e)
+            closeChunkSession(sessionId)
             markTransferFailed(session.shotId, e.message ?: "chunk decode failed")
             messageCenter.sendChunkAck(sessionId, "part", false, index)
         }
