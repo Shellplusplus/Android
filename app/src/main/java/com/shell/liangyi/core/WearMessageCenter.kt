@@ -88,6 +88,7 @@ class WearMessageCenter private constructor(private val context: Context) {
         private const val HANDSHAKE_TIMEOUT_MS = 3000L
         private const val HEARTBEAT_INTERVAL_MS = 5000L
         private const val HEARTBEAT_TIMEOUT_MS = 12000L
+        private const val RECONNECT_DELAY_MS = 5000L
 
         @Volatile
         private var instance: WearMessageCenter? = null
@@ -135,6 +136,7 @@ class WearMessageCenter private constructor(private val context: Context) {
     private var heartbeatTimer: Timer? = null
     private var lastHeartbeatAck: Long = 0
     private var handshakeTimeoutRunnable: Runnable? = null
+    private var reconnectRunnable: Runnable? = null
 
     private class ChunkBuffer(
         val total: Int,
@@ -388,6 +390,7 @@ class WearMessageCenter private constructor(private val context: Context) {
     private fun confirmConnected() {
         val wasConnected = handshaked && currentState == ConnectionState.CONNECTED
         clearHandshakeTimeout()
+        cancelReconnect()
         handshakeInProgress = false
         handshaked = true
         lastHeartbeatAck = System.currentTimeMillis()
@@ -411,6 +414,24 @@ class WearMessageCenter private constructor(private val context: Context) {
             addLog(if (state == ConnectionState.ERROR) "ERROR" else "SYSTEM", "disconnect", reason)
         }
         finishPendingReady(false)
+        if (state == ConnectionState.DISCONNECTED) {
+            scheduleReconnect()
+        }
+    }
+
+    private fun scheduleReconnect() {
+        cancelReconnect()
+        val runnable = Runnable {
+            addLog("SYSTEM", "reconnect", "自动重连...")
+            ensureSession(force = true)
+        }
+        reconnectRunnable = runnable
+        mainHandler.postDelayed(runnable, RECONNECT_DELAY_MS)
+    }
+
+    private fun cancelReconnect() {
+        reconnectRunnable?.let { mainHandler.removeCallbacks(it) }
+        reconnectRunnable = null
     }
 
     private fun updateState(state: ConnectionState) {
