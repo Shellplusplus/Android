@@ -188,9 +188,9 @@ private fun DeveloperCard() {
     val colors = MiuixTheme.colorScheme
     val shellColors = ShellTheme.colors
     val devs = listOf(
-        Triple("AzumaChiaki", "Devloper", R.drawable.avatar_azumachiaki),
-        Triple("IKUN-CXKPRO", "Devloper", R.drawable.avatar_ikun),
-        Triple("梁逸", "Devloper", R.drawable.avatar_liangyi)
+        Triple("AzumaChiaki", "Developer", R.drawable.avatar_azumachiaki),
+        Triple("IKUN-CXKPRO", "Developer", R.drawable.avatar_ikun),
+        Triple("梁逸", "Developer", R.drawable.avatar_liangyi)
     )
 
     Box(
