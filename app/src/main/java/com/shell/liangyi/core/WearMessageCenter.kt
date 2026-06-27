@@ -322,7 +322,7 @@ class WearMessageCenter private constructor(private val context: Context) {
             api.addListener(node.id, messageListener)
                 .addOnSuccessListener {
                     listenerRegistered = true
-                    addLog("SYSTEM", "listener", "消息监听器注册成功")
+                    addLog("SYSTEM", "listener", "消息监听器注册成功 (node=${node.id})")
                     onDone(true)
                 }
                 .addOnFailureListener { e ->
@@ -376,8 +376,12 @@ class WearMessageCenter private constructor(private val context: Context) {
             put("count", 0)
             put("version", appVersionCode)
         }
+        addLog("SEND", "handshake", "发送握手 count=0 → node=${currentNode?.id}")
         sendDirect(MessageType.HANDSHAKE, payload, logTraffic = false) { success, error ->
-            if (!success) {
+            if (success) {
+                addLog("SEND", "handshake", "握手发送成功")
+            } else {
+                addLog("ERROR", "handshake", "握手发送失败: ${error?.message}")
                 markDisconnected(ConnectionState.ERROR, error?.message ?: "发送握手失败")
             }
         }
@@ -555,12 +559,14 @@ class WearMessageCenter private constructor(private val context: Context) {
             return
         }
 
+        Log.d(TAG, "sendRaw → node=${node.id} bytes=${bytes.size}")
         api.sendMessage(node.id, bytes)
             .addOnSuccessListener {
+                Log.d(TAG, "sendRaw 成功")
                 onResult?.invoke(true, null)
             }
             .addOnFailureListener { e ->
-                Log.e(TAG, "消息发送失败", e)
+                Log.e(TAG, "sendRaw 失败: ${e.message}", e)
                 addLog("ERROR", "send", e.message ?: "消息发送失败")
                 onResult?.invoke(false, Exception(e))
             }
