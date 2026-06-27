@@ -97,8 +97,10 @@ class ScreenshotReceiver(
                 _httpServerIp.value = ip
                 _httpServerPort.value = httpServer.port
                 _httpServerRunning.value = true
-                Log.i(TAG, "HTTP server ready at $ip:${httpServer.port}")
-                "$ip:${httpServer.port}"
+                val address = "$ip:${httpServer.port}"
+                Log.i(TAG, "HTTP server ready at $address")
+                notifyWatchWifiServer(address)
+                address
             } else {
                 null
             }
@@ -112,6 +114,18 @@ class ScreenshotReceiver(
         httpServer.stop()
         _httpServerRunning.value = false
         _httpServerIp.value = ""
+    }
+
+    private fun notifyWatchWifiServer(address: String) {
+        try {
+            val payload = org.json.JSONObject().apply {
+                put("url", "http://$address")
+            }
+            messageCenter.send("wifiServerInfo", payload)
+            Log.i(TAG, "Notified watch of WiFi server: $address")
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to notify watch of WiFi server", e)
+        }
     }
 
     private suspend fun onHttpScreenshotReceived(shotId: String, file: File) {
