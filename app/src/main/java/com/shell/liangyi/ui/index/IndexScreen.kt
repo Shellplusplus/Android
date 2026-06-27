@@ -28,34 +28,19 @@ fun IndexScreen(navController: NavHostController) {
     Scaffold(
         containerColor = shellColors.pageBackground
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 13.dp)
-        ) {
-            // 标题 + 设置按钮
-            Row(
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 5.dp, top = 82.dp, end = 5.dp, bottom = 6.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    .fillMaxSize()
+                    .padding(horizontal = 13.dp)
             ) {
+                // 标题
                 Text(
                     text = "Shell++",
                     style = MiuixTheme.textStyles.title1,
-                    color = colors.onBackground
+                    color = colors.onBackground,
+                    modifier = Modifier.padding(start = 5.dp, top = 82.dp, bottom = 6.dp)
                 )
-                Image(
-                    painter = painterResource(id = R.drawable.set),
-                    contentDescription = "设置",
-                    modifier = Modifier
-                        .size(16.dp, 18.dp)
-                        .clickable { navController.navigate(Routes.SETTINGS) },
-                    colorFilter = ColorFilter.tint(colors.onBackground),
-                    contentScale = ContentScale.Fit
-                )
-            }
 
             // 列表项
             MenuItem(
@@ -73,6 +58,19 @@ fun IndexScreen(navController: NavHostController) {
             MenuItem(
                 title = "关于",
                 onClick = { navController.navigate(Routes.ABOUT) }
+            )
+        }
+
+            Image(
+                painter = painterResource(id = R.drawable.set),
+                contentDescription = "设置",
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 43.dp, end = 45.dp)
+                    .size(16.dp, 18.dp)
+                    .clickable { navController.navigate(Routes.SETTINGS) },
+                colorFilter = ColorFilter.tint(colors.onBackground),
+                contentScale = ContentScale.Fit
             )
         }
     }
