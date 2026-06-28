@@ -4,12 +4,21 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import com.shell.liangyi.core.ScreenshotReceiver
 import com.shell.liangyi.core.WearMessageCenter
+import com.shell.liangyi.core.update.UpdateCheckResult
+import com.shell.liangyi.core.update.UpdateChecker
+import com.shell.liangyi.core.update.UpdatePrompt
 import com.shell.liangyi.model.Screenshot
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class ShellViewModel : ViewModel() {
 
@@ -22,6 +31,13 @@ class ShellViewModel : ViewModel() {
         private set
 
     private var appCtx: Context? = null
+    private var autoUpdateChecked = false
+
+    private val _updatePrompt = MutableStateFlow<UpdatePrompt?>(null)
+    val updatePrompt = _updatePrompt.asStateFlow()
+
+    private val _updateMessages = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val updateMessages = _updateMessages.asSharedFlow()
 
     fun initialize(context: Context) {
         appCtx = context
@@ -88,6 +104,34 @@ class ShellViewModel : ViewModel() {
     }
 
     fun clearAll() = screenshotReceiver.clearAll()
+
+    fun checkForUpdates(manual: Boolean) {
+        if (!manual && autoUpdateChecked) return
+        if (!manual) autoUpdateChecked = true
+
+        val context = appCtx ?: return
+        scope.launch {
+            when (val result = withContext(Dispatchers.IO) { UpdateChecker.check(context) }) {
+                is UpdateCheckResult.UpdateAvailable -> {
+                    _updatePrompt.value = result.prompt
+                }
+                is UpdateCheckResult.UpToDate -> {
+                    if (manual) {
+                        _updateMessages.tryEmit("当前已是最新版本")
+                    }
+                }
+                is UpdateCheckResult.Failed -> {
+                    if (manual) {
+                        _updateMessages.tryEmit("检测更新失败：${result.message}")
+                    }
+                }
+            }
+        }
+    }
+
+    fun dismissUpdatePrompt() {
+        _updatePrompt.value = null
+    }
 
     override fun onCleared() {
         super.onCleared()

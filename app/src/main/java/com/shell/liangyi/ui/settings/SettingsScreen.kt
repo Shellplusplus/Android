@@ -66,6 +66,50 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(6.dp))
 
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 11.dp),
+                colors = CardColors(
+                    color = shellColors.cardBackground,
+                    contentColor = colors.onSurface
+                ),
+                cornerRadius = 15.dp,
+                onClick = { shellViewModel.checkForUpdates(manual = true) },
+                showIndication = true,
+                pressFeedbackType = PressFeedbackType.Sink
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "检查更新",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = colors.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "从 shellupdate.rth1.xyz 手动检测最新版本",
+                            fontSize = 12.sp,
+                            color = shellColors.secondaryText
+                        )
+                    }
+                    Text(
+                        text = "立即检查",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = shellColors.primaryAction
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
             if (logs.isEmpty()) {
                 Card(
                     modifier = Modifier
