@@ -1,11 +1,8 @@
 package com.shell.liangyi.ui.bluetooth
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -23,12 +20,16 @@ import com.shell.liangyi.core.ScreenshotReceiver
 import com.shell.liangyi.model.Screenshot
 import com.shell.liangyi.ui.Routes
 import com.shell.liangyi.ui.ShellViewModel
+import com.shell.liangyi.ui.components.ShellBackScaffold
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardColors
 import androidx.compose.ui.layout.ContentScale
 import com.shell.liangyi.ui.theme.ShellTheme
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.PressFeedbackType
 
 // Scale: Figma 1080px → 360dp (÷3)
 
@@ -47,50 +48,37 @@ fun BluetoothScreen(
     val isConnected = connectionState == ConnectionState.CONNECTED
     val isBusy = syncState is ScreenshotReceiver.SyncState.Receiving || syncState is ScreenshotReceiver.SyncState.WaitingAck
 
-    Box(modifier = Modifier.fillMaxSize().background(shellColors.pageBackground)) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            // 返回 — (88, 128) ÷3
-            Spacer(modifier = Modifier.height(43.dp))
-            Text(
-                text = "←",
-                modifier = Modifier.padding(start = 29.dp).clickable { navController.popBackStack() },
-                fontSize = 13.sp,
-                color = colors.onSurface
-            )
-
-            // 标题 — (79, 230) ÷3
-            Spacer(modifier = Modifier.height(21.dp))
-            Text(
-                text = "蓝牙传输",
-                modifier = Modifier.padding(start = 26.dp),
-                fontSize = 30.sp,
-                fontWeight = FontWeight.Normal,
-                fontFamily = FontFamily.Default,
-                color = colors.onSurface
-            )
-
-            // 状态卡片 — y=391 ÷3=130, gap=21dp
+    ShellBackScaffold(
+        title = "\u84dd\u7259\u4f20\u8f93",
+        onBack = { navController.popBackStack() }
+    ) { innerPadding ->
+        Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
             Spacer(modifier = Modifier.height(14.dp))
             StatusCard(isConnected = isConnected, isBusy = isBusy, progress = progress)
 
-            // 刷新连接
             Spacer(modifier = Modifier.height(8.dp))
-            Box(
+            Card(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 11.dp)
-                    .height(40.dp)
-                    .clip(RoundedCornerShape(15.dp))
-                    .background(shellColors.cardBackground)
-                    .clickable { shellViewModel.ensureConnection() },
-                contentAlignment = Alignment.Center
+                    .height(40.dp),
+                colors = CardColors(
+                    color = shellColors.cardBackground,
+                    contentColor = colors.onSurface
+                ),
+                cornerRadius = 15.dp,
+                onClick = { shellViewModel.ensureConnection() },
+                showIndication = true,
+                pressFeedbackType = PressFeedbackType.Sink
             ) {
-                Text(
-                    text = "刷新连接",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = colors.onSurface
-                )
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(
+                        text = "刷新连接",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = colors.onSurface
+                    )
+                }
             }
 
             // 获取截图按钮 — y=623 ÷3=208, gap=23dp
@@ -133,20 +121,24 @@ fun BluetoothScreen(
                         }
                 }
             } else {
-                Box(
+                Card(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 9.dp)
-                        .height(214.dp)
-                        .clip(RoundedCornerShape(15.dp))
-                        .background(shellColors.cardBackground),
-                    contentAlignment = Alignment.Center
+                        .height(214.dp),
+                    colors = CardColors(
+                        color = shellColors.cardBackground,
+                        contentColor = colors.onSurface
+                    ),
+                    cornerRadius = 15.dp
                 ) {
-                    Text(
-                        text = "暂无截图",
-                        fontSize = 16.sp,
-                        color = colors.onSurface.copy(alpha = 0.4f)
-                    )
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(
+                            text = "暂无截图",
+                            fontSize = 16.sp,
+                            color = colors.onSurface.copy(alpha = 0.4f)
+                        )
+                    }
                 }
             }
 
@@ -156,7 +148,11 @@ fun BluetoothScreen(
 }
 
 @Composable
-private fun StatusCard(isConnected: Boolean, isBusy: Boolean, progress: String = "") {
+private fun StatusCard(
+    isConnected: Boolean,
+    isBusy: Boolean,
+    progress: String = ""
+) {
     val colors = MiuixTheme.colorScheme
     val shellColors = ShellTheme.colors
     val dotColor = when {
@@ -171,13 +167,16 @@ private fun StatusCard(isConnected: Boolean, isBusy: Boolean, progress: String =
     }
     val cardHeight = if (isBusy && progress.isNotEmpty()) 80.dp else 56.dp
 
-    Box(
+    Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 11.dp)
-            .height(cardHeight)
-            .clip(RoundedCornerShape(15.dp))
-            .background(shellColors.cardBackground)
+            .height(cardHeight),
+        colors = CardColors(
+            color = shellColors.cardBackground,
+            contentColor = colors.onSurface
+        ),
+        cornerRadius = 15.dp
     ) {
         Column(
             modifier = Modifier.fillMaxSize().padding(start = 13.dp, end = 13.dp, top = 12.dp, bottom = 12.dp)
@@ -213,30 +212,30 @@ private fun StatusCard(isConnected: Boolean, isBusy: Boolean, progress: String =
 
 @Composable
 private fun ActionButton(text: String, enabled: Boolean, onClick: () -> Unit) {
-    val interactionSource = remember { MutableInteractionSource() }
     val shellColors = ShellTheme.colors
-    Box(
+    Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 10.dp)
-            .height(52.dp)
-            .clip(RoundedCornerShape(15.dp))
-            .background(if (enabled) shellColors.primaryAction else shellColors.disabledAction)
-            .clickable(
-                enabled = enabled,
-                indication = null,
-                interactionSource = interactionSource,
-                onClick = onClick
-            ),
-        contentAlignment = Alignment.Center
+            .height(52.dp),
+        colors = CardColors(
+            color = if (enabled) shellColors.primaryAction else shellColors.disabledAction,
+            contentColor = Color.White
+        ),
+        cornerRadius = 15.dp,
+        onClick = if (enabled) onClick else ({}),
+        showIndication = enabled,
+        pressFeedbackType = PressFeedbackType.Sink
     ) {
-        Text(
-            text = text,
-            fontSize = 17.sp,
-            fontWeight = FontWeight.Medium,
-            fontFamily = FontFamily.Default,
-            color = Color.White
-        )
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(
+                text = text,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Medium,
+                fontFamily = FontFamily.Default,
+                color = Color.White
+            )
+        }
     }
 }
 
@@ -244,54 +243,59 @@ private fun ActionButton(text: String, enabled: Boolean, onClick: () -> Unit) {
 private fun ScreenshotCard(shot: Screenshot, modifier: Modifier, onClick: () -> Unit, shellViewModel: ShellViewModel) {
     val colors = MiuixTheme.colorScheme
     val shellColors = ShellTheme.colors
-    val interactionSource = remember { MutableInteractionSource() }
     val previewPath = remember(shot.shotId) { shellViewModel.getScreenshotFilePath(shot.shotId) }
-    Box(
+    Card(
         modifier = modifier
-            .height(214.dp)
-            .clip(RoundedCornerShape(15.dp))
-            .background(shellColors.cardBackground)
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick
-            )
+            .height(214.dp),
+        colors = CardColors(
+            color = shellColors.cardBackground,
+            contentColor = colors.onSurface
+        ),
+        cornerRadius = 15.dp,
+        onClick = onClick,
+        showIndication = true,
+        pressFeedbackType = PressFeedbackType.Sink
     ) {
-        // 手环预览
         Box(
             modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = 9.dp)
-                .width(112.dp)
-                .height(160.dp)
-                .background(shellColors.previewBackground),
-            contentAlignment = Alignment.Center
+                .fillMaxSize()
         ) {
-            if (previewPath != null) {
-                AsyncImage(
-                    model = ImageRequest.Builder(shellViewModel.appContext())
-                        .data(java.io.File(previewPath))
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
+            // 手环预览
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 9.dp)
+                    .width(112.dp)
+                    .height(160.dp)
+                    .background(shellColors.previewBackground),
+                contentAlignment = Alignment.Center
+            ) {
+                if (previewPath != null) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(shellViewModel.appContext())
+                            .data(java.io.File(previewPath))
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                }
             }
+            Text(
+                text = "#${shot.index}",
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 18.dp),
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Medium,
+                color = colors.onSurface
+            )
+            Text(
+                text = shot.capturedAt,
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 4.dp),
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Medium,
+                color = shellColors.secondaryText
+            )
         }
-        Text(
-            text = "#${shot.index}",
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 18.dp),
-            fontSize = 17.sp,
-            fontWeight = FontWeight.Medium,
-            color = colors.onSurface
-        )
-        Text(
-            text = shot.capturedAt,
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 4.dp),
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Medium,
-            color = shellColors.secondaryText
-        )
     }
 }

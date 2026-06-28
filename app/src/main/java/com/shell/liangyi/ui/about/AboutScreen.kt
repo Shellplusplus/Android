@@ -2,12 +2,13 @@ package com.shell.liangyi.ui.about
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -22,8 +23,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardColors
+import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import com.shell.liangyi.R
+import com.shell.liangyi.ui.components.ShellBackScaffold
 import com.shell.liangyi.ui.theme.ShellTheme
 
 // Scale: Figma 1080px → 360dp (÷3)
@@ -34,33 +40,11 @@ fun AboutScreen(navController: NavHostController
     val colors = MiuixTheme.colorScheme
     val shellColors = ShellTheme.colors
 
-    Box(modifier = Modifier.fillMaxSize().background(shellColors.pageBackground)) {
-        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-            Spacer(modifier = Modifier.height(43.dp))
-            Row(modifier = Modifier.fillMaxWidth()) {
-                Spacer(modifier = Modifier.width(29.dp))
-                Image(
-                    painter = painterResource(id = R.drawable.back),
-                    contentDescription = "Back",
-                    modifier = Modifier.size(18.dp, 13.dp).clickable(onClick = { navController.popBackStack() }),
-                    colorFilter = ColorFilter.tint(colors.onSurface),
-                    contentScale = ContentScale.Fit
-                )
-            }
-
-            Spacer(modifier = Modifier.height(21.dp))
-            Row(modifier = Modifier.fillMaxWidth()) {
-                Spacer(modifier = Modifier.width(26.dp))
-                Text(
-                    text = "关于",
-                    modifier = Modifier.width(60.dp).height(42.dp),
-                    fontSize = 30.sp,
-                    fontWeight = FontWeight.Normal,
-                    fontFamily = FontFamily.Default,
-                    color = colors.onSurface
-                )
-            }
-
+    ShellBackScaffold(
+        title = "\u5173\u4e8e",
+        onBack = { navController.popBackStack() }
+    ) { innerPadding ->
+        Column(modifier = Modifier.padding(innerPadding).verticalScroll(rememberScrollState())) {
             Spacer(modifier = Modifier.height(12.dp))
 
             // Cover with HyperOS animated background
@@ -152,12 +136,15 @@ private fun OpenSourceCard() {
         "Kotlin Coroutines (Apache-2.0)"
     )
 
-    Box(
+    Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp)
-            .clip(RoundedCornerShape(15.dp))
-            .background(shellColors.cardBackground)
+            .padding(horizontal = 12.dp),
+        colors = CardColors(
+            color = shellColors.cardBackground,
+            contentColor = colors.onSurface
+        ),
+        cornerRadius = 15.dp
     ) {
         Column(modifier = Modifier.padding(start = 16.dp, top = 15.dp, end = 16.dp, bottom = 15.dp)) {
             libraries.forEachIndexed { i, text ->
@@ -193,12 +180,15 @@ private fun DeveloperCard() {
         Triple("梁逸", "Developer", R.drawable.avatar_liangyi)
     )
 
-    Box(
+    Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp)
-            .clip(RoundedCornerShape(15.dp))
-            .background(shellColors.cardBackground)
+            .padding(horizontal = 12.dp),
+        colors = CardColors(
+            color = shellColors.cardBackground,
+            contentColor = colors.onSurface
+        ),
+        cornerRadius = 15.dp
     ) {
         Column(modifier = Modifier.padding(start = 16.dp, top = 15.dp, bottom = 15.dp)) {
             devs.forEachIndexed { i, (name, role, avatar) ->

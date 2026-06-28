@@ -3,10 +3,9 @@ package com.shell.liangyi.ui.screenshot
 import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -23,11 +22,16 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.shell.liangyi.R
 import com.shell.liangyi.ui.ShellViewModel
+import com.shell.liangyi.ui.components.ShellBackScaffold
 import com.shell.liangyi.ui.theme.ShellTheme
 import com.shell.liangyi.util.GallerySaver
 import com.shell.liangyi.util.ImageProcessor
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardColors
+import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import java.io.File
 
 @Composable
@@ -68,32 +72,16 @@ fun ScreenshotDetailScreen(
 
     val gallerySaver = remember { GallerySaver(shellViewModel.appContext()) }
 
-    Box(modifier = Modifier.fillMaxSize().background(shellColors.pageBackground)) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Spacer(modifier = Modifier.height(43.dp))
-            Row(modifier = Modifier.fillMaxWidth()) {
-                Spacer(modifier = Modifier.width(29.dp))
-                Text(
-                    text = "\u2190",
-                    modifier = Modifier.clickable { navController.popBackStack() },
-                    fontSize = 13.sp,
-                    color = colors.onSurface
-                )
-            }
-
-            Spacer(modifier = Modifier.height(21.dp))
-            Text(
-                text = "#${shot?.index ?: shotId}",
-                modifier = Modifier.padding(start = 26.dp),
-                fontSize = 30.sp,
-                fontWeight = FontWeight.Normal,
-                color = colors.onSurface
-            )
-
+    ShellBackScaffold(
+        title = "#${shot?.index ?: shotId}",
+        onBack = { navController.popBackStack() }
+    ) { innerPadding ->
+        Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
             if (shot != null) {
+                Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = shot.capturedAt,
-                    modifier = Modifier.padding(start = 26.dp, top = 4.dp),
+                    modifier = Modifier.padding(start = 26.dp),
                     fontSize = 10.sp,
                     color = shellColors.secondaryText
                 )
@@ -202,29 +190,29 @@ private fun prepareDevice(context: Context, cacheDir: File): File? {
 
 @Composable
 private fun ActionButton(text: String, color: Color, enabled: Boolean, onClick: () -> Unit) {
-    val interactionSource = remember { MutableInteractionSource() }
     val shellColors = ShellTheme.colors
-    Box(
+    Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 10.dp)
-            .height(52.dp)
-            .clip(RoundedCornerShape(15.dp))
-            .background(if (enabled) color else shellColors.disabledAction)
-            .clickable(
-                enabled = enabled,
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick
-            ),
-        contentAlignment = Alignment.Center
+            .height(52.dp),
+        colors = CardColors(
+            color = if (enabled) color else shellColors.disabledAction,
+            contentColor = Color.White
+        ),
+        cornerRadius = 15.dp,
+        onClick = if (enabled) onClick else ({}),
+        showIndication = enabled,
+        pressFeedbackType = PressFeedbackType.Sink
     ) {
-        Text(
-            text = text,
-            fontSize = 17.sp,
-            fontWeight = FontWeight.Medium,
-            fontFamily = FontFamily.Default,
-            color = Color.White
-        )
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(
+                text = text,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Medium,
+                fontFamily = FontFamily.Default,
+                color = Color.White
+            )
+        }
     }
 }

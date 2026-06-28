@@ -5,12 +5,11 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -25,9 +24,14 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.shell.liangyi.core.LogEntry
 import com.shell.liangyi.ui.ShellViewModel
+import com.shell.liangyi.ui.components.ShellBackScaffold
 import com.shell.liangyi.ui.theme.ShellTheme
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardColors
+import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -42,41 +46,19 @@ fun SettingsScreen(
     val context = LocalContext.current
     val logs by shellViewModel.logs.collectAsState(initial = emptyList())
 
-    Box(modifier = Modifier.fillMaxSize().background(shellColors.pageBackground)) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Spacer(modifier = Modifier.height(43.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row {
-                    Spacer(modifier = Modifier.width(29.dp))
-                    Text(
-                        text = "\u2190",
-                        modifier = Modifier.clickable { navController.popBackStack() },
-                        fontSize = 13.sp,
-                        color = colors.onSurface
-                    )
-                }
-                Row {
+    ShellBackScaffold(
+        title = "\u8bbe\u7f6e",
+        onBack = { navController.popBackStack() },
+        actions = {
+            Row {
                     ActionSmallButton(text = "复制") { copyLogs(context, logs) }
                     Spacer(modifier = Modifier.width(8.dp))
                     ActionSmallButton(text = "清空") { shellViewModel.clearLogs() }
                     Spacer(modifier = Modifier.width(16.dp))
-                }
             }
-
-            Spacer(modifier = Modifier.height(21.dp))
-            Text(
-                text = "设置",
-                modifier = Modifier.padding(start = 26.dp),
-                fontSize = 30.sp,
-                fontWeight = FontWeight.Normal,
-                fontFamily = FontFamily.Default,
-                color = colors.onSurface
-            )
-
+        }
+    ) { innerPadding ->
+        Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
             Spacer(modifier = Modifier.height(14.dp))
             Text(
                 text = "连接与传输日志",
@@ -90,32 +72,44 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(6.dp))
 
             if (logs.isEmpty()) {
-                Box(
+                Card(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 11.dp)
-                        .height(200.dp)
-                        .clip(RoundedCornerShape(15.dp))
-                        .background(shellColors.cardBackground),
-                    contentAlignment = Alignment.Center
+                        .height(200.dp),
+                    colors = CardColors(
+                        color = shellColors.cardBackground,
+                        contentColor = colors.onSurface
+                    ),
+                    cornerRadius = 15.dp
                 ) {
-                    Text(
-                        text = "暂无日志",
-                        fontSize = 14.sp,
-                        color = colors.onSurface.copy(alpha = 0.4f)
-                    )
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(
+                            text = "暂无日志",
+                            fontSize = 14.sp,
+                            color = colors.onSurface.copy(alpha = 0.4f)
+                        )
+                    }
                 }
             } else {
-                LazyColumn(
+                Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 11.dp)
-                        .clip(RoundedCornerShape(15.dp))
-                        .background(shellColors.cardBackground)
-                        .padding(8.dp)
+                        .padding(horizontal = 11.dp),
+                    colors = CardColors(
+                        color = shellColors.cardBackground,
+                        contentColor = colors.onSurface
+                    ),
+                    cornerRadius = 15.dp
                 ) {
-                    items(logs) { entry ->
-                        LogItem(entry)
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(8.dp)
+                    ) {
+                        items(logs) { entry ->
+                            LogItem(entry)
+                        }
                     }
                 }
             }
@@ -178,14 +172,16 @@ private fun LogItem(entry: LogEntry) {
 @Composable
 private fun ActionSmallButton(text: String, onClick: () -> Unit) {
     val shellColors = ShellTheme.colors
-    val interactionSource = remember { MutableInteractionSource() }
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(shellColors.cardBackground)
-            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-        contentAlignment = Alignment.Center
+    Card(
+        colors = CardColors(
+            color = shellColors.cardBackground,
+            contentColor = MiuixTheme.colorScheme.onSurface
+        ),
+        cornerRadius = 10.dp,
+        insideMargin = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+        onClick = onClick,
+        showIndication = true,
+        pressFeedbackType = PressFeedbackType.Sink
     ) {
         Text(
             text = text,

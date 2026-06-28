@@ -1,13 +1,12 @@
 package com.shell.liangyi.ui.fetch
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -24,12 +23,17 @@ import com.shell.liangyi.core.LogEntry
 import com.shell.liangyi.model.Screenshot
 import com.shell.liangyi.ui.Routes
 import com.shell.liangyi.ui.ShellViewModel
+import com.shell.liangyi.ui.components.ShellBackScaffold
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardColors
+import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import androidx.compose.ui.layout.ContentScale
 import com.shell.liangyi.ui.theme.ShellTheme
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -52,29 +56,11 @@ fun FetchScreen(
 
     val serverAddress = if (httpRunning && httpIp.isNotEmpty()) "${httpIp}:${httpPort}" else ""
 
-    Box(modifier = Modifier.fillMaxSize().background(shellColors.pageBackground)) {
-        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-            // 返回
-            Spacer(modifier = Modifier.height(43.dp))
-            Text(
-                text = "\u2190",
-                modifier = Modifier.padding(start = 29.dp).clickable { navController.popBackStack() },
-                fontSize = 13.sp,
-                color = colors.onSurface
-            )
-
-            // 标题
-            Spacer(modifier = Modifier.height(21.dp))
-            Text(
-                text = "\u5c40\u57df\u7f51\u4f20\u8f93",
-                modifier = Modifier.padding(start = 26.dp),
-                fontSize = 30.sp,
-                fontWeight = FontWeight.Normal,
-                fontFamily = FontFamily.Default,
-                color = colors.onSurface
-            )
-
-            // 状态卡片
+    ShellBackScaffold(
+        title = "\u5c40\u57df\u7f51\u4f20\u8f93",
+        onBack = { navController.popBackStack() }
+    ) { innerPadding ->
+        Column(modifier = Modifier.fillMaxSize().padding(innerPadding).verticalScroll(rememberScrollState())) {
             Spacer(modifier = Modifier.height(14.dp))
             LanStatusCard(isRunning = httpRunning, address = serverAddress, progress = receiveProgress)
 
@@ -135,20 +121,24 @@ fun FetchScreen(
                     }
                 }
             } else {
-                Box(
+                Card(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 9.dp)
-                        .height(214.dp)
-                        .clip(RoundedCornerShape(15.dp))
-                        .background(shellColors.cardBackground),
-                    contentAlignment = Alignment.Center
+                        .height(214.dp),
+                    colors = CardColors(
+                        color = shellColors.cardBackground,
+                        contentColor = colors.onSurface
+                    ),
+                    cornerRadius = 15.dp
                 ) {
-                    Text(
-                        text = "\u6682\u65e0\u622a\u56fe",
-                        fontSize = 16.sp,
-                        color = colors.onSurface.copy(alpha = 0.4f)
-                    )
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(
+                            text = "\u6682\u65e0\u622a\u56fe",
+                            fontSize = 16.sp,
+                            color = colors.onSurface.copy(alpha = 0.4f)
+                        )
+                    }
                 }
             }
 
@@ -169,13 +159,16 @@ private fun LanStatusCard(isRunning: Boolean, address: String, progress: String)
         else -> 56.dp
     }
 
-    Box(
+    Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 11.dp)
-            .height(cardHeight)
-            .clip(RoundedCornerShape(15.dp))
-            .background(shellColors.cardBackground)
+            .height(cardHeight),
+        colors = CardColors(
+            color = shellColors.cardBackground,
+            contentColor = colors.onSurface
+        ),
+        cornerRadius = 15.dp
     ) {
         Column(
             modifier = Modifier.fillMaxSize().padding(start = 13.dp, end = 13.dp, top = 12.dp, bottom = 12.dp)
@@ -223,28 +216,33 @@ private fun LanStatusCard(isRunning: Boolean, address: String, progress: String)
 private fun LanTransferLogCard(logs: List<LogEntry>) {
     val colors = MiuixTheme.colorScheme
     val shellColors = ShellTheme.colors
-    Box(
+    Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 11.dp)
-            .height(126.dp)
-            .clip(RoundedCornerShape(15.dp))
-            .background(shellColors.cardBackground)
+            .height(126.dp),
+        colors = CardColors(
+            color = shellColors.cardBackground,
+            contentColor = colors.onSurface
+        ),
+        cornerRadius = 15.dp
     ) {
-        if (logs.isEmpty()) {
-            Text(
-                text = "暂无局域网传输日志",
-                modifier = Modifier.align(Alignment.Center),
-                fontSize = 13.sp,
-                color = colors.onSurface.copy(alpha = 0.4f)
-            )
-            return@Box
-        }
-        Column(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 8.dp)
-        ) {
-            logs.forEach { entry ->
-                LanLogItem(entry)
+        Box(modifier = Modifier.fillMaxSize()) {
+            if (logs.isEmpty()) {
+                Text(
+                    text = "暂无局域网传输日志",
+                    modifier = Modifier.align(Alignment.Center),
+                    fontSize = 13.sp,
+                    color = colors.onSurface.copy(alpha = 0.4f)
+                )
+                return@Box
+            }
+            Column(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 8.dp)
+            ) {
+                logs.forEach { entry ->
+                    LanLogItem(entry)
+                }
             }
         }
     }
@@ -281,30 +279,30 @@ private fun LanLogItem(entry: LogEntry) {
 
 @Composable
 private fun ActionButton(text: String, enabled: Boolean, primary: Boolean, onClick: () -> Unit) {
-    val interactionSource = remember { MutableInteractionSource() }
     val shellColors = ShellTheme.colors
-    Box(
+    Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 10.dp)
-            .height(52.dp)
-            .clip(RoundedCornerShape(15.dp))
-            .background(if (primary) shellColors.primaryAction else shellColors.destructiveAction)
-            .clickable(
-                enabled = enabled,
-                indication = null,
-                interactionSource = interactionSource,
-                onClick = onClick
-            ),
-        contentAlignment = Alignment.Center
+            .height(52.dp),
+        colors = CardColors(
+            color = if (primary) shellColors.primaryAction else shellColors.destructiveAction,
+            contentColor = Color.White
+        ),
+        cornerRadius = 15.dp,
+        onClick = if (enabled) onClick else ({}),
+        showIndication = enabled,
+        pressFeedbackType = PressFeedbackType.Sink
     ) {
-        Text(
-            text = text,
-            fontSize = 17.sp,
-            fontWeight = FontWeight.Medium,
-            fontFamily = FontFamily.Default,
-            color = Color.White
-        )
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(
+                text = text,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Medium,
+                fontFamily = FontFamily.Default,
+                color = Color.White
+            )
+        }
     }
 }
 
@@ -312,54 +310,58 @@ private fun ActionButton(text: String, enabled: Boolean, primary: Boolean, onCli
 private fun ScreenshotCard(shot: Screenshot, modifier: Modifier, onClick: () -> Unit, shellViewModel: ShellViewModel) {
     val colors = MiuixTheme.colorScheme
     val shellColors = ShellTheme.colors
-    val interactionSource = remember { MutableInteractionSource() }
-
     val previewPath = remember(shot.shotId) { shellViewModel.getScreenshotFilePath(shot.shotId) }
-    Box(
+    Card(
         modifier = modifier
-            .height(214.dp)
-            .clip(RoundedCornerShape(15.dp))
-            .background(shellColors.cardBackground)
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick
-            )
+            .height(214.dp),
+        colors = CardColors(
+            color = shellColors.cardBackground,
+            contentColor = colors.onSurface
+        ),
+        cornerRadius = 15.dp,
+        onClick = onClick,
+        showIndication = true,
+        pressFeedbackType = PressFeedbackType.Sink
     ) {
         Box(
             modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = 9.dp)
-                .width(112.dp)
-                .height(160.dp)
-                .background(shellColors.previewBackground),
-            contentAlignment = Alignment.Center
+                .fillMaxSize()
         ) {
-            if (previewPath != null) {
-                AsyncImage(
-                    model = ImageRequest.Builder(shellViewModel.appContext())
-                        .data(java.io.File(previewPath))
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 9.dp)
+                    .width(112.dp)
+                    .height(160.dp)
+                    .background(shellColors.previewBackground),
+                contentAlignment = Alignment.Center
+            ) {
+                if (previewPath != null) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(shellViewModel.appContext())
+                            .data(java.io.File(previewPath))
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                }
             }
+            Text(
+                text = "#" + shot.index,
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 18.dp),
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Medium,
+                color = colors.onSurface
+            )
+            Text(
+                text = shot.capturedAt,
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 4.dp),
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Medium,
+                color = shellColors.secondaryText
+            )
         }
-        Text(
-            text = "#" + shot.index,
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 18.dp),
-            fontSize = 17.sp,
-            fontWeight = FontWeight.Medium,
-            color = colors.onSurface
-        )
-        Text(
-            text = shot.capturedAt,
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 4.dp),
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Medium,
-            color = shellColors.secondaryText
-        )
     }
 }

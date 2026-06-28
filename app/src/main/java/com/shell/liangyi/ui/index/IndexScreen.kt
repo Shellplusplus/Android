@@ -3,7 +3,6 @@ package com.shell.liangyi.ui.index
 // Layout adapted from SukiSU Ultra's GPL-3.0 HomeMiuix screen for Shell++ state data.
 
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -172,17 +171,29 @@ private fun TopBar(
         color = ShellTheme.colors.pageBackground,
         title = "Shell++",
         actions = {
-            Image(
-                painter = painterResource(id = R.drawable.set),
-                contentDescription = "设置",
+            Card(
                 modifier = Modifier
                     .padding(end = 10.dp)
-                    .size(34.dp)
-                    .padding(8.dp)
-                    .clickable { navController.navigate(Routes.SETTINGS) },
-                colorFilter = ColorFilter.tint(colors.onBackground),
-                contentScale = ContentScale.Fit
-            )
+                    .size(34.dp),
+                colors = CardColors(
+                    color = Color.Transparent,
+                    contentColor = colors.onBackground
+                ),
+                cornerRadius = 12.dp,
+                onClick = { navController.navigate(Routes.SETTINGS) },
+                showIndication = true,
+                pressFeedbackType = PressFeedbackType.Sink
+            ) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Image(
+                        painter = painterResource(id = R.drawable.set),
+                        contentDescription = "设置",
+                        modifier = Modifier.size(18.dp),
+                        colorFilter = ColorFilter.tint(colors.onBackground),
+                        contentScale = ContentScale.Fit
+                    )
+                }
+            }
         },
         scrollBehavior = scrollBehavior
     )

@@ -1,8 +1,9 @@
 package com.shell.liangyi.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -21,6 +22,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import android.net.Uri
 import androidx.navigation.compose.rememberNavController
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardColors
+import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import com.shell.liangyi.ui.index.IndexScreen
@@ -29,6 +33,7 @@ import com.shell.liangyi.ui.fetch.FetchScreen
 import com.shell.liangyi.ui.screenshot.ScreenshotDetailScreen
 import com.shell.liangyi.ui.about.AboutScreen
 import com.shell.liangyi.ui.settings.SettingsScreen
+import com.shell.liangyi.ui.components.ShellBackScaffold
 import com.shell.liangyi.ui.theme.ShellTheme
 
 object Routes {
@@ -88,39 +93,31 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
 private fun PlaceholderScreen(title: String, subtitle: String, navController: NavHostController) {
     val colors = MiuixTheme.colorScheme
     val shellColors = ShellTheme.colors
-    Box(modifier = Modifier.fillMaxSize().background(shellColors.pageBackground)) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Spacer(modifier = Modifier.height(43.dp))
-            Text(
-                text = "←",
-                modifier = Modifier.padding(start = 29.dp).clickable { navController.popBackStack() },
-                fontSize = 13.sp,
-                color = colors.onSurface
-            )
-            Spacer(modifier = Modifier.height(21.dp))
-            Text(
-                text = title,
-                modifier = Modifier.padding(start = 26.dp),
-                fontSize = 30.sp,
-                fontWeight = FontWeight.Normal,
-                color = colors.onSurface
-            )
+    ShellBackScaffold(
+        title = title,
+        onBack = { navController.popBackStack() }
+    ) { innerPadding ->
+        Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
             Spacer(modifier = Modifier.height(13.dp))
-            Box(
+            Card(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 11.dp)
-                    .height(56.dp)
-                    .clip(RoundedCornerShape(15.dp))
-                    .background(shellColors.cardBackground),
-                contentAlignment = Alignment.Center
+                    .height(56.dp),
+                colors = CardColors(
+                    color = shellColors.cardBackground,
+                    contentColor = colors.onSurface
+                ),
+                cornerRadius = 15.dp
             ) {
-                Text(
-                    text = subtitle,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = shellColors.secondaryText
-                )
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(
+                        text = subtitle,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = shellColors.secondaryText
+                    )
+                }
             }
         }
     }
