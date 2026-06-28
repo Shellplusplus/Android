@@ -13,24 +13,14 @@ val localProps = Properties().apply {
     }
 }
 
-val sharedSignDir = rootDir.resolve("../../Shell++/sign")
-val sharedAndroidKeystore = sharedSignDir.resolve("Android.jks")
-val sharedStorePassword = providers.gradleProperty("shell.storePassword")
-    .orElse(providers.environmentVariable("SHELL_STORE_PASSWORD"))
-    .orElse(localProps.getProperty("shell.storePassword") ?: "")
-    .orNull
-val sharedKeyAlias = providers.gradleProperty("shell.keyAlias")
-    .orElse(providers.environmentVariable("SHELL_KEY_ALIAS"))
-    .orElse(localProps.getProperty("shell.keyAlias") ?: "key")
-    .orNull
-val sharedKeyPassword = providers.gradleProperty("shell.keyPassword")
-    .orElse(providers.environmentVariable("SHELL_KEY_PASSWORD"))
-    .orElse(localProps.getProperty("shell.keyPassword") ?: "")
-    .orNull
-val hasSharedSigningConfig = sharedAndroidKeystore.exists()
-    && !sharedStorePassword.isNullOrBlank()
-    && !sharedKeyAlias.isNullOrBlank()
-    && !sharedKeyPassword.isNullOrBlank()
+val localSigningKeystore = rootDir.resolve("sign/Android.jks")
+val localStorePassword = localProps.getProperty("shell.storePassword") ?: ""
+val localKeyAlias = localProps.getProperty("shell.keyAlias") ?: "key"
+val localKeyPassword = localProps.getProperty("shell.keyPassword") ?: ""
+val hasLocalSigningConfig = localSigningKeystore.exists()
+    && localStorePassword.isNotBlank()
+    && localKeyAlias.isNotBlank()
+    && localKeyPassword.isNotBlank()
 
 android {
     namespace = "com.shell.liangyi"
@@ -38,12 +28,12 @@ android {
 
 
     signingConfigs {
-        create("sharedShellSign") {
-            if (hasSharedSigningConfig) {
-                storeFile = sharedAndroidKeystore
-                storePassword = sharedStorePassword
-                keyAlias = sharedKeyAlias
-                keyPassword = sharedKeyPassword
+        create("localShellSign") {
+            if (hasLocalSigningConfig) {
+                storeFile = localSigningKeystore
+                storePassword = localStorePassword
+                keyAlias = localKeyAlias
+                keyPassword = localKeyPassword
             }
         }
     }
@@ -60,14 +50,14 @@ android {
 
     buildTypes {
         debug {
-            if (hasSharedSigningConfig) {
-                signingConfig = signingConfigs.getByName("sharedShellSign")
+            if (hasLocalSigningConfig) {
+                signingConfig = signingConfigs.getByName("localShellSign")
             }
         }
         release {
             isMinifyEnabled = false
-            if (hasSharedSigningConfig) {
-                signingConfig = signingConfigs.getByName("sharedShellSign")
+            if (hasLocalSigningConfig) {
+                signingConfig = signingConfigs.getByName("localShellSign")
             }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
