@@ -177,7 +177,8 @@ private fun DeveloperCard() {
     val devs = listOf(
         Triple("AzumaChiaki", "Developer", R.drawable.avatar_azumachiaki),
         Triple("IKUN-CXKPRO", "Developer", R.drawable.avatar_ikun),
-        Triple("梁逸", "Developer", R.drawable.avatar_liangyi)
+        Triple("梁逸", "Developer", R.drawable.avatar_liangyi),
+        Triple("DefateStar", "Developer", R.drawable.avatar_defatestar)
     )
 
     Card(
