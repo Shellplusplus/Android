@@ -2,12 +2,10 @@ package com.shell.liangyi.ui.screenshot
 
 import android.content.Context
 import android.widget.Toast
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -178,7 +176,7 @@ fun ScreenshotDetailScreen(
 private fun prepareDevice(context: Context, cacheDir: File): File? {
     val out = File(cacheDir, "device_9pro.png")
     if (!out.exists()) {
-        context.resources.openRawResource(R.drawable.device_9pro).use { input ->
+        context.resources.openRawResource(R.raw.device_9pro).use { input ->
             out.outputStream().use { output -> input.copyTo(output) }
         }
     }
