@@ -50,6 +50,8 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
     val density = LocalDensity.current
     val windowWidth = (configuration.screenWidthDp * density.density).toInt()
     val updatePrompt by shellViewModel.updatePrompt.collectAsState()
+    var displayedUpdatePrompt by remember { mutableStateOf(updatePrompt) }
+    var updateDialogVisible by remember { mutableStateOf(updatePrompt != null) }
 
     LaunchedEffect(Unit) {
         shellViewModel.checkForUpdates(manual = false)
@@ -58,6 +60,15 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
     LaunchedEffect(Unit) {
         shellViewModel.updateMessages.collect { message ->
             android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    LaunchedEffect(updatePrompt) {
+        if (updatePrompt != null) {
+            displayedUpdatePrompt = updatePrompt
+            updateDialogVisible = true
+        } else if (displayedUpdatePrompt != null) {
+            updateDialogVisible = false
         }
     }
 
@@ -95,10 +106,11 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
             }
         }
 
-        updatePrompt?.let { prompt ->
+        displayedUpdatePrompt?.let { prompt ->
             LiquidGlassUpdateDialog(
                 prompt = prompt,
-                onDismiss = { shellViewModel.dismissUpdatePrompt() },
+                visible = updateDialogVisible,
+                onDismissRequest = { shellViewModel.dismissUpdatePrompt() },
                 onConfirm = {
                     context.startActivity(
                         Intent(Intent.ACTION_VIEW, Uri.parse(prompt.info.downloadUrl)).apply {
@@ -107,6 +119,11 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
                     )
                     if (!prompt.mandatory) {
                         shellViewModel.dismissUpdatePrompt()
+                    }
+                },
+                onExitFinished = {
+                    if (!updateDialogVisible) {
+                        displayedUpdatePrompt = null
                     }
                 }
             )

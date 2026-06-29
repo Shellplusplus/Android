@@ -110,12 +110,20 @@ class ShellViewModel : ViewModel() {
         if (!manual) autoUpdateChecked = true
 
         val context = appCtx ?: return
+        val cachedMandatoryPrompt = UpdateChecker.cachedMandatoryPrompt(context)
+        if (cachedMandatoryPrompt != null) {
+            _updatePrompt.value = cachedMandatoryPrompt
+        }
+
         scope.launch {
             when (val result = withContext(Dispatchers.IO) { UpdateChecker.check(context) }) {
                 is UpdateCheckResult.UpdateAvailable -> {
                     _updatePrompt.value = result.prompt
                 }
                 is UpdateCheckResult.UpToDate -> {
+                    if (_updatePrompt.value?.mandatory == true) {
+                        _updatePrompt.value = null
+                    }
                     if (manual) {
                         _updateMessages.tryEmit("当前已是最新版本")
                     }

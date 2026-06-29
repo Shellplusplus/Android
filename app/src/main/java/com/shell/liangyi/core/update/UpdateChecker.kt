@@ -10,6 +10,47 @@ import java.net.URL
 
 object UpdateChecker {
     private const val UPDATE_URL = "https://shellupdate.rth1.xyz/api.php"
+    private const val PREFS_NAME = "shell_update_state"
+    private const val KEY_MANDATORY_CONFIRMED = "mandatory_confirmed"
+    private const val KEY_LATEST_VERSION = "latest_version"
+    private const val KEY_LATEST_VERSION_CODE = "latest_version_code"
+    private const val KEY_DOWNLOAD_URL = "download_url"
+    private const val KEY_CHANGELOG = "changelog"
+    private const val KEY_MIN_SUPPORTED_VERSION_CODE = "min_supported_version_code"
+    private const val KEY_RELEASE_DATE = "release_date"
+
+    fun cachedMandatoryPrompt(context: Context): UpdatePrompt? {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        if (!prefs.getBoolean(KEY_MANDATORY_CONFIRMED, false)) return null
+
+        val currentVersion = readCurrentVersion(context)
+        val latestVersionCode = prefs.getLong(KEY_LATEST_VERSION_CODE, 0L)
+        val minSupportedVersionCode = prefs.getLong(KEY_MIN_SUPPORTED_VERSION_CODE, 0L)
+        val downloadUrl = prefs.getString(KEY_DOWNLOAD_URL, "").orEmpty()
+
+        if (
+            minSupportedVersionCode <= currentVersion.code ||
+            latestVersionCode <= currentVersion.code ||
+            downloadUrl.isBlank()
+        ) {
+            clearMandatoryPrompt(context)
+            return null
+        }
+
+        return UpdatePrompt(
+            info = AppUpdateInfo(
+                latestVersion = prefs.getString(KEY_LATEST_VERSION, "").orEmpty(),
+                latestVersionCode = latestVersionCode,
+                downloadUrl = downloadUrl,
+                changelog = prefs.getString(KEY_CHANGELOG, "").orEmpty(),
+                minSupportedVersionCode = minSupportedVersionCode,
+                releaseDate = prefs.getString(KEY_RELEASE_DATE, "").orEmpty(),
+            ),
+            currentVersionName = currentVersion.name,
+            currentVersionCode = currentVersion.code,
+            mandatory = true,
+        )
+    }
 
     fun check(context: Context): UpdateCheckResult {
         return try {
@@ -35,17 +76,22 @@ object UpdateChecker {
                 releaseDate = json.optString("release_date", ""),
             )
 
-            val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
-            val currentVersionCode = PackageInfoCompat.getLongVersionCode(packageInfo)
-            val currentVersionName = packageInfo.versionName ?: ""
+            val currentVersion = readCurrentVersion(context)
+            val mandatory = currentVersion.code < info.minSupportedVersionCode
 
-            if (info.latestVersionCode > currentVersionCode) {
+            if (mandatory) {
+                saveMandatoryPrompt(context, info)
+            } else {
+                clearMandatoryPrompt(context)
+            }
+
+            if (mandatory || info.latestVersionCode > currentVersion.code) {
                 UpdateCheckResult.UpdateAvailable(
                     UpdatePrompt(
                         info = info,
-                        currentVersionName = currentVersionName,
-                        currentVersionCode = currentVersionCode,
-                        mandatory = currentVersionCode < info.minSupportedVersionCode,
+                        currentVersionName = currentVersion.name,
+                        currentVersionCode = currentVersion.code,
+                        mandatory = mandatory,
                     )
                 )
             } else {
@@ -55,4 +101,37 @@ object UpdateChecker {
             UpdateCheckResult.Failed(e.message ?: "检测失败")
         }
     }
+
+    private fun saveMandatoryPrompt(context: Context, info: AppUpdateInfo) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(KEY_MANDATORY_CONFIRMED, true)
+            .putString(KEY_LATEST_VERSION, info.latestVersion)
+            .putLong(KEY_LATEST_VERSION_CODE, info.latestVersionCode)
+            .putString(KEY_DOWNLOAD_URL, info.downloadUrl)
+            .putString(KEY_CHANGELOG, info.changelog)
+            .putLong(KEY_MIN_SUPPORTED_VERSION_CODE, info.minSupportedVersionCode)
+            .putString(KEY_RELEASE_DATE, info.releaseDate)
+            .apply()
+    }
+
+    private fun clearMandatoryPrompt(context: Context) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .clear()
+            .apply()
+    }
+
+    private fun readCurrentVersion(context: Context): CurrentVersion {
+        val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+        return CurrentVersion(
+            name = packageInfo.versionName ?: "",
+            code = PackageInfoCompat.getLongVersionCode(packageInfo),
+        )
+    }
+
+    private data class CurrentVersion(
+        val name: String,
+        val code: Long,
+    )
 }
