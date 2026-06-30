@@ -45,6 +45,7 @@ import com.shell.liangyi.ui.bluetooth.BluetoothScreen
 import com.shell.liangyi.ui.components.LiquidGlassBottomBar
 import com.shell.liangyi.ui.components.LiquidGlassTabItem
 import com.shell.liangyi.ui.components.LiquidGlassUpdateDialog
+import com.shell.liangyi.ui.components.rememberShellBlurBackdrop
 import com.shell.liangyi.ui.components.ShellBackScaffold
 import com.shell.liangyi.ui.fetch.FetchScreen
 import com.shell.liangyi.ui.index.IndexScreen
@@ -96,6 +97,7 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
     val windowWidth = remember(configuration.screenWidthDp, density.density) {
         (configuration.screenWidthDp * density.density).toInt()
     }
+    val rootBackdrop = rememberShellBlurBackdrop(enableBlur = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S_V2)
     val updatePrompt by shellViewModel.updatePrompt.collectAsState()
     var displayedUpdatePrompt by remember { mutableStateOf(updatePrompt) }
     var updateDialogVisible by remember { mutableStateOf(updatePrompt != null) }
@@ -123,6 +125,13 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
         NavHost(
             navController = navController,
             startDestination = Routes.MAIN,
+            modifier = if (rootBackdrop != null) {
+                Modifier
+                    .fillMaxSize()
+                    .layerBackdrop(rootBackdrop)
+            } else {
+                Modifier.fillMaxSize()
+            },
             enterTransition = { AnimTools.enterTransition(windowWidth) },
             exitTransition = { AnimTools.exitTransition(windowWidth) },
             popEnterTransition = { AnimTools.popEnterTransition(windowWidth) },
@@ -182,7 +191,8 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
                     if (!updateDialogVisible) {
                         displayedUpdatePrompt = null
                     }
-                }
+                },
+                backdrop = rootBackdrop,
             )
         }
     }

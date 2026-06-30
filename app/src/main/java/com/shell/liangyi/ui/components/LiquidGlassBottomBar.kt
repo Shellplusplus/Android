@@ -9,7 +9,6 @@ import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -35,6 +34,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.disabled
@@ -70,10 +70,10 @@ fun LiquidGlassBottomBar(
     referenceSlots: Int = 4,
 ) {
     val colorScheme = MiuixTheme.colorScheme
-    val isLightTheme = !isSystemInDarkTheme()
-    val accentColor = if (isLightTheme) Color(0xFF0A84FF) else Color(0xFF72B6FF)
+    val isLightSurface = colorScheme.background.luminance() > 0.5f
+    val accentColor = Color(0xFF0A84FF)
     val containerColor = if (blurEnabled) {
-        colorScheme.surfaceContainer.copy(alpha = if (isLightTheme) 0.42f else 0.52f)
+        colorScheme.surfaceContainer.copy(alpha = if (isLightSurface) 0.42f else 0.52f)
     } else {
         colorScheme.surfaceContainer
     }
@@ -233,7 +233,7 @@ fun LiquidGlassBottomBar(
                             },
                             onDrawSurface = {
                                 drawRect(
-                                    color = if (isLightTheme) {
+                                    color = if (isLightSurface) {
                                         Color.Black.copy(alpha = 0.08f)
                                     } else {
                                         Color.White.copy(alpha = 0.10f)

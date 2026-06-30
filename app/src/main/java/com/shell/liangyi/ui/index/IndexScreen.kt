@@ -5,8 +5,8 @@ package com.shell.liangyi.ui.index
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -207,56 +207,61 @@ private fun StatusCard(
     state: HomeState,
     actions: HomeActions,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(IntrinsicSize.Min),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        MainConnectionCard(
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val squareSize = ((maxWidth - 12.dp) / 2).coerceIn(156.dp, 220.dp)
+        val miniCardHeight = (squareSize - 12.dp) / 2
+
+        Row(
             modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight(),
-            state = state,
-            onClick = actions.onRefreshConnection,
-        )
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight(),
+                .fillMaxWidth()
+                .height(squareSize),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            CounterCard(
+            MainConnectionCard(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                title = stringResource(R.string.screenshot_list),
-                value = state.screenshotCount.toString(),
-                summary = if (state.screenshotCount > 0) {
-                    stringResource(R.string.cached)
-                } else {
-                    stringResource(R.string.pending_fetch)
-                },
-                onClick = actions.onOpenBluetooth,
+                    .weight(1f)
+                    .fillMaxHeight(),
+                state = state,
+                onClick = actions.onRefreshConnection,
             )
-            Spacer(Modifier.height(12.dp))
-            CounterCard(
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                title = stringResource(R.string.lan),
-                value = if (state.httpRunning) {
-                    stringResource(R.string.enabled_short)
-                } else {
-                    stringResource(R.string.disabled_short)
-                },
-                summary = if (state.httpRunning) {
-                    stringResource(R.string.direct_transfer_service)
-                } else {
-                    stringResource(R.string.not_enabled)
-                },
-                onClick = actions.onOpenLan,
-            )
+                    .weight(1f)
+                    .fillMaxHeight(),
+            ) {
+                CounterCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(miniCardHeight),
+                    title = stringResource(R.string.screenshot_list),
+                    value = state.screenshotCount.toString(),
+                    summary = if (state.screenshotCount > 0) {
+                        stringResource(R.string.cached)
+                    } else {
+                        stringResource(R.string.pending_fetch)
+                    },
+                    onClick = actions.onOpenBluetooth,
+                )
+                Spacer(Modifier.height(12.dp))
+                CounterCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(miniCardHeight),
+                    title = stringResource(R.string.lan),
+                    value = if (state.httpRunning) {
+                        stringResource(R.string.enabled_short)
+                    } else {
+                        stringResource(R.string.disabled_short)
+                    },
+                    summary = if (state.httpRunning) {
+                        stringResource(R.string.direct_transfer_service)
+                    } else {
+                        stringResource(R.string.not_enabled)
+                    },
+                    onClick = actions.onOpenLan,
+                )
+            }
         }
     }
 }
@@ -287,7 +292,7 @@ private fun MainConnectionCard(
     val summary = when {
         state.isBusy && state.receiveProgress.isNotBlank() -> state.receiveProgress
         state.isBusy -> stringResource(R.string.receiving_watch_screenshots)
-        state.isConnected -> stringResource(R.string.quick_app_ready)
+        state.isConnected -> ""
         else -> stringResource(R.string.tap_refresh_connection)
     }
     val icon = if (state.isConnected || state.isBusy) {
@@ -338,16 +343,18 @@ private fun MainConnectionCard(
                     fontWeight = FontWeight.SemiBold,
                     color = colors.onSurface,
                 )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    modifier = Modifier.fillMaxWidth(),
-                    text = summary,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = colors.onSurfaceVariantSummary,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                if (summary.isNotBlank()) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        modifier = Modifier.fillMaxWidth(),
+                        text = summary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = colors.onSurfaceVariantSummary,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
     }
@@ -540,7 +547,6 @@ private fun InfoCard(
                 .fillMaxWidth()
                 .padding(16.dp),
         ) {
-            InfoText(title = stringResource(R.string.app_label), content = "Shell++ Android")
             InfoText(
                 title = stringResource(R.string.connection_status),
                 content = stringResource(connectionState.labelRes())

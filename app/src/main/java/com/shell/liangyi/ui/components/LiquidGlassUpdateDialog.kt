@@ -1,18 +1,22 @@
 package com.shell.liangyi.ui.components
 
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
@@ -34,11 +38,12 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.shell.liangyi.R
 import com.shell.liangyi.core.update.UpdatePrompt
 import kotlinx.coroutines.delay
+import top.yukonga.miuix.kmp.blur.Backdrop
+import top.yukonga.miuix.kmp.blur.blur
+import top.yukonga.miuix.kmp.blur.drawBackdrop
 
 private const val DIALOG_ANIMATION_DURATION_MS = 220
 
@@ -49,20 +54,45 @@ fun LiquidGlassUpdateDialog(
     onDismissRequest: () -> Unit,
     onConfirm: () -> Unit,
     onExitFinished: () -> Unit,
+    backdrop: Backdrop? = null,
 ) {
     val isLightTheme = !isSystemInDarkTheme()
     val contentColor = if (isLightTheme) Color.Black else Color.White
-    val accentColor = if (isLightTheme) Color(0xFF0088FF) else Color(0xFF0091FF)
-    val containerColor = if (isLightTheme) Color.White else Color(0xFF1B1B1F)
+    val accentColor = Color(0xFF0A84FF)
+    val containerColor = if (isLightTheme) {
+        Color(0xFFFAFAFA).copy(alpha = 0.60f)
+    } else {
+        Color(0xFF121212).copy(alpha = 0.40f)
+    }
+    val dimColor = if (isLightTheme) {
+        Color(0xFF29293A).copy(alpha = 0.23f)
+    } else {
+        Color(0xFF121212).copy(alpha = 0.56f)
+    }
+    val secondaryButtonColor = if (isLightTheme) {
+        Color.White.copy(alpha = 0.20f)
+    } else {
+        Color.White.copy(alpha = 0.10f)
+    }
+    val cardShape = remember { RoundedCornerShape(32.dp) }
     var animatedVisible by remember(prompt.info.latestVersionCode, prompt.mandatory) {
         mutableStateOf(false)
     }
+    val overlayAlpha by animateFloatAsState(
+        targetValue = if (animatedVisible) 1f else 0f,
+        animationSpec = tween(
+            durationMillis = DIALOG_ANIMATION_DURATION_MS,
+            easing = FastOutSlowInEasing,
+        ),
+        label = "update_dialog_overlay_alpha",
+    )
     val dialogAlpha by animateFloatAsState(
         targetValue = if (animatedVisible) 1f else 0f,
         animationSpec = tween(
             durationMillis = DIALOG_ANIMATION_DURATION_MS,
             easing = FastOutSlowInEasing,
         ),
+        label = "update_dialog_alpha",
     )
     val dialogScale by animateFloatAsState(
         targetValue = if (animatedVisible) 1f else 0.94f,
@@ -70,6 +100,7 @@ fun LiquidGlassUpdateDialog(
             durationMillis = DIALOG_ANIMATION_DURATION_MS,
             easing = FastOutSlowInEasing,
         ),
+        label = "update_dialog_scale",
     )
     val dialogOffsetY by animateFloatAsState(
         targetValue = if (animatedVisible) 0f else 18f,
@@ -77,6 +108,7 @@ fun LiquidGlassUpdateDialog(
             durationMillis = DIALOG_ANIMATION_DURATION_MS,
             easing = FastOutSlowInEasing,
         ),
+        label = "update_dialog_offset",
     )
 
     LaunchedEffect(prompt.info.latestVersionCode, prompt.mandatory, visible) {
@@ -90,32 +122,72 @@ fun LiquidGlassUpdateDialog(
         }
     }
 
-    Dialog(
-        onDismissRequest = {
-            if (!prompt.mandatory && visible) onDismissRequest()
-        },
-        properties = DialogProperties(
-            dismissOnBackPress = !prompt.mandatory,
-            dismissOnClickOutside = !prompt.mandatory,
-        )
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center,
     ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer { alpha = overlayAlpha }
+                .background(dimColor)
+                .clickable(
+                    enabled = !prompt.mandatory && visible,
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onDismissRequest,
+                ),
+        )
         Column(
-            Modifier
+            modifier = Modifier
                 .padding(24.dp)
-                .clip(RoundedCornerShape(32.dp))
-                .background(containerColor)
+                .widthIn(max = 420.dp)
                 .graphicsLayer {
                     alpha = dialogAlpha
                     scaleX = dialogScale
                     scaleY = dialogScale
                     translationY = dialogOffsetY
                 }
-                .fillMaxWidth()
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = {},
+                )
+                .then(
+                    if (backdrop != null) {
+                        Modifier.drawBackdrop(
+                            backdrop = backdrop,
+                            shape = { cardShape },
+                            effects = {
+                                vibrancy()
+                                blur(if (isLightTheme) 16.dp.toPx() else 8.dp.toPx())
+                                lens(
+                                    refractionHeight = 24.dp.toPx(),
+                                    refractionAmount = 48.dp.toPx(),
+                                    depthEffect = true,
+                                )
+                            },
+                            onDrawSurface = { drawRect(containerColor) },
+                        )
+                    } else {
+                        Modifier
+                            .clip(cardShape)
+                            .background(
+                                if (isLightTheme) Color.White else Color(0xFF1B1B1F),
+                                cardShape,
+                            )
+                    }
+                )
+                .fillMaxWidth(),
         ) {
             BasicText(
                 text = stringResource(R.string.new_version_found),
-                modifier = Modifier.padding(start = 24.dp, top = 22.dp, end = 24.dp, bottom = 8.dp),
-                style = TextStyle(color = contentColor, fontSize = 24.sp, fontWeight = FontWeight.Medium)
+                modifier = Modifier.padding(start = 28.dp, top = 24.dp, end = 28.dp, bottom = 12.dp),
+                style = TextStyle(
+                    color = contentColor,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Medium,
+                ),
             )
             BasicText(
                 text = stringResource(
@@ -124,56 +196,97 @@ fun LiquidGlassUpdateDialog(
                     prompt.currentVersionCode.toString(),
                     prompt.info.latestVersion,
                     prompt.info.latestVersionCode.toString(),
-                    prompt.info.releaseDate
+                    prompt.info.releaseDate,
                 ),
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
-                style = TextStyle(color = contentColor.copy(alpha = 0.72f), fontSize = 14.sp)
+                style = TextStyle(
+                    color = contentColor.copy(alpha = 0.72f),
+                    fontSize = 14.sp,
+                ),
             )
             BasicText(
-                text = if (prompt.info.changelog.isBlank()) stringResource(R.string.no_update_notes) else prompt.info.changelog,
+                text = if (prompt.info.changelog.isBlank()) {
+                    stringResource(R.string.no_update_notes)
+                } else {
+                    prompt.info.changelog
+                },
                 modifier = Modifier
-                    .then(if (isLightTheme) Modifier else Modifier.graphicsLayer(blendMode = BlendMode.Plus))
+                    .then(
+                        if (isLightTheme) {
+                            Modifier
+                        } else {
+                            Modifier.graphicsLayer(blendMode = BlendMode.Plus)
+                        }
+                    )
                     .padding(horizontal = 24.dp, vertical = 8.dp)
-                    .heightIn(max = 200.dp)
+                    .heightIn(max = 220.dp)
                     .verticalScroll(rememberScrollState()),
-                style = TextStyle(color = contentColor.copy(alpha = 0.68f), fontSize = 15.sp)
+                style = TextStyle(
+                    color = contentColor.copy(alpha = 0.68f),
+                    fontSize = 15.sp,
+                ),
             )
             Row(
-                Modifier
+                modifier = Modifier
                     .padding(start = 24.dp, top = 12.dp, end = 24.dp, bottom = 24.dp)
                     .fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (!prompt.mandatory) {
-                    Row(
-                        Modifier
-                            .clip(RoundedCornerShape(999.dp))
-                            .background(if (isLightTheme) Color(0xFFF1F1F4) else Color(0xFF2A2A30))
-                            .clickable(enabled = visible, onClick = onDismissRequest)
-                            .height(48.dp)
-                            .weight(1f)
-                            .padding(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        BasicText(stringResource(R.string.later), style = TextStyle(contentColor, 16.sp))
-                    }
+                    DialogActionButton(
+                        text = stringResource(R.string.later),
+                        containerColor = secondaryButtonColor,
+                        contentColor = contentColor,
+                        modifier = Modifier.weight(1f),
+                        enabled = visible,
+                        onClick = onDismissRequest,
+                    )
                 }
-                Row(
-                    Modifier
-                        .clip(RoundedCornerShape(999.dp))
-                        .background(accentColor)
-                        .clickable(enabled = visible, onClick = onConfirm)
-                        .height(48.dp)
-                        .weight(1f)
-                        .padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    BasicText(stringResource(R.string.download_update), style = TextStyle(Color.White, 16.sp))
-                }
+                DialogActionButton(
+                    text = stringResource(R.string.download_update),
+                    containerColor = accentColor,
+                    contentColor = Color.White,
+                    modifier = Modifier.weight(1f),
+                    enabled = visible,
+                    onClick = onConfirm,
+                )
             }
         }
+    }
+}
+
+@Composable
+private fun DialogActionButton(
+    text: String,
+    containerColor: Color,
+    contentColor: Color,
+    modifier: Modifier = Modifier,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(containerColor)
+            .clickable(
+                enabled = enabled,
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            )
+            .height(48.dp)
+            .padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        BasicText(
+            text = text,
+            style = TextStyle(
+                color = contentColor,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+            ),
+        )
     }
 }
