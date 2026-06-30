@@ -3,6 +3,8 @@ package com.shell.liangyi.ui
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -60,6 +62,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import kotlin.math.abs
 
 object Routes {
     const val MAIN = "main"
@@ -213,6 +216,11 @@ private fun MainPagerScreen(
     val rootBottomPadding = 88.dp + navigationBarPadding
     val blurSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S_V2
     val pageBackground = ShellTheme.colors.pageBackground
+    val activeTabIndex = if (pagerState.targetPage != pagerState.currentPage) {
+        pagerState.targetPage
+    } else {
+        pagerState.currentPage
+    }
     val liquidGlassBackdrop = if (blurSupported) {
         rememberLayerBackdrop {
             drawRect(pageBackground)
@@ -225,6 +233,7 @@ private fun MainPagerScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         HorizontalPager(
             state = pagerState,
+            beyondViewportPageCount = rootTabItems.lastIndex,
             modifier = if (liquidGlassBackdrop != null) {
                 Modifier
                     .fillMaxSize()
@@ -253,10 +262,19 @@ private fun MainPagerScreen(
 
         LiquidGlassBottomBar(
             items = rootTabItems,
-            selectedIndex = pagerState.currentPage,
+            selectedIndex = activeTabIndex,
             onSelectedIndexChange = { index ->
                 scope.launch {
-                    pagerState.animateScrollToPage(index)
+                    if (index == pagerState.currentPage && index == pagerState.targetPage) {
+                        return@launch
+                    }
+                    pagerState.animateScrollToPage(
+                        page = index,
+                        animationSpec = tween(
+                            durationMillis = 280 + abs(index - pagerState.currentPage) * 60,
+                            easing = FastOutSlowInEasing,
+                        ),
+                    )
                 }
             },
             backdrop = liquidGlassBackdrop,

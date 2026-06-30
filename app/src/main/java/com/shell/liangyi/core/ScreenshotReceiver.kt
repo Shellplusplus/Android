@@ -29,6 +29,8 @@ class ScreenshotReceiver(
     companion object {
         private const val TAG = "ScreenshotReceiver"
         private const val REQUEST_TIMEOUT_MS = 12000L
+        private val INVALID_SHOT_ID_CHARS = Regex("[^A-Za-z0-9._-]")
+        private val STORED_SHOT_FILE_PATTERN = Regex("""^(\d{14})_(\d+)_([0-9a-fA-F]+)$""")
     }
 
     private val messageCenter = WearMessageCenter.getInstance(context)
@@ -55,6 +57,7 @@ class ScreenshotReceiver(
     private var requestTimeoutJob: Job? = null
     private var lastTransferActivityAt: Long = 0L
     private val requestRetryCounts = mutableMapOf<String, Int>()
+    private val localFilePathByShotId = linkedMapOf<String, String>()
 
     private val transferRootDir: File by lazy {
         File(context.filesDir, "screenshot_sync").apply {
@@ -148,6 +151,7 @@ class ScreenshotReceiver(
 
     private suspend fun onHttpScreenshotReceived(shotId: String, file: File) {
         Log.i(TAG, "HTTP screenshot received: $shotId (${file.length()} bytes)")
+        registerLocalFile(shotId, file)
         _receiveProgress.value = tr(R.string.http_transfer_complete, shotId, formatHttpBytes(file.length()))
         appendHttpLog(tr(R.string.http_transfer_complete, shotId, "${file.length()} bytes"))
         // 重新加载列表以包含新收到的截图
@@ -287,16 +291,61 @@ class ScreenshotReceiver(
     }
 
     private fun stableShotKey(shotId: String): String {
-        val safe = shotId.replace(Regex("[^A-Za-z0-9._-]"), "_")
+        val safe = shotId.replace(INVALID_SHOT_ID_CHARS, "_")
         val hash = shotId.hashCode().toUInt().toString(16)
         return "${safe}_$hash"
     }
 
     private fun recoverShotIdFromStoredName(fileName: String): String? {
         val baseName = fileName.substringBeforeLast(".")
-        val match = Regex("""^(\d{14})_(\d+)_([0-9a-fA-F]+)$""").matchEntire(baseName) ?: return null
+        val match = STORED_SHOT_FILE_PATTERN.matchEntire(baseName) ?: return null
         return "${match.groupValues[1]}#${match.groupValues[2]}"
     }
+
+    private fun registerLocalFile(shotId: String, file: File) {
+        if (file.exists()) {
+            localFilePathByShotId[shotId] = file.absolutePath
+        } else {
+            localFilePathByShotId.remove(shotId)
+        }
+    }
+
+    private fun refreshLocalFileIndex() {
+        localFilePathByShotId.clear()
+        transferRootDir.listFiles { file ->
+            file.isFile && file.extension.equals("png", ignoreCase = true)
+        }?.forEach { pngFile ->
+            val shotId = recoverShotIdFromStoredName(pngFile.name) ?: pngFile.nameWithoutExtension
+            registerLocalFile(shotId, pngFile)
+        }
+    }
+
+    private fun resolveCompletedFile(shotId: String): File? {
+        val cachedPath = localFilePathByShotId[shotId]
+        if (cachedPath != null) {
+            val cachedFile = File(cachedPath)
+            if (cachedFile.exists()) {
+                return cachedFile
+            }
+            localFilePathByShotId.remove(shotId)
+        }
+
+        val stableFile = completedFile(shotId)
+        if (stableFile.exists()) {
+            registerLocalFile(shotId, stableFile)
+            return stableFile
+        }
+
+        val rawFile = File(transferRootDir, "$shotId.png")
+        if (rawFile.exists()) {
+            registerLocalFile(shotId, rawFile)
+            return rawFile
+        }
+
+        return null
+    }
+
+    fun getLocalFilePath(shotId: String): String? = resolveCompletedFile(shotId)?.absolutePath
 
     private fun completedFile(shotId: String): File {
         return File(transferRootDir, "${stableShotKey(shotId)}.png")
@@ -431,14 +480,17 @@ class ScreenshotReceiver(
         safeDelete(stateFile(shotId))
         safeDelete(partialFile(shotId))
         if (!keepCompletedFile) {
+            resolveCompletedFile(shotId)?.let(::safeDelete)
             safeDelete(completedFile(shotId))
+            safeDelete(File(transferRootDir, "$shotId.png"))
+            localFilePathByShotId.remove(shotId)
         }
     }
 
     private fun hydrateStoredScreenshot(screenshot: Screenshot): Screenshot {
-        val currentFile = completedFile(screenshot.shotId)
+        val currentFile = resolveCompletedFile(screenshot.shotId)
         val record = readTransferRecord(screenshot.shotId)?.let(::normalizeTransferRecord)
-        if (currentFile.exists()) {
+        if (currentFile != null && currentFile.exists()) {
             val size = currentFile.length()
             val effectiveTotalChunks = record?.totalChunks ?: screenshot.totalChunks
             val effectiveChunkNum = record?.lastChunkNum ?: screenshot.lastChunkNum
@@ -486,6 +538,7 @@ class ScreenshotReceiver(
     }
 
     private fun loadStoredScreenshots() {
+        refreshLocalFileIndex()
         val stateFiles = transferRootDir.listFiles { file ->
             file.isFile && file.extension.equals("json", ignoreCase = true)
         }?.toList().orEmpty()
@@ -529,10 +582,11 @@ class ScreenshotReceiver(
                 loadedByShotId[screenshot.shotId] = screenshot
             }
 
-        transferRootDir.listFiles { file ->
-            file.isFile && file.extension.equals("png", ignoreCase = true)
-        }?.forEach { pngFile ->
-            val shotId = recoverShotIdFromStoredName(pngFile.name) ?: return@forEach
+        localFilePathByShotId.forEach { (shotId, path) ->
+            val pngFile = File(path)
+            if (!pngFile.exists()) {
+                return@forEach
+            }
             if (loadedByShotId.containsKey(shotId)) {
                 return@forEach
             }
@@ -584,9 +638,12 @@ class ScreenshotReceiver(
     }
 
     private fun sortScreenshotList(items: List<Screenshot>): List<Screenshot> {
+        val updatedAtByShotId = items.associate { screenshot ->
+            screenshot.shotId to (readTransferRecord(screenshot.shotId)?.updatedAtUnix ?: 0L)
+        }
         return items.sortedWith(
             compareByDescending<Screenshot> { it.capturedAtUnix }
-                .thenByDescending { readTransferRecord(it.shotId)?.updatedAtUnix ?: 0L }
+                .thenByDescending { updatedAtByShotId[it.shotId] ?: 0L }
                 .thenByDescending { it.shotId }
         ).mapIndexed { index, screenshot ->
             screenshot.copy(
@@ -615,6 +672,9 @@ class ScreenshotReceiver(
     }
 
     private fun replaceScreenshotEntry(screenshot: Screenshot) {
+        if (screenshot.localFilePath.isNotBlank()) {
+            registerLocalFile(screenshot.shotId, File(screenshot.localFilePath))
+        }
         val currentList = _screenshots.value.toMutableList()
         val existingIndex = currentList.indexOfFirst { it.shotId == screenshot.shotId }
         if (existingIndex >= 0) {
@@ -1156,6 +1216,7 @@ class ScreenshotReceiver(
                 session.tempFile.copyTo(session.finalFile, overwrite = true)
                 safeDelete(session.tempFile)
             }
+            registerLocalFile(session.shotId, session.finalFile)
             writeTransferRecord(
                 TransferRecord(
                     shotId = session.shotId,
@@ -1265,6 +1326,7 @@ class ScreenshotReceiver(
             val bytes = Base64.decode(imageData, Base64.DEFAULT)
             val finalFile = completedFile(shotId)
             finalFile.writeBytes(bytes)
+            registerLocalFile(shotId, finalFile)
             safeDelete(partialFile(shotId))
             writeTransferRecord(
                 TransferRecord(
@@ -1387,8 +1449,7 @@ class ScreenshotReceiver(
      */
     fun requestScreenshot(shotId: String) {
         scope.launch(Dispatchers.IO) {
-            val existing = completedFile(shotId)
-            if (existing.exists()) {
+            if (resolveCompletedFile(shotId)?.exists() == true) {
                 return@launch
             }
             val resumeIndex = resolveResumeStartIndex(shotId)
@@ -1425,6 +1486,7 @@ class ScreenshotReceiver(
         val activeSessionIds = chunkSessions.keys.toList()
         activeSessionIds.forEach { closeChunkSession(it) }
         transferRootDir.listFiles()?.forEach { safeDelete(it) }
+        localFilePathByShotId.clear()
         chunkSessions.clear()
         pendingScreenshots.clear()
         requestRetryCounts.clear()

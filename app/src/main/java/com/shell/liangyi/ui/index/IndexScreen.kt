@@ -160,6 +160,10 @@ private data class HomeState(
     val httpAddress: String,
 ) {
     val isConnected: Boolean = connectionState == ConnectionState.CONNECTED
+    val displayWatchProductCode: String = watchProductCode
+        .replace(Regex("\\bSmart\\b", RegexOption.IGNORE_CASE), "")
+        .replace(Regex("\\s+"), " ")
+        .trim()
 }
 
 private data class HomeActions(
@@ -333,7 +337,7 @@ private fun MainConnectionCard(
             ) {
                 Text(
                     modifier = Modifier.fillMaxWidth(),
-                    text = state.watchProductCode.ifBlank { stringResource(R.string.watch_connection) },
+                    text = state.displayWatchProductCode.ifBlank { stringResource(R.string.watch_connection) },
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Medium,
                     color = colors.onSurfaceVariantSummary,

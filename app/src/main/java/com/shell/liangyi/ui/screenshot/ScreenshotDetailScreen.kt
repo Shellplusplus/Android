@@ -2,8 +2,22 @@ package com.shell.liangyi.ui.screenshot
 
 import android.content.Context
 import android.widget.Toast
-import androidx.compose.foundation.layout.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -23,6 +37,9 @@ import com.shell.liangyi.ui.components.ShellBackScaffold
 import com.shell.liangyi.ui.theme.ShellTheme
 import com.shell.liangyi.util.GallerySaver
 import com.shell.liangyi.util.ImageProcessor
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardColors
 import top.yukonga.miuix.kmp.basic.Text
@@ -41,28 +58,34 @@ fun ScreenshotDetailScreen(
     val screenshots by shellViewModel.screenshots.collectAsState()
     val shot = screenshots.find { it.shotId == shotId }
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var actionInProgress by remember { mutableStateOf(false) }
 
-    val resolvedPath = remember(shot, shotId) {
-        when {
-            !shot?.localFilePath.isNullOrEmpty() -> shot.localFilePath
-            else -> {
-                val dir = File(shellViewModel.appContext().filesDir, "screenshot_sync")
-                val safeKey = shotId.replace(Regex("[^a-zA-Z0-9#_\\-]"), "_")
-                val candidate = File(dir, "${safeKey}.png")
-                if (candidate.exists()) candidate.absolutePath else null
-            }
-        }
+    val resolvedPath = remember(shot?.localFilePath, shotId) {
+        shot?.localFilePath?.takeIf { it.isNotBlank() } ?: shellViewModel.getScreenshotFilePath(shotId)
     }
 
-    val cacheDir = remember { File(shellViewModel.appContext().cacheDir, "processed").apply { mkdirs() } }
+    val cacheDir = remember {
+        File(shellViewModel.appContext().cacheDir, "processed").apply { mkdirs() }
+    }
 
-    val roundedPath = remember(resolvedPath) {
-        if (resolvedPath == null) null
-        else {
-            val out = File(cacheDir, "rounded_${File(resolvedPath).name}")
-            if (out.exists()) out.delete()
-            if (ImageProcessor.addRoundedCorners(resolvedPath, out.absolutePath)) out.absolutePath
-            else null
+    val roundedPath by produceState<String?>(initialValue = null, resolvedPath, cacheDir) {
+        value = null
+        val inputPath = resolvedPath ?: return@produceState
+        val inputFile = File(inputPath)
+        if (!inputFile.exists()) {
+            return@produceState
+        }
+
+        value = withContext(Dispatchers.IO) {
+            val out = File(cacheDir, "rounded_${inputFile.name}")
+            val shouldRegenerate = !out.exists() ||
+                out.length() == 0L ||
+                out.lastModified() < inputFile.lastModified()
+            if (shouldRegenerate && !ImageProcessor.addRoundedCorners(inputPath, out.absolutePath)) {
+                return@withContext null
+            }
+            out.absolutePath
         }
     }
 
@@ -95,10 +118,10 @@ fun ScreenshotDetailScreen(
                         .heightIn(max = 400.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (roundedPath != null && File(roundedPath).exists()) {
+                    if (roundedPath != null) {
                         AsyncImage(
                             model = ImageRequest.Builder(shellViewModel.appContext())
-                                .data(File(roundedPath))
+                                .data(File(roundedPath!!))
                                 .crossfade(true)
                                 .build(),
                             contentDescription = stringResource(R.string.screenshot_preview),
@@ -130,25 +153,35 @@ fun ScreenshotDetailScreen(
             ActionButton(
                 text = stringResource(R.string.framed_screenshot),
                 color = shellColors.primaryAction,
-                enabled = resolvedPath != null && File(resolvedPath).exists(),
+                enabled = !actionInProgress && resolvedPath != null && File(resolvedPath).exists(),
                 onClick = {
-                    if (resolvedPath != null) {
-                        val deviceFile = prepareDevice(context, cacheDir)
-                        if (deviceFile != null) {
-                            val out = File(cacheDir, "framed_${File(resolvedPath).name}")
-                            val ok = ImageProcessor.compositeWithFrame(resolvedPath, deviceFile.absolutePath, out.absolutePath)
-                            if (ok) {
-                                val fileName = "Shell++_framed_${shot?.index ?: System.currentTimeMillis()}"
-                                val saved = gallerySaver.saveFileToGallery(out.absolutePath, fileName)
-                                Toast.makeText(
-                                    context,
-                                    if (saved) context.getString(R.string.screenshot_saved) else context.getString(R.string.save_failed),
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                    val inputPath = resolvedPath ?: return@ActionButton
+                    actionInProgress = true
+                    scope.launch {
+                        val result = withContext(Dispatchers.IO) {
+                            val deviceFile = prepareDevice(context, cacheDir)
+                                ?: return@withContext SaveResult.CompositeFailed
+                            val out = File(cacheDir, "framed_${File(inputPath).name}")
+                            if (!ImageProcessor.compositeWithFrame(inputPath, deviceFile.absolutePath, out.absolutePath)) {
+                                return@withContext SaveResult.CompositeFailed
+                            }
+                            val fileName = "Shell++_framed_${shot?.index ?: System.currentTimeMillis()}"
+                            if (gallerySaver.saveFileToGallery(out.absolutePath, fileName)) {
+                                SaveResult.Success
                             } else {
-                                Toast.makeText(context, context.getString(R.string.composite_failed), Toast.LENGTH_SHORT).show()
+                                SaveResult.SaveFailed
                             }
                         }
+                        actionInProgress = false
+                        Toast.makeText(
+                            context,
+                            when (result) {
+                                SaveResult.Success -> context.getString(R.string.screenshot_saved)
+                                SaveResult.CompositeFailed -> context.getString(R.string.composite_failed)
+                                SaveResult.SaveFailed -> context.getString(R.string.save_failed)
+                            },
+                            Toast.LENGTH_SHORT
+                        ).show()
                     }
                 }
             )
@@ -157,11 +190,16 @@ fun ScreenshotDetailScreen(
             ActionButton(
                 text = stringResource(R.string.screenshot_save),
                 color = shellColors.primaryAction,
-                enabled = resolvedPath != null,
+                enabled = !actionInProgress && resolvedPath != null,
                 onClick = {
-                    if (resolvedPath != null) {
-                        val fileName = "Shell++_${shot?.index ?: System.currentTimeMillis()}"
-                        val ok = gallerySaver.saveFileToGallery(resolvedPath, fileName)
+                    val inputPath = resolvedPath ?: return@ActionButton
+                    actionInProgress = true
+                    scope.launch {
+                        val ok = withContext(Dispatchers.IO) {
+                            val fileName = "Shell++_${shot?.index ?: System.currentTimeMillis()}"
+                            gallerySaver.saveFileToGallery(inputPath, fileName)
+                        }
+                        actionInProgress = false
                         Toast.makeText(
                             context,
                             if (ok) context.getString(R.string.screenshot_saved) else context.getString(R.string.save_failed),
@@ -175,7 +213,7 @@ fun ScreenshotDetailScreen(
             ActionButton(
                 text = stringResource(R.string.delete_screenshot),
                 color = shellColors.destructiveAction,
-                enabled = shot != null,
+                enabled = shot != null && !actionInProgress,
                 onClick = {
                     shot?.shotId?.let { shellViewModel.deleteScreenshot(it) }
                     navController.popBackStack()
@@ -184,6 +222,12 @@ fun ScreenshotDetailScreen(
             Spacer(modifier = Modifier.height(13.dp))
         }
     }
+}
+
+private enum class SaveResult {
+    Success,
+    CompositeFailed,
+    SaveFailed,
 }
 
 private fun prepareDevice(context: Context, cacheDir: File): File? {

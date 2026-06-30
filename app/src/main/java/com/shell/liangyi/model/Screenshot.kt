@@ -1,8 +1,11 @@
 package com.shell.liangyi.model
 
+import androidx.compose.runtime.Immutable
+
 /**
  * 截图数据模型
  */
+@Immutable
 data class Screenshot(
     val shotId: String,
     val capturedAt: String,

@@ -55,7 +55,8 @@ android {
             }
         }
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             if (hasLocalSigningConfig) {
                 signingConfig = signingConfigs.getByName("localShellSign")
             }

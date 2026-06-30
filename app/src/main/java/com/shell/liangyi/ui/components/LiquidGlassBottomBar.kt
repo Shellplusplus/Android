@@ -105,6 +105,11 @@ fun LiquidGlassBottomBar(
             ),
             label = "liquid_bar_index",
         )
+        val baseSelectedIndex = if (actualBlurEnabled && isDragging) {
+            -1
+        } else {
+            selectedIndex
+        }
         val draggableState = rememberDraggableState { delta ->
             if (slotWidthPx <= 0f) return@rememberDraggableState
             val deltaIndex = delta / slotWidthPx
@@ -152,7 +157,7 @@ fun LiquidGlassBottomBar(
                 items.forEachIndexed { index, item ->
                     LiquidGlassBottomBarItem(
                         item = item,
-                        selected = index == selectedIndex,
+                        selected = index == baseSelectedIndex,
                         accentColor = accentColor,
                         width = slotWidth,
                         onClick = { onSelectedIndexChange(index) },

@@ -339,7 +339,9 @@ private fun ScreenshotCard(
 ) {
     val colors = MiuixTheme.colorScheme
     val shellColors = ShellTheme.colors
-    val previewPath = remember(shot.shotId) { shellViewModel.getScreenshotFilePath(shot.shotId) }
+    val previewPath = remember(shot.localFilePath, shot.shotId) {
+        shot.localFilePath.takeIf { it.isNotBlank() } ?: shellViewModel.getScreenshotFilePath(shot.shotId)
+    }
     Card(
         modifier = modifier.height(214.dp),
         colors = CardColors(
