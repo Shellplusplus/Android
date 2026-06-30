@@ -75,6 +75,7 @@ fun IndexScreen(
     onOpenLogs: () -> Unit = { navController.navigate(Routes.LOGS) },
 ) {
     val connectionState by shellViewModel.connectionState.collectAsState(initial = ConnectionState.DISCONNECTED)
+    val watchProductCode by shellViewModel.watchProductCode.collectAsState()
     val screenshots by shellViewModel.screenshots.collectAsState()
     val syncState by shellViewModel.syncState.collectAsState(initial = ScreenshotReceiver.SyncState.Idle)
     val receiveProgress by shellViewModel.receiveProgress.collectAsState(initial = "")
@@ -118,6 +119,7 @@ fun IndexScreen(
                     StatusCard(
                         state = HomeState(
                             connectionState = connectionState,
+                            watchProductCode = watchProductCode,
                             isBusy = isBusy,
                             receiveProgress = receiveProgress,
                             screenshotCount = screenshots.size,
@@ -150,6 +152,7 @@ fun IndexScreen(
 
 private data class HomeState(
     val connectionState: ConnectionState,
+    val watchProductCode: String,
     val isBusy: Boolean,
     val receiveProgress: String,
     val screenshotCount: Int,
@@ -330,7 +333,7 @@ private fun MainConnectionCard(
             ) {
                 Text(
                     modifier = Modifier.fillMaxWidth(),
-                    text = stringResource(R.string.watch_connection),
+                    text = state.watchProductCode.ifBlank { stringResource(R.string.watch_connection) },
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Medium,
                     color = colors.onSurfaceVariantSummary,

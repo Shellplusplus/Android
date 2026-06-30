@@ -36,12 +36,15 @@ class ShellViewModel : ViewModel() {
 
     private val _updatePrompt = MutableStateFlow<UpdatePrompt?>(null)
     val updatePrompt = _updatePrompt.asStateFlow()
+    private val _skipOptionalUpdatePrompts = MutableStateFlow(false)
+    val skipOptionalUpdatePrompts = _skipOptionalUpdatePrompts.asStateFlow()
 
     private val _updateMessages = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val updateMessages = _updateMessages.asSharedFlow()
 
     fun initialize(context: Context) {
         appCtx = context
+        _skipOptionalUpdatePrompts.value = UpdateChecker.skipOptionalPrompts(context)
         wearMessageCenter = WearMessageCenter.getInstance(context)
         wearMessageCenter.initialize()
         screenshotReceiver = ScreenshotReceiver(context, scope)
@@ -53,6 +56,9 @@ class ShellViewModel : ViewModel() {
 
     val logs: SharedFlow<List<com.shell.liangyi.core.LogEntry>>
         get() = wearMessageCenter.logs
+
+    val watchProductCode: StateFlow<String>
+        get() = wearMessageCenter.watchProductCode
 
     fun clearLogs() = wearMessageCenter.clearLogs()
 
@@ -106,6 +112,15 @@ class ShellViewModel : ViewModel() {
 
     fun clearAll() = screenshotReceiver.clearAll()
 
+    fun setSkipOptionalUpdatePrompts(skip: Boolean) {
+        val context = appCtx ?: return
+        UpdateChecker.setSkipOptionalPrompts(context, skip)
+        _skipOptionalUpdatePrompts.value = skip
+        if (skip && _updatePrompt.value?.mandatory == false) {
+            _updatePrompt.value = null
+        }
+    }
+
     fun checkForUpdates(manual: Boolean) {
         if (!manual && autoUpdateChecked) return
         if (!manual) autoUpdateChecked = true
@@ -119,6 +134,9 @@ class ShellViewModel : ViewModel() {
         scope.launch {
             when (val result = withContext(Dispatchers.IO) { UpdateChecker.check(context) }) {
                 is UpdateCheckResult.UpdateAvailable -> {
+                    if (!manual && !result.prompt.mandatory && _skipOptionalUpdatePrompts.value) {
+                        return@launch
+                    }
                     _updatePrompt.value = result.prompt
                 }
                 is UpdateCheckResult.UpToDate -> {

@@ -16,8 +16,11 @@ import com.xiaomi.xms.wearable.message.OnMessageReceivedListener
 import com.xiaomi.xms.wearable.node.Node
 import com.xiaomi.xms.wearable.node.NodeApi
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.util.Timer
@@ -29,6 +32,7 @@ import java.util.concurrent.ConcurrentHashMap
  */
 object MessageType {
     const val HANDSHAKE = "__hs__"
+    const val DEVICE_INFO = "deviceInfo"
 
     // 手表端发起同步
     const val SCREENSHOT_SYNC_REQUEST = "screenshotSyncRequest"
@@ -113,6 +117,8 @@ class WearMessageCenter private constructor(private val context: Context) {
 
     private val _logs = MutableSharedFlow<List<LogEntry>>(replay = 1, extraBufferCapacity = 8)
     val logs: SharedFlow<List<LogEntry>> = _logs.asSharedFlow()
+    private val _watchProductCode = MutableStateFlow("")
+    val watchProductCode: StateFlow<String> = _watchProductCode.asStateFlow()
     private val logEntries = mutableListOf<LogEntry>()
     private val maxLogEntries = 100
 
@@ -222,6 +228,7 @@ class WearMessageCenter private constructor(private val context: Context) {
                     currentNode = null
                     hasDevicePermission = false
                     listenerRegistered = false
+                    updateWatchProductCode("")
                     markDisconnected(ConnectionState.DISCONNECTED, tr(R.string.no_connected_devices))
                     return@addOnSuccessListener
                 }
@@ -231,6 +238,7 @@ class WearMessageCenter private constructor(private val context: Context) {
                     addLog("SYSTEM", "device", tr(R.string.device_found, node.name, node.id))
                     hasDevicePermission = false
                     listenerRegistered = false
+                    updateWatchProductCode("")
                 }
                 currentNode = node
                 ensurePermissionThenPrepare(force)
@@ -473,6 +481,13 @@ class WearMessageCenter private constructor(private val context: Context) {
         }
     }
 
+    private fun updateWatchProductCode(productCode: String) {
+        val normalized = productCode.trim()
+        if (_watchProductCode.value != normalized) {
+            _watchProductCode.value = normalized
+        }
+    }
+
     fun getCurrentConnectionState(): ConnectionState = currentState
 
     private fun shouldLogTraffic(type: String): Boolean {
@@ -636,6 +651,11 @@ class WearMessageCenter private constructor(private val context: Context) {
                     return
                 }
 
+                MessageType.DEVICE_INFO -> {
+                    handleDeviceInfo(json)
+                    return
+                }
+
                 MessageType.HEARTBEAT -> {
                     handleHeartbeat()
                     return
@@ -662,9 +682,13 @@ class WearMessageCenter private constructor(private val context: Context) {
 
     private fun handleHandshake(json: JSONObject) {
         val count = json.optInt("count", -1)
+        val product = json.optString("product", "")
         addLog("RECEIVE", "handshake", tr(R.string.received_handshake, count))
         if (count < 0) {
             return
+        }
+        if (product.isNotBlank()) {
+            updateWatchProductCode(product)
         }
 
         lastHeartbeatAck = System.currentTimeMillis()
@@ -680,6 +704,17 @@ class WearMessageCenter private constructor(private val context: Context) {
             }
             addLog("SEND", "handshake", tr(R.string.reply_handshake, count + 1))
             sendDirect(MessageType.HANDSHAKE, payload, logTraffic = false)
+        }
+    }
+
+    private fun handleDeviceInfo(json: JSONObject) {
+        val product = json.optString("product", "")
+        if (product.isNotBlank()) {
+            updateWatchProductCode(product)
+            addLog("SYSTEM", "device_info", "product=$product")
+        }
+        if (!handshaked) {
+            confirmConnected()
         }
     }
 

@@ -12,6 +12,7 @@ import java.net.URL
 object UpdateChecker {
     private const val UPDATE_URL = "https://shellupdate.rth1.xyz/api.php"
     private const val PREFS_NAME = "shell_update_state"
+    private const val KEY_SKIP_OPTIONAL_PROMPTS = "skip_optional_prompts"
     private const val KEY_MANDATORY_CONFIRMED = "mandatory_confirmed"
     private const val KEY_LATEST_VERSION = "latest_version"
     private const val KEY_LATEST_VERSION_CODE = "latest_version_code"
@@ -19,6 +20,18 @@ object UpdateChecker {
     private const val KEY_CHANGELOG = "changelog"
     private const val KEY_MIN_SUPPORTED_VERSION_CODE = "min_supported_version_code"
     private const val KEY_RELEASE_DATE = "release_date"
+
+    fun skipOptionalPrompts(context: Context): Boolean {
+        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getBoolean(KEY_SKIP_OPTIONAL_PROMPTS, false)
+    }
+
+    fun setSkipOptionalPrompts(context: Context, skip: Boolean) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(KEY_SKIP_OPTIONAL_PROMPTS, skip)
+            .apply()
+    }
 
     fun cachedMandatoryPrompt(context: Context): UpdatePrompt? {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -119,10 +132,14 @@ object UpdateChecker {
     }
 
     private fun clearMandatoryPrompt(context: Context) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .clear()
-            .apply()
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val skipOptionalPrompts = prefs.getBoolean(KEY_SKIP_OPTIONAL_PROMPTS, false)
+        prefs.edit().clear().apply()
+        if (skipOptionalPrompts) {
+            prefs.edit()
+                .putBoolean(KEY_SKIP_OPTIONAL_PROMPTS, true)
+                .apply()
+        }
     }
 
     private fun readCurrentVersion(context: Context): CurrentVersion {

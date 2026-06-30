@@ -1,11 +1,16 @@
 package com.shell.liangyi.ui.theme
 
+import android.app.Activity
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 import top.yukonga.miuix.kmp.theme.Colors
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.darkColorScheme
@@ -54,6 +59,20 @@ fun ShellAppTheme(content: @Composable () -> Unit) {
     val isDark = isSystemInDarkTheme()
     val miuixColors = if (isDark) darkColorScheme() else lightColorScheme()
     val shellColors = shellColorScheme(miuixColors, isDark)
+    val view = LocalView.current
+
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as? Activity)?.window ?: return@SideEffect
+            val backgroundColor = shellColors.pageBackground.toArgb()
+            window.statusBarColor = backgroundColor
+            window.navigationBarColor = backgroundColor
+            WindowCompat.getInsetsController(window, view).apply {
+                isAppearanceLightStatusBars = !isDark
+                isAppearanceLightNavigationBars = !isDark
+            }
+        }
+    }
 
     MiuixTheme(colors = miuixColors) {
         androidx.compose.runtime.CompositionLocalProvider(
