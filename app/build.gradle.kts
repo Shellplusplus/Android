@@ -115,6 +115,7 @@ dependencies {
 
     // MIUIX
     implementation(libs.miuix.ui)
+    implementation(libs.miuix.blur)
     implementation(libs.miuix.preference)
     implementation(libs.miuix.icons)
 

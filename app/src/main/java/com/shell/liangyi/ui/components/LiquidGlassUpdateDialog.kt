@@ -29,12 +29,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.shell.liangyi.R
 import com.shell.liangyi.core.update.UpdatePrompt
 import kotlinx.coroutines.delay
 
@@ -111,17 +113,24 @@ fun LiquidGlassUpdateDialog(
                 .fillMaxWidth()
         ) {
             BasicText(
-                text = "发现新版本",
+                text = stringResource(R.string.new_version_found),
                 modifier = Modifier.padding(start = 24.dp, top = 22.dp, end = 24.dp, bottom = 8.dp),
                 style = TextStyle(color = contentColor, fontSize = 24.sp, fontWeight = FontWeight.Medium)
             )
             BasicText(
-                text = "当前 ${prompt.currentVersionName} (${prompt.currentVersionCode})\n最新 ${prompt.info.latestVersion} (${prompt.info.latestVersionCode})\n发布日期 ${prompt.info.releaseDate}",
+                text = stringResource(
+                    R.string.update_dialog_versions,
+                    prompt.currentVersionName,
+                    prompt.currentVersionCode.toString(),
+                    prompt.info.latestVersion,
+                    prompt.info.latestVersionCode.toString(),
+                    prompt.info.releaseDate
+                ),
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
                 style = TextStyle(color = contentColor.copy(alpha = 0.72f), fontSize = 14.sp)
             )
             BasicText(
-                text = if (prompt.info.changelog.isBlank()) "暂无更新说明" else prompt.info.changelog,
+                text = if (prompt.info.changelog.isBlank()) stringResource(R.string.no_update_notes) else prompt.info.changelog,
                 modifier = Modifier
                     .then(if (isLightTheme) Modifier else Modifier.graphicsLayer(blendMode = BlendMode.Plus))
                     .padding(horizontal = 24.dp, vertical = 8.dp)
@@ -148,7 +157,7 @@ fun LiquidGlassUpdateDialog(
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        BasicText("稍后", style = TextStyle(contentColor, 16.sp))
+                        BasicText(stringResource(R.string.later), style = TextStyle(contentColor, 16.sp))
                     }
                 }
                 Row(
@@ -162,7 +171,7 @@ fun LiquidGlassUpdateDialog(
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    BasicText("下载更新", style = TextStyle(Color.White, 16.sp))
+                    BasicText(stringResource(R.string.download_update), style = TextStyle(Color.White, 16.sp))
                 }
             }
         }

@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -100,19 +101,23 @@ fun ScreenshotDetailScreen(
                                 .data(File(roundedPath))
                                 .crossfade(true)
                                 .build(),
-                            contentDescription = "截图预览",
+                            contentDescription = stringResource(R.string.screenshot_preview),
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Fit
                         )
                     } else if (shot != null && !shot.isComplete) {
                         Text(
-                            text = "传输中 ${shot.receivedChunks}/${shot.totalChunks}",
+                            text = stringResource(
+                                R.string.screenshot_transferring,
+                                shot.receivedChunks,
+                                shot.totalChunks
+                            ),
                             fontSize = 14.sp,
                             color = Color.White
                         )
                     } else {
                         Text(
-                            text = "暂无预览",
+                            text = stringResource(R.string.no_preview),
                             fontSize = 14.sp,
                             color = colors.onSurfaceVariantSummary
                         )
@@ -123,7 +128,7 @@ fun ScreenshotDetailScreen(
             Spacer(modifier = Modifier.weight(1f))
 
             ActionButton(
-                text = "带壳截图",
+                text = stringResource(R.string.framed_screenshot),
                 color = shellColors.primaryAction,
                 enabled = resolvedPath != null && File(resolvedPath).exists(),
                 onClick = {
@@ -135,9 +140,13 @@ fun ScreenshotDetailScreen(
                             if (ok) {
                                 val fileName = "Shell++_framed_${shot?.index ?: System.currentTimeMillis()}"
                                 val saved = gallerySaver.saveFileToGallery(out.absolutePath, fileName)
-                                Toast.makeText(context, if (saved) "已保存到相册" else "保存失败", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(
+                                    context,
+                                    if (saved) context.getString(R.string.screenshot_saved) else context.getString(R.string.save_failed),
+                                    Toast.LENGTH_SHORT
+                                ).show()
                             } else {
-                                Toast.makeText(context, "合成失败", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, context.getString(R.string.composite_failed), Toast.LENGTH_SHORT).show()
                             }
                         }
                     }
@@ -146,21 +155,25 @@ fun ScreenshotDetailScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             ActionButton(
-                text = "保存到相册",
+                text = stringResource(R.string.screenshot_save),
                 color = shellColors.primaryAction,
                 enabled = resolvedPath != null,
                 onClick = {
                     if (resolvedPath != null) {
                         val fileName = "Shell++_${shot?.index ?: System.currentTimeMillis()}"
                         val ok = gallerySaver.saveFileToGallery(resolvedPath, fileName)
-                        Toast.makeText(context, if (ok) "已保存到相册" else "保存失败", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(
+                            context,
+                            if (ok) context.getString(R.string.screenshot_saved) else context.getString(R.string.save_failed),
+                            Toast.LENGTH_SHORT
+                        ).show()
                     }
                 }
             )
             Spacer(modifier = Modifier.height(8.dp))
 
             ActionButton(
-                text = "删除截图",
+                text = stringResource(R.string.delete_screenshot),
                 color = shellColors.destructiveAction,
                 enabled = shot != null,
                 onClick = {

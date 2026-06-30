@@ -2,6 +2,7 @@ package com.shell.liangyi.ui
 
 import android.content.Context
 import androidx.lifecycle.ViewModel
+import com.shell.liangyi.R
 import com.shell.liangyi.core.ScreenshotReceiver
 import com.shell.liangyi.core.WearMessageCenter
 import com.shell.liangyi.core.update.UpdateCheckResult
@@ -125,12 +126,14 @@ class ShellViewModel : ViewModel() {
                         _updatePrompt.value = null
                     }
                     if (manual) {
-                        _updateMessages.tryEmit("当前已是最新版本")
+                        _updateMessages.tryEmit(context.getString(R.string.already_latest_version))
                     }
                 }
                 is UpdateCheckResult.Failed -> {
                     if (manual) {
-                        _updateMessages.tryEmit("检测更新失败：${result.message}")
+                        _updateMessages.tryEmit(
+                            context.getString(R.string.update_check_failed, result.message)
+                        )
                     }
                 }
             }

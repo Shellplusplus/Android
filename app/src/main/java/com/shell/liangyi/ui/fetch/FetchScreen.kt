@@ -1,44 +1,61 @@
 package com.shell.liangyi.ui.fetch
 
+import android.net.Uri
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.runtime.*
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import android.net.Uri
 import androidx.navigation.NavHostController
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import com.shell.liangyi.R
 import com.shell.liangyi.core.LogEntry
 import com.shell.liangyi.model.Screenshot
 import com.shell.liangyi.ui.Routes
 import com.shell.liangyi.ui.ShellViewModel
 import com.shell.liangyi.ui.components.ShellBackScaffold
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardColors
-import top.yukonga.miuix.kmp.basic.Text
-import androidx.compose.ui.layout.ContentScale
 import com.shell.liangyi.ui.theme.ShellTheme
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.CardColors
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.PressFeedbackType
 
 @Composable
 fun FetchScreen(
     navController: NavHostController,
-    shellViewModel: ShellViewModel
+    shellViewModel: ShellViewModel,
+    isRootDestination: Boolean = false,
+    bottomContentPadding: Dp = 0.dp,
 ) {
     val colors = MiuixTheme.colorScheme
     val shellColors = ShellTheme.colors
@@ -54,17 +71,22 @@ fun FetchScreen(
     val serverAddress = if (httpRunning && httpIp.isNotEmpty()) "${httpIp}:${httpPort}" else ""
 
     ShellBackScaffold(
-        title = "\u5c40\u57df\u7f51\u4f20\u8f93",
-        onBack = { navController.popBackStack() }
+        title = stringResource(R.string.lan_transfer),
+        onBack = { navController.popBackStack() },
+        showBackButton = !isRootDestination,
     ) { innerPadding ->
-        Column(modifier = Modifier.fillMaxSize().padding(innerPadding).verticalScroll(rememberScrollState())) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .verticalScroll(rememberScrollState())
+        ) {
             Spacer(modifier = Modifier.height(14.dp))
             LanStatusCard(isRunning = httpRunning, address = serverAddress, progress = receiveProgress)
 
-            // 操作按钮
             Spacer(modifier = Modifier.height(23.dp))
             ActionButton(
-                text = if (httpRunning) "\u505c\u6b62\u670d\u52a1\u5668" else "\u542f\u52a8\u670d\u52a1\u5668",
+                text = if (httpRunning) stringResource(R.string.stop_server) else stringResource(R.string.start_server),
                 enabled = true,
                 primary = httpRunning,
                 onClick = {
@@ -73,10 +95,9 @@ fun FetchScreen(
                 }
             )
 
-            // 局域网传输日志
             Spacer(modifier = Modifier.height(14.dp))
             Text(
-                text = "局域网传输日志",
+                text = stringResource(R.string.lan_transfer_logs),
                 modifier = Modifier.padding(start = 26.dp),
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -86,10 +107,9 @@ fun FetchScreen(
             Spacer(modifier = Modifier.height(8.dp))
             LanTransferLogCard(logs = lanLogs)
 
-            // 已获取截图
             Spacer(modifier = Modifier.height(18.dp))
             Text(
-                text = "\u5df2\u83b7\u53d6\u622a\u56fe",
+                text = stringResource(R.string.fetched_screenshots),
                 modifier = Modifier.padding(start = 26.dp),
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -97,12 +117,13 @@ fun FetchScreen(
                 color = shellColors.mutedText
             )
 
-            // 截图卡片
             Spacer(modifier = Modifier.height(12.dp))
             if (screenshots.isNotEmpty()) {
                 val previewShots = screenshots.take(2)
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 9.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 9.dp)
                 ) {
                     previewShots.forEachIndexed { i, shot ->
                         if (i > 0) Spacer(modifier = Modifier.width(13.dp))
@@ -131,7 +152,7 @@ fun FetchScreen(
                 ) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
-                            text = "\u6682\u65e0\u622a\u56fe",
+                            text = stringResource(R.string.screenshot_empty),
                             fontSize = 16.sp,
                             color = colors.onSurface.copy(alpha = 0.4f)
                         )
@@ -139,7 +160,7 @@ fun FetchScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(20.dp + bottomContentPadding))
         }
     }
 }
@@ -149,7 +170,7 @@ private fun LanStatusCard(isRunning: Boolean, address: String, progress: String)
     val colors = MiuixTheme.colorScheme
     val shellColors = ShellTheme.colors
     val dotColor = if (isRunning) shellColors.success else shellColors.danger
-    val statusText = if (isRunning) "\u670d\u52a1\u5668\u5df2\u542f\u52a8" else "\u670d\u52a1\u5668\u672a\u542f\u52a8"
+    val statusText = if (isRunning) stringResource(R.string.server_started) else stringResource(R.string.server_not_started)
     val cardHeight = when {
         progress.isNotEmpty() -> 104.dp
         isRunning && address.isNotEmpty() -> 80.dp
@@ -168,7 +189,9 @@ private fun LanStatusCard(isRunning: Boolean, address: String, progress: String)
         cornerRadius = 15.dp
     ) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(start = 13.dp, end = 13.dp, top = 12.dp, bottom = 12.dp)
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(start = 13.dp, end = 13.dp, top = 12.dp, bottom = 12.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
@@ -227,7 +250,7 @@ private fun LanTransferLogCard(logs: List<LogEntry>) {
         Box(modifier = Modifier.fillMaxSize()) {
             if (logs.isEmpty()) {
                 Text(
-                    text = "暂无局域网传输日志",
+                    text = stringResource(R.string.no_lan_transfer_logs),
                     modifier = Modifier.align(Alignment.Center),
                     fontSize = 13.sp,
                     color = colors.onSurface.copy(alpha = 0.4f)
@@ -235,7 +258,9 @@ private fun LanTransferLogCard(logs: List<LogEntry>) {
                 return@Box
             }
             Column(
-                modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 8.dp)
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 10.dp, vertical = 8.dp)
             ) {
                 logs.forEach { entry ->
                     LanLogItem(entry)
@@ -252,7 +277,9 @@ private fun LanLogItem(entry: LogEntry) {
         SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(entry.timestamp))
     }
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 1.dp),
         verticalAlignment = Alignment.Top
     ) {
         Text(
@@ -304,13 +331,17 @@ private fun ActionButton(text: String, enabled: Boolean, primary: Boolean, onCli
 }
 
 @Composable
-private fun ScreenshotCard(shot: Screenshot, modifier: Modifier, onClick: () -> Unit, shellViewModel: ShellViewModel) {
+private fun ScreenshotCard(
+    shot: Screenshot,
+    modifier: Modifier,
+    onClick: () -> Unit,
+    shellViewModel: ShellViewModel
+) {
     val colors = MiuixTheme.colorScheme
     val shellColors = ShellTheme.colors
     val previewPath = remember(shot.shotId) { shellViewModel.getScreenshotFilePath(shot.shotId) }
     Card(
-        modifier = modifier
-            .height(214.dp),
+        modifier = modifier.height(214.dp),
         colors = CardColors(
             color = shellColors.cardBackground,
             contentColor = colors.onSurface
@@ -320,10 +351,7 @@ private fun ScreenshotCard(shot: Screenshot, modifier: Modifier, onClick: () -> 
         showIndication = true,
         pressFeedbackType = PressFeedbackType.Sink
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-        ) {
+        Box(modifier = Modifier.fillMaxSize()) {
             Box(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
@@ -346,15 +374,19 @@ private fun ScreenshotCard(shot: Screenshot, modifier: Modifier, onClick: () -> 
                 }
             }
             Text(
-                text = "#" + shot.index,
-                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 18.dp),
+                text = "#${shot.index}",
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 18.dp),
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Medium,
                 color = colors.onSurface
             )
             Text(
                 text = shot.capturedAt,
-                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 4.dp),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 4.dp),
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Medium,
                 color = shellColors.secondaryText

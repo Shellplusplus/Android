@@ -84,3 +84,55 @@ jobs:
           files: app/build/outputs/apk/release/app-release.apk
           draft: false
           prerelease: true
+
+      - name: Notify QQ group
+        if: always() && github.event_name == 'push'
+        env:
+          WEBHOOK_URL: ${{ secrets.QQ_WEBHOOK_URL }}
+          WEBHOOK_TOKEN: ${{ secrets.QQ_WEBHOOK_TOKEN }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          if [ -z "$WEBHOOK_URL" ]; then
+            echo "QQ_WEBHOOK_URL is not configured, skip QQ notification."
+            exit 0
+          fi
+
+          COMMIT_MESSAGE="$(git log -1 --pretty=%s)"
+          COMMIT_AUTHOR="$(git log -1 --pretty=%an)"
+          RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          COMPARE_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/${{ github.event.before }}...${GITHUB_SHA}"
+
+          PAYLOAD="$(jq -n \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg branch "$GITHUB_REF_NAME" \
+            --arg sha "$GITHUB_SHA" \
+            --arg actor "$GITHUB_ACTOR" \
+            --arg event_name "$GITHUB_EVENT_NAME" \
+            --arg workflow "$GITHUB_WORKFLOW" \
+            --arg run_number "$GITHUB_RUN_NUMBER" \
+            --arg run_url "$RUN_URL" \
+            --arg commit_message "$COMMIT_MESSAGE" \
+            --arg commit_author "$COMMIT_AUTHOR" \
+            --arg compare_url "$COMPARE_URL" \
+            --arg status "$JOB_STATUS" \
+            '{
+              repository: $repository,
+              branch: $branch,
+              sha: $sha,
+              actor: $actor,
+              event_name: $event_name,
+              workflow: $workflow,
+              run_number: $run_number,
+              run_url: $run_url,
+              commit_message: $commit_message,
+              commit_author: $commit_author,
+              compare_url: $compare_url,
+              status: $status
+            }')"
+
+          if ! curl -fsS -X POST "$WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -H "X-Webhook-Token: $WEBHOOK_TOKEN" \
+            --data "$PAYLOAD"; then
+            echo "QQ notification failed, but build result is kept unchanged."
+          fi

@@ -6,6 +6,8 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Base64
 import android.util.Log
+import androidx.annotation.StringRes
+import com.shell.liangyi.R
 import com.xiaomi.xms.wearable.Wearable
 import com.xiaomi.xms.wearable.auth.AuthApi
 import com.xiaomi.xms.wearable.auth.Permission
@@ -118,6 +120,7 @@ class WearMessageCenter private constructor(private val context: Context) {
     private val pendingReadyCallbacks = mutableListOf<(Boolean) -> Unit>()
     private val mainHandler = Handler(Looper.getMainLooper())
     private val appVersionCode by lazy { resolveAppVersionCode() }
+    private fun tr(@StringRes resId: Int, vararg args: Any): String = context.getString(resId, *args)
 
     private var nodeApi: NodeApi? = null
     private var messageApi: MessageApi? = null
@@ -151,14 +154,14 @@ class WearMessageCenter private constructor(private val context: Context) {
             addLog("RECEIVE", "raw", "nodeId=$nodeId len=${text.length} ${text.take(100)}")
             onMessageReceived(text)
         } catch (e: Throwable) {
-            Log.e(TAG, "消息监听器内部异常", Exception(e))
+            Log.e(TAG, "Message listener internal error", Exception(e))
             addLog("ERROR", "listener_error", e.message ?: "Unknown error")
         }
     }
 
     fun initialize() {
         Log.d(TAG, "Initializing WearMessageCenter")
-        addLog("SYSTEM", "init", "消息中心初始化")
+        addLog("SYSTEM", "init", tr(R.string.message_center_initialized))
 
         nodeApi = Wearable.getNodeApi(context)
         messageApi = Wearable.getMessageApi(context)
@@ -172,7 +175,7 @@ class WearMessageCenter private constructor(private val context: Context) {
             initialize()
             return
         }
-        addLog("SYSTEM", "ensure", "执行连接保活检查")
+        addLog("SYSTEM", "ensure", tr(R.string.keepalive_check))
         ensureSession(force = true)
     }
 
@@ -209,7 +212,7 @@ class WearMessageCenter private constructor(private val context: Context) {
     private fun discoverAndPrepare(force: Boolean) {
         val api = nodeApi
         if (api == null) {
-            markDisconnected(ConnectionState.ERROR, "NodeApi 未初始化")
+            markDisconnected(ConnectionState.ERROR, tr(R.string.node_api_not_initialized))
             return
         }
 
@@ -219,13 +222,13 @@ class WearMessageCenter private constructor(private val context: Context) {
                     currentNode = null
                     hasDevicePermission = false
                     listenerRegistered = false
-                    markDisconnected(ConnectionState.DISCONNECTED, "当前没有已连接设备")
+                    markDisconnected(ConnectionState.DISCONNECTED, tr(R.string.no_connected_devices))
                     return@addOnSuccessListener
                 }
 
                 val node = nodes[0]
                 if (currentNode?.id != node.id) {
-                    addLog("SYSTEM", "device", "找到设备 ${node.name} (${node.id})")
+                    addLog("SYSTEM", "device", tr(R.string.device_found, node.name, node.id))
                     hasDevicePermission = false
                     listenerRegistered = false
                 }
@@ -233,14 +236,14 @@ class WearMessageCenter private constructor(private val context: Context) {
                 ensurePermissionThenPrepare(force)
             }
             .addOnFailureListener { e ->
-                Log.e(TAG, "获取已连接设备失败", e)
-                markDisconnected(ConnectionState.ERROR, e.message ?: "获取设备失败")
+                Log.e(TAG, "Failed to get connected devices", e)
+                markDisconnected(ConnectionState.ERROR, e.message ?: tr(R.string.failed_get_devices))
             }
     }
 
     private fun ensurePermissionThenPrepare(force: Boolean) {
         val node = currentNode ?: run {
-            markDisconnected(ConnectionState.ERROR, "当前设备为空")
+            markDisconnected(ConnectionState.ERROR, tr(R.string.current_device_empty))
             return
         }
         if (hasDevicePermission) {
@@ -249,18 +252,18 @@ class WearMessageCenter private constructor(private val context: Context) {
         }
 
         val api = authApi ?: run {
-            markDisconnected(ConnectionState.ERROR, "AuthApi 未初始化")
+            markDisconnected(ConnectionState.ERROR, tr(R.string.auth_api_not_initialized))
             return
         }
         val permissions = arrayOf(Permission.DEVICE_MANAGER, Permission.NOTIFY)
 
-        addLog("SYSTEM", "permission", "检查穿戴权限中")
+        addLog("SYSTEM", "permission", tr(R.string.checking_wear_permissions))
         api.checkPermissions(node.id, permissions)
             .addOnSuccessListener { results ->
                 val allGranted = results != null && results.all { it == true }
                 if (allGranted) {
                     hasDevicePermission = true
-                    addLog("SYSTEM", "permission", "已具备必要权限")
+                    addLog("SYSTEM", "permission", tr(R.string.required_permissions_granted))
                     prepareWearAppSession(force)
                 } else {
                     requestPermission(node, force)
@@ -273,7 +276,7 @@ class WearMessageCenter private constructor(private val context: Context) {
 
     private fun requestPermission(node: Node, force: Boolean) {
         val api = authApi ?: run {
-            markDisconnected(ConnectionState.ERROR, "AuthApi 未初始化")
+            markDisconnected(ConnectionState.ERROR, tr(R.string.auth_api_not_initialized))
             return
         }
 
@@ -281,22 +284,22 @@ class WearMessageCenter private constructor(private val context: Context) {
             .addOnSuccessListener { granted ->
                 if (granted != null && granted.isNotEmpty()) {
                     hasDevicePermission = true
-                    addLog("SYSTEM", "permission", "权限申请成功")
+                    addLog("SYSTEM", "permission", tr(R.string.permission_request_success))
                     prepareWearAppSession(force)
                 } else {
-                    markDisconnected(ConnectionState.ERROR, "用户未授予必要权限")
+                    markDisconnected(ConnectionState.ERROR, tr(R.string.user_denied_required_permissions))
                 }
             }
             .addOnFailureListener { e ->
-                Log.e(TAG, "申请权限失败", e)
-                markDisconnected(ConnectionState.ERROR, e.message ?: "申请权限失败")
+                Log.e(TAG, "Failed to request permissions", e)
+                markDisconnected(ConnectionState.ERROR, e.message ?: tr(R.string.request_permission_failed))
             }
     }
 
     private fun prepareWearAppSession(force: Boolean) {
         registerListenerIfNeeded(force) { success ->
             if (!success) {
-                markDisconnected(ConnectionState.ERROR, "消息监听器注册失败")
+                markDisconnected(ConnectionState.ERROR, tr(R.string.message_listener_registration_failed))
                 return@registerListenerIfNeeded
             }
             launchWearApp {
@@ -322,17 +325,17 @@ class WearMessageCenter private constructor(private val context: Context) {
             api.addListener(node.id, messageListener)
                 .addOnSuccessListener {
                     listenerRegistered = true
-                    addLog("SYSTEM", "listener", "消息监听器注册成功 (node=${node.id})")
+                    addLog("SYSTEM", "listener", tr(R.string.message_listener_registered, node.id))
                     onDone(true)
                 }
                 .addOnFailureListener { e ->
                     if (e.message?.contains("registered") == true) {
                         listenerRegistered = true
-                        addLog("SYSTEM", "listener", "监听器已存在（忽略报错）")
+                        addLog("SYSTEM", "listener", tr(R.string.message_listener_already_exists))
                         onDone(true)
                     } else {
                         listenerRegistered = false
-                        addLog("ERROR", "listener", e.message ?: "监听器注册失败")
+                        addLog("ERROR", "listener", e.message ?: tr(R.string.message_listener_registration_failed))
                         onDone(false)
                     }
                 }
@@ -353,11 +356,11 @@ class WearMessageCenter private constructor(private val context: Context) {
 
         api.launchWearApp(node.id, WEAR_APP_ENTRY_URI)
             .addOnSuccessListener {
-                addLog("SYSTEM", "launch", "已拉起手表快应用")
+                addLog("SYSTEM", "launch", tr(R.string.watch_app_launched))
                 onComplete()
             }
             .addOnFailureListener { e ->
-                addLog("SYSTEM", "launch", "拉起手表快应用失败，继续尝试握手: ${e.message ?: "unknown"}")
+                addLog("SYSTEM", "launch", tr(R.string.watch_app_launch_failed_continue, e.message ?: "unknown"))
                 onComplete()
             }
     }
@@ -366,8 +369,8 @@ class WearMessageCenter private constructor(private val context: Context) {
         clearHandshakeTimeout()
 
         val timeoutRunnable = Runnable {
-            addLog("ERROR", "handshake", "握手超时")
-            markDisconnected(ConnectionState.DISCONNECTED, "手表快应用未响应握手")
+            addLog("ERROR", "handshake", tr(R.string.handshake_timeout))
+            markDisconnected(ConnectionState.DISCONNECTED, tr(R.string.watch_app_no_handshake_response))
         }
         handshakeTimeoutRunnable = timeoutRunnable
         mainHandler.postDelayed(timeoutRunnable, HANDSHAKE_TIMEOUT_MS)
@@ -376,13 +379,13 @@ class WearMessageCenter private constructor(private val context: Context) {
             put("count", 0)
             put("version", appVersionCode)
         }
-        addLog("SEND", "handshake", "发送握手 count=0 → node=${currentNode?.id}")
+        addLog("SEND", "handshake", tr(R.string.sending_handshake, currentNode?.id ?: "null"))
         sendDirect(MessageType.HANDSHAKE, payload, logTraffic = false) { success, error ->
             if (success) {
-                addLog("SEND", "handshake", "握手发送成功")
+                addLog("SEND", "handshake", tr(R.string.handshake_sent_success))
             } else {
-                addLog("ERROR", "handshake", "握手发送失败: ${error?.message}")
-                markDisconnected(ConnectionState.ERROR, error?.message ?: "发送握手失败")
+                addLog("ERROR", "handshake", tr(R.string.handshake_sent_failed, error?.message ?: "unknown"))
+                markDisconnected(ConnectionState.ERROR, error?.message ?: tr(R.string.failed_to_send_handshake))
             }
         }
     }
@@ -427,7 +430,7 @@ class WearMessageCenter private constructor(private val context: Context) {
     private fun scheduleReconnect() {
         cancelReconnect()
         val runnable = Runnable {
-            addLog("SYSTEM", "reconnect", "自动重连...")
+            addLog("SYSTEM", "reconnect", tr(R.string.auto_reconnecting))
             ensureSession(force = true)
         }
         reconnectRunnable = runnable
@@ -485,8 +488,8 @@ class WearMessageCenter private constructor(private val context: Context) {
             override fun run() {
                 val now = System.currentTimeMillis()
                 if (handshaked && lastHeartbeatAck > 0 && now - lastHeartbeatAck > HEARTBEAT_TIMEOUT_MS) {
-                    addLog("ERROR", "heartbeat", "心跳超时")
-                    markDisconnected(ConnectionState.DISCONNECTED, "手表快应用心跳超时")
+                    addLog("ERROR", "heartbeat", tr(R.string.heartbeat_timeout))
+                    markDisconnected(ConnectionState.DISCONNECTED, tr(R.string.watch_app_heartbeat_timeout))
                     return
                 }
                 val payload = JSONObject().apply {
@@ -505,7 +508,7 @@ class WearMessageCenter private constructor(private val context: Context) {
     fun sendHeartbeat() {
         ensureSession(force = false) { success ->
             if (!success) {
-                addLog("ERROR", "heartbeat", "连接未就绪，无法发送心跳")
+                addLog("ERROR", "heartbeat", tr(R.string.heartbeat_not_ready))
                 return@ensureSession
             }
             val payload = JSONObject().apply {
@@ -518,7 +521,7 @@ class WearMessageCenter private constructor(private val context: Context) {
     fun send(type: String, payload: JSONObject) {
         ensureSession(force = false) { success ->
             if (!success) {
-                addLog("ERROR", type, "连接未建立，发送取消")
+                addLog("ERROR", type, tr(R.string.connection_not_ready_send_cancelled))
                 return@ensureSession
             }
             sendDirect(type, payload, logTraffic = shouldLogTraffic(type))
@@ -557,8 +560,8 @@ class WearMessageCenter private constructor(private val context: Context) {
         val node = currentNode
         val api = messageApi
         if (node == null || api == null) {
-            val error = IllegalStateException("当前无已连接设备")
-            addLog("ERROR", "send", error.message ?: "发送失败")
+            val error = IllegalStateException(tr(R.string.no_connected_device))
+            addLog("ERROR", "send", error.message ?: tr(R.string.send_failed))
             onResult?.invoke(false, error)
             return
         }
@@ -566,12 +569,12 @@ class WearMessageCenter private constructor(private val context: Context) {
         Log.d(TAG, "sendRaw → node=${node.id} bytes=${bytes.size}")
         api.sendMessage(node.id, bytes)
             .addOnSuccessListener {
-                Log.d(TAG, "sendRaw 成功")
+                Log.d(TAG, "sendRaw succeeded")
                 onResult?.invoke(true, null)
             }
             .addOnFailureListener { e ->
-                Log.e(TAG, "sendRaw 失败: ${e.message}", e)
-                addLog("ERROR", "send", e.message ?: "消息发送失败")
+                Log.e(TAG, "sendRaw failed: ${e.message}", e)
+                addLog("ERROR", "send", e.message ?: tr(R.string.message_send_failed))
                 onResult?.invoke(false, Exception(e))
             }
     }
@@ -659,14 +662,14 @@ class WearMessageCenter private constructor(private val context: Context) {
 
     private fun handleHandshake(json: JSONObject) {
         val count = json.optInt("count", -1)
-        addLog("RECEIVE", "handshake", "收到握手 count=$count")
+        addLog("RECEIVE", "handshake", tr(R.string.received_handshake, count))
         if (count < 0) {
             return
         }
 
         lastHeartbeatAck = System.currentTimeMillis()
         if (count > 0) {
-            addLog("SYSTEM", "handshake", "握手确认 (count=$count)")
+            addLog("SYSTEM", "handshake", tr(R.string.handshake_confirmed, count))
             confirmConnected()
         }
 
@@ -675,7 +678,7 @@ class WearMessageCenter private constructor(private val context: Context) {
                 put("count", count + 1)
                 put("version", appVersionCode)
             }
-            addLog("SEND", "handshake", "回复握手 count=${count + 1}")
+            addLog("SEND", "handshake", tr(R.string.reply_handshake, count + 1))
             sendDirect(MessageType.HANDSHAKE, payload, logTraffic = false)
         }
     }
@@ -713,7 +716,7 @@ class WearMessageCenter private constructor(private val context: Context) {
             val data = json.optString("d")
 
             if (id.isEmpty() || index < 0 || total <= 0 || index >= total || data.isEmpty()) {
-                addLog("ERROR", "chunk", "非法分片 id=$id i=$index t=$total")
+                addLog("ERROR", "chunk", tr(R.string.invalid_chunk, id, index, total))
                 return
             }
 
@@ -746,8 +749,8 @@ class WearMessageCenter private constructor(private val context: Context) {
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "处理分片消息失败", e)
-            addLog("ERROR", "chunk", e.message ?: "处理分片失败")
+            Log.e(TAG, "Failed to process chunk message", e)
+            addLog("ERROR", "chunk", e.message ?: tr(R.string.chunk_processing_failed))
         }
     }
 
@@ -824,11 +827,11 @@ class WearMessageCenter private constructor(private val context: Context) {
             try {
                 api.removeListener(node.id)
             } catch (e: Exception) {
-                Log.w(TAG, "移除监听器失败", e)
+                Log.w(TAG, "Failed to remove listener", e)
             }
         }
         listenerRegistered = false
         updateState(ConnectionState.DISCONNECTED)
-        addLog("SYSTEM", "destroy", "消息中心销毁")
+        addLog("SYSTEM", "destroy", tr(R.string.message_center_destroyed))
     }
 }

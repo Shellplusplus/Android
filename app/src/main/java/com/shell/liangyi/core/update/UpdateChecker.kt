@@ -2,6 +2,7 @@ package com.shell.liangyi.core.update
 
 import android.content.Context
 import androidx.core.content.pm.PackageInfoCompat
+import com.shell.liangyi.R
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -98,7 +99,9 @@ object UpdateChecker {
                 UpdateCheckResult.UpToDate
             }
         } catch (e: Exception) {
-            UpdateCheckResult.Failed(e.message ?: "检测失败")
+            UpdateCheckResult.Failed(
+                e.message ?: context.getString(R.string.update_check_failed_default)
+            )
         }
     }
 

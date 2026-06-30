@@ -3,6 +3,8 @@ package com.shell.liangyi.core
 import android.content.Context
 import android.util.Base64
 import android.util.Log
+import androidx.annotation.StringRes
+import com.shell.liangyi.R
 import com.shell.liangyi.model.Screenshot
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -30,6 +32,7 @@ class ScreenshotReceiver(
     }
 
     private val messageCenter = WearMessageCenter.getInstance(context)
+    private fun tr(@StringRes resId: Int, vararg args: Any): String = context.getString(resId, *args)
 
     // 截图列表
     private val _screenshots = MutableStateFlow<List<Screenshot>>(emptyList())
@@ -64,6 +67,7 @@ class ScreenshotReceiver(
     // HTTP 服务器（WiFi 直传）
     private val httpServer: HttpScreenshotServer by lazy {
         HttpScreenshotServer(
+            context = context,
             screenshotsDir = transferRootDir,
             onScreenshotReceived = { shotId, file ->
                 scope.launch {
@@ -107,8 +111,9 @@ class ScreenshotReceiver(
                 _httpServerRunning.value = true
                 val address = "$ip:${httpServer.port}"
                 Log.i(TAG, "HTTP server ready at $address")
-                _receiveProgress.value = "HTTP 服务器已启动：$address"
-                appendHttpLog("HTTP 服务器已启动：$address")
+                val serverStartedText = tr(R.string.http_server_started, address)
+                _receiveProgress.value = serverStartedText
+                appendHttpLog(serverStartedText)
                 notifyWatchWifiServer(address)
                 address
             } else {
@@ -124,8 +129,9 @@ class ScreenshotReceiver(
         httpServer.stop()
         _httpServerRunning.value = false
         _httpServerIp.value = ""
-        _receiveProgress.value = "HTTP 服务器已停止"
-        appendHttpLog("HTTP 服务器已停止")
+        val serverStoppedText = tr(R.string.http_server_stopped)
+        _receiveProgress.value = serverStoppedText
+        appendHttpLog(serverStoppedText)
     }
 
     private fun notifyWatchWifiServer(address: String) {
@@ -142,8 +148,8 @@ class ScreenshotReceiver(
 
     private suspend fun onHttpScreenshotReceived(shotId: String, file: File) {
         Log.i(TAG, "HTTP screenshot received: $shotId (${file.length()} bytes)")
-        _receiveProgress.value = "HTTP 接收完成：$shotId (${formatHttpBytes(file.length())})"
-        appendHttpLog("HTTP 接收完成：$shotId (${file.length()} bytes)")
+        _receiveProgress.value = tr(R.string.http_transfer_complete, shotId, formatHttpBytes(file.length()))
+        appendHttpLog(tr(R.string.http_transfer_complete, shotId, "${file.length()} bytes"))
         // 重新加载列表以包含新收到的截图
         loadStoredScreenshots()
         // 如果正在等待该 shotId，标记完成
@@ -161,9 +167,16 @@ class ScreenshotReceiver(
             0
         }
         val text = if (progress.completed) {
-            "HTTP 接收完成：${progress.shotId} (${formatHttpBytes(progress.receivedBytes)})"
+            tr(R.string.http_transfer_complete, progress.shotId, formatHttpBytes(progress.receivedBytes))
         } else {
-            "HTTP 接收中：$percent% ${progress.chunkIndex + 1}/${progress.totalChunks} (${formatHttpBytes(progress.receivedBytes)}/${formatHttpBytes(progress.totalBytes)})"
+            tr(
+                R.string.http_transfer_receiving,
+                percent,
+                progress.chunkIndex + 1,
+                progress.totalChunks,
+                formatHttpBytes(progress.receivedBytes),
+                formatHttpBytes(progress.totalBytes)
+            )
         }
         _receiveProgress.value = text
     }
@@ -371,9 +384,9 @@ class ScreenshotReceiver(
         }
         val chunkNum = (record.lastChunkNum + 1).coerceAtLeast(0)
         return if (record.totalChunks > 0 && chunkNum > 0) {
-            "上次传输失败（中断于块 $chunkNum/${record.totalChunks}）"
+            tr(R.string.previous_transfer_failed_at_chunk, chunkNum, record.totalChunks)
         } else {
-            "上次传输失败"
+            tr(R.string.previous_transfer_failed)
         }
     }
 
@@ -405,7 +418,7 @@ class ScreenshotReceiver(
                 existing.copy(
                     displayTitle = existing.displayTitle.ifEmpty { buildDisplayTitle(existing.shotId, existing.index) },
                     lastTransferFailed = true,
-                    transferHint = "上次传输失败"
+                    transferHint = tr(R.string.previous_transfer_failed)
                 )
             )
         }
@@ -680,7 +693,7 @@ class ScreenshotReceiver(
         }
         val completed = receivedCount.coerceAtMost(totalCount)
         val current = if (completed >= totalCount) totalCount else completed + 1
-        _receiveProgress.value = "图片 $current/$totalCount"
+        _receiveProgress.value = tr(R.string.image_progress, current, totalCount)
     }
 
     private fun updateChunkProgressText(chunkReceived: Int, chunkTotal: Int) {
@@ -695,11 +708,11 @@ class ScreenshotReceiver(
         startedAtMs: Long
     ) {
         val speedText = formatSpeed(receivedBytes, startedAtMs)
-        val detailText = "分块 $chunkReceived/$chunkTotal  速度 $speedText"
+        val detailText = tr(R.string.chunk_progress_detail, chunkReceived, chunkTotal, speedText)
         if (totalCount > 0) {
             val completed = receivedCount.coerceAtMost(totalCount)
             val current = if (completed >= totalCount) totalCount else completed + 1
-            _receiveProgress.value = "图片 $current/$totalCount  $detailText"
+            _receiveProgress.value = tr(R.string.image_chunk_progress, current, totalCount, detailText)
             return
         }
         _receiveProgress.value = detailText
@@ -1300,7 +1313,7 @@ class ScreenshotReceiver(
         _receiveProgress.value = ""
 
         // 发送结果确认
-        messageCenter.sendSyncResult(true, "接收完成")
+        messageCenter.sendSyncResult(true, tr(R.string.receive_complete))
 
         // 重置状态
         currentSessionId = 0
@@ -1364,7 +1377,7 @@ class ScreenshotReceiver(
             totalCount = 0
             loadStoredScreenshots()
             _syncState.value = SyncState.WaitingAck
-            _receiveProgress.value = "正在获取截图列表…"
+            _receiveProgress.value = tr(R.string.fetching_screenshot_list)
             messageCenter.requestScreenshotList()
         }
     }

@@ -1,0 +1,16 @@
+[Unit]
+Description=Shell++ QQ Webhook
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/shell-plus-plus-webhook
+EnvironmentFile=/opt/shell-plus-plus-webhook/.env
+ExecStart=/opt/shell-plus-plus-webhook/shell-plus-plus-webhook
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

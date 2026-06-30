@@ -11,7 +11,6 @@ import androidx.compose.animation.slideOutHorizontally
 
 // 严格参考 StatusBarLyric/PortraitLayout 的动画配置
 // 关键：popExitTransition 只用 slide，不加 fadeOut（避免返回卡顿）
-
 object AnimTools {
 
     private val easing = CubicBezierEasing(0.12f, 0.38f, 0.2f, 1f)
@@ -20,7 +19,7 @@ object AnimTools {
     fun enterTransition(windowWidth: Int): EnterTransition {
         return slideInHorizontally(
             initialOffsetX = { windowWidth },
-            animationSpec = tween(500, easing = easing)
+            animationSpec = tween(500, easing = easing),
         )
     }
 
@@ -28,10 +27,10 @@ object AnimTools {
     fun exitTransition(windowWidth: Int): ExitTransition {
         return slideOutHorizontally(
             targetOffsetX = { -windowWidth / 5 },
-            animationSpec = tween(500, easing = easing)
+            animationSpec = tween(500, easing = easing),
         ) + fadeOut(
             animationSpec = tween(500),
-            targetAlpha = 0.5f
+            targetAlpha = 0.5f,
         )
     }
 
@@ -39,10 +38,10 @@ object AnimTools {
     fun popEnterTransition(windowWidth: Int): EnterTransition {
         return slideInHorizontally(
             initialOffsetX = { -windowWidth / 5 },
-            animationSpec = tween(500, easing = easing)
+            animationSpec = tween(500, easing = easing),
         ) + fadeIn(
             animationSpec = tween(500),
-            initialAlpha = 0.5f
+            initialAlpha = 0.5f,
         )
     }
 
@@ -50,7 +49,7 @@ object AnimTools {
     fun popExitTransition(windowWidth: Int): ExitTransition {
         return slideOutHorizontally(
             targetOffsetX = { windowWidth },
-            animationSpec = tween(500, easing = easing)
+            animationSpec = tween(500, easing = easing),
         )
     }
 }

@@ -1,7 +1,10 @@
 package com.shell.liangyi.core
 
+import android.content.Context
 import android.util.Base64
 import android.util.Log
+import androidx.annotation.StringRes
+import com.shell.liangyi.R
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -17,6 +20,7 @@ import java.util.concurrent.ConcurrentHashMap
  * 接收快应用通过 WiFi 直传的 PNG 截图，优先使用分片上传以降低手表内存压力。
  */
 class HttpScreenshotServer(
+    private val context: Context,
     private val screenshotsDir: File,
     private val onScreenshotReceived: (shotId: String, file: File) -> Unit,
     private val onTransferProgress: (progress: TransferProgress) -> Unit = {},
@@ -58,6 +62,8 @@ class HttpScreenshotServer(
     @Volatile
     var isRunning: Boolean = false
         private set
+
+    private fun tr(@StringRes resId: Int, vararg args: Any): String = context.getString(resId, *args)
 
     fun getWifiIp(): String? {
         try {
@@ -266,7 +272,7 @@ class HttpScreenshotServer(
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to receive screenshot chunk", e)
-            onTransferLog("分片接收失败: ${e.message ?: "unknown"}")
+            onTransferLog(tr(R.string.http_chunk_receive_failed, e.message ?: "unknown"))
             respond(socket, 500, """{"ok":false,"error":"Internal server error"}""")
         }
     }
@@ -278,7 +284,7 @@ class HttpScreenshotServer(
             val finalFile = File(screenshotsDir, fileName)
             val sidecarFile = File(screenshotsDir, "$fileName.json")
             if (chunkIndex == 0 && tempFile.exists()) tempFile.delete()
-            onTransferLog("开始 HTTP 分片接收: $shotId total=$totalBytes chunks=$totalChunks")
+            onTransferLog(tr(R.string.http_chunk_receive_started, shotId, totalBytes, totalChunks))
             ChunkSession(shotId, timeText, totalBytes, totalChunks, tempFile, finalFile, sidecarFile)
         }
     }
@@ -292,7 +298,7 @@ class HttpScreenshotServer(
         val sidecar = """{"shotId":"${escapeJson(session.shotId)}","timeText":"${escapeJson(session.timeText)}","size":${session.receivedBytes},"receivedVia":"http-chunk"}"""
         session.sidecarFile.writeText(sidecar)
         Log.i(TAG, "Received screenshot via HTTP chunks: ${session.shotId} (${session.receivedBytes} bytes)")
-        onTransferLog("完成 HTTP 分片接收: ${session.shotId} ${session.receivedBytes} bytes")
+        onTransferLog(tr(R.string.http_chunk_receive_completed, session.shotId, session.receivedBytes))
     }
 
     private fun handleScreenshot(socket: Socket, input: java.io.InputStream, headers: Map<String, String>, contentLength: Int) {
@@ -342,14 +348,14 @@ class HttpScreenshotServer(
             sidecarFile.writeText(sidecar)
 
             Log.i(TAG, "Received screenshot via HTTP: $finalShotId (${pngBytes.size} bytes)")
-            onTransferLog("兼容模式接收完成: $finalShotId ${pngBytes.size} bytes")
+            onTransferLog(tr(R.string.http_compat_receive_completed, finalShotId, pngBytes.size))
             onScreenshotReceived(finalShotId, destFile)
 
             val resp = """{"ok":true,"shotId":"${escapeJson(finalShotId)}","size":${pngBytes.size}}"""
             respond(socket, 200, resp)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to save screenshot $shotId", e)
-            onTransferLog("兼容模式保存失败: ${e.message ?: "unknown"}")
+            onTransferLog(tr(R.string.http_compat_save_failed, e.message ?: "unknown"))
             respond(socket, 500, """{"ok":false,"error":"Internal server error"}""")
         }
     }
