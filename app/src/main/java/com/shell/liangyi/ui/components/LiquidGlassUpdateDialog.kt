@@ -4,6 +4,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -43,6 +44,7 @@ import com.shell.liangyi.core.update.UpdatePrompt
 import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.blur.Backdrop
 import top.yukonga.miuix.kmp.blur.blur
+import top.yukonga.miuix.kmp.blur.colorControls
 import top.yukonga.miuix.kmp.blur.drawBackdrop
 
 private const val DIALOG_ANIMATION_DURATION_MS = 220
@@ -58,7 +60,7 @@ fun LiquidGlassUpdateDialog(
 ) {
     val isLightTheme = !isSystemInDarkTheme()
     val contentColor = if (isLightTheme) Color.Black else Color.White
-    val accentColor = Color(0xFF0A84FF)
+    val accentColor = if (isLightTheme) Color(0xFF0088FF) else Color(0xFF0091FF)
     val containerColor = if (isLightTheme) {
         Color(0xFFFAFAFA).copy(alpha = 0.60f)
     } else {
@@ -69,12 +71,9 @@ fun LiquidGlassUpdateDialog(
     } else {
         Color(0xFF121212).copy(alpha = 0.56f)
     }
-    val secondaryButtonColor = if (isLightTheme) {
-        Color.White.copy(alpha = 0.20f)
-    } else {
-        Color.White.copy(alpha = 0.10f)
-    }
-    val cardShape = remember { RoundedCornerShape(32.dp) }
+    val secondaryButtonColor = Color.White
+    val secondaryButtonBorderColor = Color.Transparent
+    val cardShape = remember { RoundedCornerShape(48.dp) }
     var animatedVisible by remember(prompt.info.latestVersionCode, prompt.mandatory) {
         mutableStateOf(false)
     }
@@ -140,7 +139,7 @@ fun LiquidGlassUpdateDialog(
         )
         Column(
             modifier = Modifier
-                .padding(24.dp)
+                .padding(40.dp)
                 .widthIn(max = 420.dp)
                 .graphicsLayer {
                     alpha = dialogAlpha
@@ -159,7 +158,10 @@ fun LiquidGlassUpdateDialog(
                             backdrop = backdrop,
                             shape = { cardShape },
                             effects = {
-                                vibrancy()
+                                colorControls(
+                                    brightness = if (isLightTheme) 0.2f else 0f,
+                                    saturation = 1.5f,
+                                )
                                 blur(if (isLightTheme) 16.dp.toPx() else 8.dp.toPx())
                                 lens(
                                     refractionHeight = 24.dp.toPx(),
@@ -237,7 +239,8 @@ fun LiquidGlassUpdateDialog(
                     DialogActionButton(
                         text = stringResource(R.string.later),
                         containerColor = secondaryButtonColor,
-                        contentColor = contentColor,
+                        borderColor = secondaryButtonBorderColor,
+                        contentColor = accentColor,
                         modifier = Modifier.weight(1f),
                         enabled = visible,
                         onClick = onDismissRequest,
@@ -246,6 +249,7 @@ fun LiquidGlassUpdateDialog(
                 DialogActionButton(
                     text = stringResource(R.string.download_update),
                     containerColor = accentColor,
+                    borderColor = Color.Transparent,
                     contentColor = Color.White,
                     modifier = Modifier.weight(1f),
                     enabled = visible,
@@ -260,6 +264,7 @@ fun LiquidGlassUpdateDialog(
 private fun DialogActionButton(
     text: String,
     containerColor: Color,
+    borderColor: Color,
     contentColor: Color,
     modifier: Modifier = Modifier,
     enabled: Boolean,
@@ -269,6 +274,11 @@ private fun DialogActionButton(
         modifier = modifier
             .clip(RoundedCornerShape(999.dp))
             .background(containerColor)
+            .border(
+                width = 1.dp,
+                color = borderColor,
+                shape = RoundedCornerShape(999.dp),
+            )
             .clickable(
                 enabled = enabled,
                 interactionSource = remember { MutableInteractionSource() },
@@ -277,7 +287,7 @@ private fun DialogActionButton(
             )
             .height(48.dp)
             .padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.Center,
+        horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         BasicText(
@@ -285,7 +295,6 @@ private fun DialogActionButton(
             style = TextStyle(
                 color = contentColor,
                 fontSize = 16.sp,
-                fontWeight = FontWeight.Medium,
             ),
         )
     }
