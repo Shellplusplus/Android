@@ -42,6 +42,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.shell.liangyi.R
+import com.shell.liangyi.feature.AgentEntryPointProvider
 import com.shell.liangyi.ui.about.AboutScreen
 import com.shell.liangyi.ui.bluetooth.BluetoothScreen
 import com.shell.liangyi.ui.components.LiquidGlassBottomBar
@@ -174,11 +175,15 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
                 )
             }
             composable(Routes.TERMINAL) {
-                PlaceholderScreen(
-                    title = stringResource(R.string.remote_terminal),
-                    subtitle = stringResource(R.string.remote_terminal_developing),
-                    navController = navController
-                )
+                if (AgentEntryPointProvider.entryPoint.isEnabled) {
+                    AgentEntryPointProvider.entryPoint.Screen(navController, shellViewModel)
+                } else {
+                    PlaceholderScreen(
+                        title = stringResource(R.string.remote_terminal),
+                        subtitle = stringResource(R.string.remote_terminal_developing),
+                        navController = navController
+                    )
+                }
             }
             composable(Routes.LOGS) {
                 SettingsScreen(navController, shellViewModel)

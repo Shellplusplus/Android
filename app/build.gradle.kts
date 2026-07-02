@@ -48,6 +48,20 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // "standard" 是面向用户发布的版本，不包含手环 AI agent 助手；
+    // "developer" 额外编译 src/developer 下的 agent 聊天/命令桥接代码。
+    // 两个 flavor 都不能加 applicationIdSuffix —— interconnect 要求手机包名
+    // 与快应用 manifest.json 的 package 字段（com.shell.liangyi）严格一致。
+    flavorDimensions += "tier"
+    productFlavors {
+        create("standard") {
+            dimension = "tier"
+        }
+        create("developer") {
+            dimension = "tier"
+        }
+    }
+
     buildTypes {
         debug {
             if (hasLocalSigningConfig) {
@@ -85,7 +99,7 @@ android {
 
 // Bypass MIUIX AAR metadata check requiring compileSdk 37
 tasks.configureEach {
-    if (name == "checkDebugAarMetadata" || name == "checkReleaseAarMetadata") {
+    if (name.startsWith("check") && name.endsWith("AarMetadata")) {
         enabled = false
     }
 }
