@@ -1,73 +1,174 @@
 # Shell++ Android
 
-Android 端配套应用，用于与 Vela 手表连接和截图同步。
+Shell++ Android 是 Shell++ / Vela 手表的 Android 端配套应用，负责把手表截图同步到手机，并提供局域网直传、截图预览导出、应用内更新检查，以及配套的发布通知能力。
+
+## 当前功能
+
+- 通过小米穿戴消息通道与手表建立连接，获取截图列表并按需拉取截图
+- 内置轻量 HTTP 服务，支持同局域网下的 PNG 截图直传与分片上传
+- 截图详情页支持预览、保存到系统相册、生成带机型边框版本、删除本地缓存
+- 首页集中展示手表连接状态、截图缓存数量、LAN 服务状态与最近传输进度
+- 设置页支持手动检查更新、跳过非强制更新提醒
+- 关于页展示开发者信息与开源组件说明
+- 通过 `website/update.json` 提供的更新元数据驱动应用内更新提示
+
+说明：首页中的“远程终端”入口目前仍是占位页，尚未完成实现。
 
 ## 技术栈
 
-- Kotlin + Jetpack Compose
-- Material 3 + iOS 风格组件
-- Gradle (Kotlin DSL)
+- Kotlin `2.3.20`
+- Android Gradle Plugin `8.9.1`
+- Jetpack Compose + Navigation Compose
+- Material 3 + MIUIX / HyperOS 风格组件
+- Kotlin Coroutines + Coil
+- 本地 AAR 形式接入 Xiaomi Wearable SDK
+- Gradle Kotlin DSL
 
-## 模块结构
+## 环境要求
 
-### core/
+- JDK `17`
+- Android SDK `compileSdk 36`
+- `targetSdk 36`
+- `minSdk 26`
+- 支持 AGP `8.9` / Kotlin `2.3` 的 Android Studio
 
-- `WearMessageCenter.kt` - 小米穿戴消息中心封装，处理手表与手机端的消息收发
-- `ScreenshotReceiver.kt` - 接收手表端发送的截图数据
+## 项目结构
 
-### ui/
+```text
+.
+├─ .github/
+│  └─ workflows/
+│     └─ build.yml                GitHub Actions：构建、发布、通知
+├─ app/                           Android 应用模块
+│  ├─ libs/                       本地 AAR / JAR 依赖
+│  ├─ release/                    当前导出的发布产物
+│  └─ src/
+│     ├─ androidTest/             仪器测试
+│     ├─ main/
+│     │  ├─ java/com/shell/liangyi/
+│     │  │  ├─ core/              手表通信、截图接收、HTTP 服务
+│     │  │  │  └─ update/         应用内更新检查
+│     │  │  ├─ model/             数据模型
+│     │  │  ├─ ui/
+│     │  │  │  ├─ about/          关于页
+│     │  │  │  ├─ bluetooth/      蓝牙 / 穿戴通道截图同步页
+│     │  │  │  ├─ components/     通用 Compose 组件
+│     │  │  │  ├─ fetch/          LAN / HTTP 直传页
+│     │  │  │  ├─ index/          首页状态面板
+│     │  │  │  ├─ screenshot/     截图详情页
+│     │  │  │  ├─ settings/       设置与日志入口
+│     │  │  │  └─ theme/          主题与配色
+│     │  │  └─ util/              相册保存、图片处理
+│     │  └─ res/                  图片、字符串、主题、设备边框素材
+│     └─ test/                    单元测试
+├─ gradle/                        Gradle Wrapper 与版本目录
+├─ sign/                          本地签名文件目录
+├─ website/                       更新接口静态资源（`update.json`、`api.php`）
+├─ webhook/                       GitHub Actions -> QQ 群通知服务（Go）
+├─ build.gradle.kts               根构建脚本
+├─ settings.gradle.kts            Gradle 模块配置
+├─ gradle.properties              Gradle 全局参数
+└─ README.md
+```
 
-- `about/AboutScreen.kt` - 关于页面，显示应用信息和贡献者
-- `screenshot/` - 截图功能
-  - `ScreenshotScreen.kt` - 截图列表页面
-  - `ScreenshotViewModel.kt` - 截图数据管理
-  - `ScreenshotPreviewDialog.kt` - 截图预览弹窗
-- `settings/` - 设置功能
-  - `SettingsScreen.kt` - 设置页面
-  - `DebugLogScreen.kt` - 调试日志查看
-- `components/IOSComponents.kt` - iOS 风格 UI 组件库
-- `theme/` - Material 3 主题配置
+## 关键模块
 
-### model/
-
-- `Screenshot.kt` - 截图数据模型
-
-### util/
-
-- `GallerySaver.kt` - 图片保存到系统相册
+- `app/src/main/java/com/shell/liangyi/core/WearMessageCenter.kt`
+  负责与手表侧建立消息通道、握手、保活、日志记录与指令发送。
+- `app/src/main/java/com/shell/liangyi/core/ScreenshotReceiver.kt`
+  负责截图列表同步、按图拉取、分片重传、断点恢复、本地缓存索引与同步进度维护。
+- `app/src/main/java/com/shell/liangyi/core/HttpScreenshotServer.kt`
+  零外部依赖的轻量 HTTP 服务，处理同局域网下的截图上传。
+- `app/src/main/java/com/shell/liangyi/core/update/UpdateChecker.kt`
+  读取远端更新信息并决定是否展示可选/强制更新提示。
+- `app/src/main/java/com/shell/liangyi/ui/`
+  Compose UI 层，包含首页、蓝牙同步页、LAN 传输页、设置页、关于页、截图详情页与通用组件。
 
 ## 构建
 
-使用 Android Studio 打开项目根目录，或命令行：
+Windows PowerShell：
+
+```powershell
+.\gradlew.bat assembleRelease
+```
+
+macOS / Linux：
 
 ```bash
 ./gradlew assembleRelease
 ```
 
-生成的 APK 位于 `app/build/outputs/apk/release/`。
+默认输出路径：
 
-## 签名
+```text
+app/build/outputs/apk/release/app-release.apk
+```
 
-Android 工程已接入共享签名目录：
+如果需要调试包：
 
-- `../../Shell++/sign/Android.jks`
+```powershell
+.\gradlew.bat assembleDebug
+```
 
-构建前需要提供这 3 个 Gradle 属性，建议优先写在项目 `local.properties`，也可放到本机 `~/.gradle/gradle.properties` 或环境变量中：
+应用版本号支持通过环境变量覆盖：
+
+```text
+VERSION_CODE
+VERSION_NAME
+```
+
+未提供时默认分别为 `1` 和 `1.0`。
+
+## 签名配置
+
+项目默认从仓库根目录下的 `sign/Android.jks` 读取 keystore，并从 `local.properties` 读取签名密码：
 
 ```properties
 shell.storePassword=your-store-password
-shell.keyAlias=your-key-alias
+shell.keyAlias=key
 shell.keyPassword=your-key-password
 ```
 
-当前 keystore 的 alias 是 `key`。
+如果 `sign/Android.jks` 或上述字段不完整，Gradle 不会启用 `localShellSign` 这套本地签名配置。
 
-也可以使用环境变量：
+## 更新接口
 
-```bash
-SHELL_STORE_PASSWORD
-SHELL_KEY_ALIAS
-SHELL_KEY_PASSWORD
+应用内更新检查默认请求：
+
+```text
+https://shellupdate.rth1.xyz/api.php
 ```
 
-如果以上属性未提供，Android 工程不会启用共享 keystore，会继续使用默认 debug 签名配置。
+仓库中对应的静态更新源位于：
+
+- `website/update.json`
+- `website/api.php`
+
+当前 `update.json` 需要至少包含以下字段：
+
+```json
+{
+  "latest_version": "beta1",
+  "latest_version_code": 1,
+  "download_url": "https://example.com/app-release.apk",
+  "changelog": "更新说明",
+  "min_supported_version_code": 1,
+  "release_date": "2026-06-28"
+}
+```
+
+如果你要自托管更新服务，可以部署 `website/` 目录内容，并同步修改 `UpdateChecker.kt` 中的 `UPDATE_URL`。
+
+## CI / 发布链路
+
+- `.github/workflows/build.yml`
+  在 `android` 分支 push 或手动触发时执行构建。
+- 工作流会：
+  - 解码签名文件
+  - 生成 `local.properties`
+  - 构建 release APK
+  - 上传 artifact
+  - 创建 GitHub 预发布版本
+  - 可选调用 `webhook/` 服务发送 QQ 群通知
+
+`webhook/` 目录下是一个 Go `1.22` 服务，用于接收 GitHub Actions 的 POST 数据并转发给 NapCat / OneBot HTTP API。详细部署说明见 `webhook/README.md`。

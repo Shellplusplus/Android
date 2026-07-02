@@ -38,6 +38,8 @@ fun SettingsTabScreen(
     val colors = MiuixTheme.colorScheme
     val shellColors = ShellTheme.colors
     val skipOptionalUpdatePrompts by shellViewModel.skipOptionalUpdatePrompts.collectAsState()
+    val skipOptionalUpdateAvailable by shellViewModel.skipOptionalUpdateAvailable.collectAsState()
+    val skipOptionalUpdateHint by shellViewModel.skipOptionalUpdateHint.collectAsState()
 
     ShellRootTabScaffold(title = stringResource(R.string.settings)) { innerPadding ->
         Column(
@@ -56,7 +58,11 @@ fun SettingsTabScreen(
                 ),
                 cornerRadius = 15.dp,
                 onClick = {
-                    shellViewModel.setSkipOptionalUpdatePrompts(!skipOptionalUpdatePrompts)
+                    if (skipOptionalUpdateAvailable) {
+                        shellViewModel.setSkipOptionalUpdatePrompts(!skipOptionalUpdatePrompts)
+                    } else {
+                        shellViewModel.showSkipOptionalUpdateInfoDialog()
+                    }
                 },
                 showIndication = true,
                 pressFeedbackType = PressFeedbackType.Sink,
@@ -77,18 +83,31 @@ fun SettingsTabScreen(
                             text = stringResource(R.string.skip_optional_updates),
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Medium,
-                            color = colors.onSurface,
+                            color = if (skipOptionalUpdateAvailable) {
+                                colors.onSurface
+                            } else {
+                                colors.onSurface.copy(alpha = 0.62f)
+                            },
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = stringResource(R.string.skip_optional_updates_summary),
+                            text = skipOptionalUpdateHint,
                             fontSize = 12.sp,
-                            color = shellColors.secondaryText,
+                            color = if (skipOptionalUpdateAvailable) {
+                                shellColors.secondaryText
+                            } else {
+                                shellColors.secondaryText.copy(alpha = 0.82f)
+                            },
                         )
                     }
                     Switch(
                         checked = skipOptionalUpdatePrompts,
-                        onCheckedChange = shellViewModel::setSkipOptionalUpdatePrompts,
+                        enabled = skipOptionalUpdateAvailable,
+                        onCheckedChange = { checked ->
+                            if (skipOptionalUpdateAvailable) {
+                                shellViewModel.setSkipOptionalUpdatePrompts(checked)
+                            }
+                        },
                     )
                 }
             }

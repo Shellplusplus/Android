@@ -37,6 +37,9 @@
     <string name="settings">设置</string>
     <string name="skip_optional_updates">非强制更新不提醒</string>
     <string name="skip_optional_updates_summary">开启后，仅强制更新会自动提醒，手动检查不受影响</string>
+    <string name="skip_optional_updates_locked_summary">同一可选更新弹窗出现 3 次后可用（当前 %1$d/3）</string>
+    <string name="skip_optional_updates_info_title">暂不可用</string>
+    <string name="skip_optional_updates_info_message">连续看到同一可选更新弹窗 3 次且仍未更新后，才可开启此功能。开启后仅自动更新提醒会被静默，手动检查仍会正常显示。</string>
     <string name="check_updates">检查更新</string>
     <string name="check_updates_summary">手动检查 Shell++ 是否有新版本</string>
     <string name="logs">日志</string>
@@ -49,6 +52,7 @@
     <string name="update_dialog_versions">当前 %1$s (%2$s)\n最新 %3$s (%4$s)\n发布日期 %5$s</string>
     <string name="no_update_notes">暂无更新说明</string>
     <string name="later">稍后</string>
+    <string name="acknowledge">我知道了</string>
     <string name="download_update">下载更新</string>
     <string name="about">关于</string>
     <string name="developers">开发者</string>

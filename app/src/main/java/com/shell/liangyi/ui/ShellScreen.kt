@@ -45,6 +45,7 @@ import com.shell.liangyi.R
 import com.shell.liangyi.ui.about.AboutScreen
 import com.shell.liangyi.ui.bluetooth.BluetoothScreen
 import com.shell.liangyi.ui.components.LiquidGlassBottomBar
+import com.shell.liangyi.ui.components.LiquidGlassInfoDialog
 import com.shell.liangyi.ui.components.LiquidGlassTabItem
 import com.shell.liangyi.ui.components.LiquidGlassUpdateDialog
 import com.shell.liangyi.ui.components.rememberShellBlurBackdrop
@@ -102,8 +103,13 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
     }
     val rootBackdrop = rememberShellBlurBackdrop(enableBlur = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S_V2)
     val updatePrompt by shellViewModel.updatePrompt.collectAsState()
+    val skipOptionalUpdateInfoDialogVisible by shellViewModel.skipOptionalUpdateInfoDialogVisible.collectAsState()
     var displayedUpdatePrompt by remember { mutableStateOf(updatePrompt) }
     var updateDialogVisible by remember { mutableStateOf(updatePrompt != null) }
+    var showMountedSkipOptionalInfoDialog by remember { mutableStateOf(skipOptionalUpdateInfoDialogVisible) }
+    var animatedSkipOptionalInfoDialogVisible by remember {
+        mutableStateOf(skipOptionalUpdateInfoDialogVisible)
+    }
 
     LaunchedEffect(Unit) {
         shellViewModel.checkForUpdates(manual = false)
@@ -121,6 +127,15 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
             updateDialogVisible = true
         } else if (displayedUpdatePrompt != null) {
             updateDialogVisible = false
+        }
+    }
+
+    LaunchedEffect(skipOptionalUpdateInfoDialogVisible) {
+        if (skipOptionalUpdateInfoDialogVisible) {
+            showMountedSkipOptionalInfoDialog = true
+            animatedSkipOptionalInfoDialogVisible = true
+        } else if (showMountedSkipOptionalInfoDialog) {
+            animatedSkipOptionalInfoDialogVisible = false
         }
     }
 
@@ -193,6 +208,22 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
                 onExitFinished = {
                     if (!updateDialogVisible) {
                         displayedUpdatePrompt = null
+                    }
+                },
+                backdrop = rootBackdrop,
+            )
+        }
+
+        if (showMountedSkipOptionalInfoDialog) {
+            LiquidGlassInfoDialog(
+                title = stringResource(R.string.skip_optional_updates_info_title),
+                message = stringResource(R.string.skip_optional_updates_info_message),
+                buttonText = stringResource(R.string.acknowledge),
+                visible = animatedSkipOptionalInfoDialogVisible,
+                onDismissRequest = { shellViewModel.dismissSkipOptionalUpdateInfoDialog() },
+                onExitFinished = {
+                    if (!animatedSkipOptionalInfoDialogVisible) {
+                        showMountedSkipOptionalInfoDialog = false
                     }
                 },
                 backdrop = rootBackdrop,
