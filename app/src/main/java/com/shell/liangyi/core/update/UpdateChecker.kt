@@ -13,6 +13,11 @@ object UpdateChecker {
     private const val UPDATE_URL = "https://shellupdate.rth1.xyz/api.php"
     private const val PREFS_NAME = "shell_update_state"
     private const val KEY_SKIP_OPTIONAL_PROMPTS = "skip_optional_prompts"
+    private const val KEY_OPTIONAL_PROMPT_COUNT_VERSION_CODE = "optional_prompt_count_version_code"
+    private const val KEY_OPTIONAL_PROMPT_DISPLAY_COUNT = "optional_prompt_display_count"
+    private const val KEY_OPTIONAL_SKIP_UNLOCK_VERSION_CODE = "optional_skip_unlock_version_code"
+    private const val KEY_OPTIONAL_SKIP_ENABLED_BASE_VERSION_CODE = "optional_skip_enabled_base_version_code"
+    private const val KEY_LATEST_SEEN_OPTIONAL_VERSION_CODE = "latest_seen_optional_version_code"
     private const val KEY_MANDATORY_CONFIRMED = "mandatory_confirmed"
     private const val KEY_LATEST_VERSION = "latest_version"
     private const val KEY_LATEST_VERSION_CODE = "latest_version_code"
@@ -22,15 +27,56 @@ object UpdateChecker {
     private const val KEY_RELEASE_DATE = "release_date"
 
     fun skipOptionalPrompts(context: Context): Boolean {
-        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .getBoolean(KEY_SKIP_OPTIONAL_PROMPTS, false)
+        return readOptionalUpdatePreferenceState(context).skipOptionalPrompts
     }
 
-    fun setSkipOptionalPrompts(context: Context, skip: Boolean) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putBoolean(KEY_SKIP_OPTIONAL_PROMPTS, skip)
-            .apply()
+    fun readOptionalUpdatePreferenceState(context: Context): OptionalUpdatePreferenceState {
+        val currentVersionCode = readCurrentVersion(context).code
+        return updateOptionalUpdatePreferenceState(context, currentVersionCode) { snapshot ->
+            OptionalUpdatePreferenceStateMachine.normalize(snapshot, currentVersionCode)
+        }
+    }
+
+    fun setSkipOptionalPrompts(context: Context, skip: Boolean): OptionalUpdatePreferenceState {
+        val currentVersionCode = readCurrentVersion(context).code
+        return updateOptionalUpdatePreferenceState(context, currentVersionCode) { snapshot ->
+            OptionalUpdatePreferenceStateMachine.onSkipToggleChanged(
+                snapshot = snapshot,
+                currentVersionCode = currentVersionCode,
+                enabled = skip,
+            )
+        }
+    }
+
+    fun recordOptionalUpdatePromptDisplayed(
+        context: Context,
+        latestVersionCode: Long,
+    ): OptionalUpdatePreferenceState {
+        val currentVersionCode = readCurrentVersion(context).code
+        return updateOptionalUpdatePreferenceState(context, currentVersionCode) { snapshot ->
+            OptionalUpdatePreferenceStateMachine.onPromptDisplayed(
+                snapshot = snapshot,
+                currentVersionCode = currentVersionCode,
+                displayedVersionCode = latestVersionCode,
+            )
+        }
+    }
+
+    fun shouldSkipOptionalPrompt(
+        context: Context,
+        latestVersionCode: Long,
+    ): Boolean {
+        val currentVersionCode = readCurrentVersion(context).code
+        val snapshot = OptionalUpdatePreferenceStateMachine.normalize(
+            readOptionalUpdatePreferenceSnapshot(context),
+            currentVersionCode,
+        )
+        persistOptionalUpdatePreferenceSnapshot(context, snapshot)
+        return OptionalUpdatePreferenceStateMachine.shouldSuppressOptionalPrompt(
+            snapshot = snapshot,
+            currentVersionCode = currentVersionCode,
+            latestVersionCode = latestVersionCode,
+        )
     }
 
     fun cachedMandatoryPrompt(context: Context): UpdatePrompt? {
@@ -92,6 +138,17 @@ object UpdateChecker {
 
             val currentVersion = readCurrentVersion(context)
             val mandatory = currentVersion.code < info.minSupportedVersionCode
+            syncOptionalUpdatePreferenceState(context, currentVersion.code)
+
+            if (!mandatory && info.latestVersionCode > currentVersion.code) {
+                updateOptionalUpdatePreferenceState(context, currentVersion.code) { snapshot ->
+                    OptionalUpdatePreferenceStateMachine.onOptionalUpdateSeen(
+                        snapshot = snapshot,
+                        currentVersionCode = currentVersion.code,
+                        latestVersionCode = info.latestVersionCode,
+                    )
+                }
+            }
 
             if (mandatory) {
                 saveMandatoryPrompt(context, info)
@@ -132,14 +189,66 @@ object UpdateChecker {
     }
 
     private fun clearMandatoryPrompt(context: Context) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val skipOptionalPrompts = prefs.getBoolean(KEY_SKIP_OPTIONAL_PROMPTS, false)
-        prefs.edit().clear().apply()
-        if (skipOptionalPrompts) {
-            prefs.edit()
-                .putBoolean(KEY_SKIP_OPTIONAL_PROMPTS, true)
-                .apply()
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .remove(KEY_MANDATORY_CONFIRMED)
+            .remove(KEY_LATEST_VERSION)
+            .remove(KEY_LATEST_VERSION_CODE)
+            .remove(KEY_DOWNLOAD_URL)
+            .remove(KEY_CHANGELOG)
+            .remove(KEY_MIN_SUPPORTED_VERSION_CODE)
+            .remove(KEY_RELEASE_DATE)
+            .apply()
+    }
+
+    private fun syncOptionalUpdatePreferenceState(
+        context: Context,
+        currentVersionCode: Long,
+    ): OptionalUpdatePreferenceState {
+        return updateOptionalUpdatePreferenceState(context, currentVersionCode) { snapshot ->
+            OptionalUpdatePreferenceStateMachine.normalize(snapshot, currentVersionCode)
         }
+    }
+
+    private fun updateOptionalUpdatePreferenceState(
+        context: Context,
+        currentVersionCode: Long,
+        transform: (OptionalUpdatePreferenceSnapshot) -> OptionalUpdatePreferenceSnapshot,
+    ): OptionalUpdatePreferenceState {
+        val currentSnapshot = readOptionalUpdatePreferenceSnapshot(context)
+        val nextSnapshot = OptionalUpdatePreferenceStateMachine.normalize(
+            transform(currentSnapshot),
+            currentVersionCode,
+        )
+        persistOptionalUpdatePreferenceSnapshot(context, nextSnapshot)
+        return OptionalUpdatePreferenceStateMachine.toState(nextSnapshot, currentVersionCode)
+    }
+
+    private fun readOptionalUpdatePreferenceSnapshot(context: Context): OptionalUpdatePreferenceSnapshot {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return OptionalUpdatePreferenceSnapshot(
+            skipOptionalPrompts = prefs.getBoolean(KEY_SKIP_OPTIONAL_PROMPTS, false),
+            promptCountVersionCode = prefs.getLong(KEY_OPTIONAL_PROMPT_COUNT_VERSION_CODE, 0L),
+            promptDisplayCount = prefs.getInt(KEY_OPTIONAL_PROMPT_DISPLAY_COUNT, 0),
+            unlockVersionCode = prefs.getLong(KEY_OPTIONAL_SKIP_UNLOCK_VERSION_CODE, 0L),
+            enabledBaseVersionCode = prefs.getLong(KEY_OPTIONAL_SKIP_ENABLED_BASE_VERSION_CODE, 0L),
+            latestSeenOptionalVersionCode = prefs.getLong(KEY_LATEST_SEEN_OPTIONAL_VERSION_CODE, 0L),
+        )
+    }
+
+    private fun persistOptionalUpdatePreferenceSnapshot(
+        context: Context,
+        snapshot: OptionalUpdatePreferenceSnapshot,
+    ) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(KEY_SKIP_OPTIONAL_PROMPTS, snapshot.skipOptionalPrompts)
+            .putLong(KEY_OPTIONAL_PROMPT_COUNT_VERSION_CODE, snapshot.promptCountVersionCode)
+            .putInt(KEY_OPTIONAL_PROMPT_DISPLAY_COUNT, snapshot.promptDisplayCount)
+            .putLong(KEY_OPTIONAL_SKIP_UNLOCK_VERSION_CODE, snapshot.unlockVersionCode)
+            .putLong(KEY_OPTIONAL_SKIP_ENABLED_BASE_VERSION_CODE, snapshot.enabledBaseVersionCode)
+            .putLong(KEY_LATEST_SEEN_OPTIONAL_VERSION_CODE, snapshot.latestSeenOptionalVersionCode)
+            .apply()
     }
 
     private fun readCurrentVersion(context: Context): CurrentVersion {

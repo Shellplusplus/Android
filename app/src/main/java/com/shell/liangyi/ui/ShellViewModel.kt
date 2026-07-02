@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import com.shell.liangyi.R
 import com.shell.liangyi.core.ScreenshotReceiver
 import com.shell.liangyi.core.WearMessageCenter
+import com.shell.liangyi.core.update.OptionalUpdatePreferenceState
 import com.shell.liangyi.core.update.UpdateCheckResult
 import com.shell.liangyi.core.update.UpdateChecker
 import com.shell.liangyi.core.update.UpdatePrompt
@@ -38,13 +39,22 @@ class ShellViewModel : ViewModel() {
     val updatePrompt = _updatePrompt.asStateFlow()
     private val _skipOptionalUpdatePrompts = MutableStateFlow(false)
     val skipOptionalUpdatePrompts = _skipOptionalUpdatePrompts.asStateFlow()
+    private val _skipOptionalUpdateAvailable = MutableStateFlow(false)
+    val skipOptionalUpdateAvailable = _skipOptionalUpdateAvailable.asStateFlow()
+    private val _skipOptionalUpdateHint = MutableStateFlow("")
+    val skipOptionalUpdateHint = _skipOptionalUpdateHint.asStateFlow()
+    private val _skipOptionalUpdateInfoDialogVisible = MutableStateFlow(false)
+    val skipOptionalUpdateInfoDialogVisible = _skipOptionalUpdateInfoDialogVisible.asStateFlow()
 
     private val _updateMessages = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val updateMessages = _updateMessages.asSharedFlow()
 
     fun initialize(context: Context) {
         appCtx = context
-        _skipOptionalUpdatePrompts.value = UpdateChecker.skipOptionalPrompts(context)
+        applyOptionalUpdatePreferenceState(
+            context,
+            UpdateChecker.readOptionalUpdatePreferenceState(context),
+        )
         wearMessageCenter = WearMessageCenter.getInstance(context)
         wearMessageCenter.initialize()
         screenshotReceiver = ScreenshotReceiver(context, scope)
@@ -99,11 +109,21 @@ class ShellViewModel : ViewModel() {
 
     fun setSkipOptionalUpdatePrompts(skip: Boolean) {
         val context = appCtx ?: return
-        UpdateChecker.setSkipOptionalPrompts(context, skip)
-        _skipOptionalUpdatePrompts.value = skip
-        if (skip && _updatePrompt.value?.mandatory == false) {
+        val nextState = UpdateChecker.setSkipOptionalPrompts(context, skip)
+        applyOptionalUpdatePreferenceState(context, nextState)
+        if (nextState.skipOptionalPrompts && _updatePrompt.value?.mandatory == false) {
             _updatePrompt.value = null
         }
+    }
+
+    fun showSkipOptionalUpdateInfoDialog() {
+        if (!_skipOptionalUpdateAvailable.value) {
+            _skipOptionalUpdateInfoDialogVisible.value = true
+        }
+    }
+
+    fun dismissSkipOptionalUpdateInfoDialog() {
+        _skipOptionalUpdateInfoDialogVisible.value = false
     }
 
     fun checkForUpdates(manual: Boolean) {
@@ -119,12 +139,34 @@ class ShellViewModel : ViewModel() {
         scope.launch {
             when (val result = withContext(Dispatchers.IO) { UpdateChecker.check(context) }) {
                 is UpdateCheckResult.UpdateAvailable -> {
-                    if (!manual && !result.prompt.mandatory && _skipOptionalUpdatePrompts.value) {
-                        return@launch
+                    if (!result.prompt.mandatory) {
+                        if (!manual && UpdateChecker.shouldSkipOptionalPrompt(context, result.prompt.info.latestVersionCode)) {
+                            applyOptionalUpdatePreferenceState(
+                                context,
+                                UpdateChecker.readOptionalUpdatePreferenceState(context),
+                            )
+                            return@launch
+                        }
+                        applyOptionalUpdatePreferenceState(
+                            context,
+                            UpdateChecker.recordOptionalUpdatePromptDisplayed(
+                                context,
+                                result.prompt.info.latestVersionCode,
+                            ),
+                        )
+                    } else {
+                        applyOptionalUpdatePreferenceState(
+                            context,
+                            UpdateChecker.readOptionalUpdatePreferenceState(context),
+                        )
                     }
                     _updatePrompt.value = result.prompt
                 }
                 is UpdateCheckResult.UpToDate -> {
+                    applyOptionalUpdatePreferenceState(
+                        context,
+                        UpdateChecker.readOptionalUpdatePreferenceState(context),
+                    )
                     if (_updatePrompt.value?.mandatory == true) {
                         _updatePrompt.value = null
                     }
@@ -133,6 +175,10 @@ class ShellViewModel : ViewModel() {
                     }
                 }
                 is UpdateCheckResult.Failed -> {
+                    applyOptionalUpdatePreferenceState(
+                        context,
+                        UpdateChecker.readOptionalUpdatePreferenceState(context),
+                    )
                     if (manual) {
                         _updateMessages.tryEmit(
                             context.getString(R.string.update_check_failed, result.message)
@@ -145,6 +191,25 @@ class ShellViewModel : ViewModel() {
 
     fun dismissUpdatePrompt() {
         _updatePrompt.value = null
+    }
+
+    private fun applyOptionalUpdatePreferenceState(
+        context: Context,
+        state: OptionalUpdatePreferenceState,
+    ) {
+        _skipOptionalUpdatePrompts.value = state.skipOptionalPrompts
+        _skipOptionalUpdateAvailable.value = state.skipOptionalUpdateAvailable
+        _skipOptionalUpdateHint.value = if (state.skipOptionalUpdateAvailable) {
+            context.getString(R.string.skip_optional_updates_summary)
+        } else {
+            context.getString(
+                R.string.skip_optional_updates_locked_summary,
+                state.promptDisplayCount.coerceIn(0, 3),
+            )
+        }
+        if (state.skipOptionalUpdateAvailable) {
+            _skipOptionalUpdateInfoDialogVisible.value = false
+        }
     }
 
     override fun onCleared() {
