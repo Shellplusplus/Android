@@ -119,7 +119,7 @@ class ShellViewModel : ViewModel() {
             .trim()
             .lowercase(Locale.ROOT)
             .replace(Regex("[^a-z0-9]+"), "")
-        return normalized == "xiaomiband10pro" || normalized == "10pro"
+        return normalized == "10pro" || normalized.contains("band10pro")
     }
 
     fun getScreenshotFilePath(shotId: String): String? {

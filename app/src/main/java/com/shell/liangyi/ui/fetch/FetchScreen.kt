@@ -5,11 +5,11 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.net.Uri
 import android.widget.Toast
-import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -43,9 +43,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -78,6 +81,8 @@ import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.cos
+import kotlin.math.sin
 
 @Composable
 fun FetchScreen(
@@ -589,44 +594,28 @@ private fun EmptyScreenshotCard() {
 private fun LanTransferBlockedState(modifier: Modifier = Modifier) {
     val colors = MiuixTheme.colorScheme
     val shellColors = ShellTheme.colors
-    var showFinalState by rememberSaveable { mutableStateOf(false) }
+    val ringProgress = remember { Animatable(0f) }
+    val crossProgress = remember { Animatable(0f) }
+    val textAlpha = remember { Animatable(0f) }
 
     LaunchedEffect(Unit) {
-        showFinalState = false
-        delay(220)
-        showFinalState = true
+        ringProgress.snapTo(0f)
+        crossProgress.snapTo(0f)
+        textAlpha.snapTo(0f)
+        delay(180)
+        ringProgress.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(durationMillis = 760)
+        )
+        crossProgress.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(durationMillis = 320)
+        )
+        textAlpha.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(durationMillis = 260)
+        )
     }
-
-    val iconSize by animateDpAsState(
-        targetValue = if (showFinalState) 74.dp else 10.dp,
-        animationSpec = tween(durationMillis = 520),
-        label = "lanBlockedIconSize"
-    )
-    val borderWidth by animateDpAsState(
-        targetValue = if (showFinalState) 3.dp else 0.dp,
-        animationSpec = tween(durationMillis = 460),
-        label = "lanBlockedBorderWidth"
-    )
-    val fillAlpha by animateFloatAsState(
-        targetValue = if (showFinalState) 0f else 1f,
-        animationSpec = tween(durationMillis = 420),
-        label = "lanBlockedFillAlpha"
-    )
-    val crossAlpha by animateFloatAsState(
-        targetValue = if (showFinalState) 1f else 0f,
-        animationSpec = tween(durationMillis = 240, delayMillis = 220),
-        label = "lanBlockedCrossAlpha"
-    )
-    val crossScale by animateFloatAsState(
-        targetValue = if (showFinalState) 1f else 0.7f,
-        animationSpec = tween(durationMillis = 280, delayMillis = 220),
-        label = "lanBlockedCrossScale"
-    )
-    val textAlpha by animateFloatAsState(
-        targetValue = if (showFinalState) 1f else 0f,
-        animationSpec = tween(durationMillis = 260, delayMillis = 300),
-        label = "lanBlockedTextAlpha"
-    )
 
     Box(
         modifier = modifier.background(ShellTheme.colors.pageBackground),
@@ -634,31 +623,16 @@ private fun LanTransferBlockedState(modifier: Modifier = Modifier) {
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(horizontal = 32.dp)
+            modifier = Modifier
+                .padding(horizontal = 32.dp)
+                .padding(bottom = 90.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .size(iconSize)
-                    .clip(CircleShape)
-                    .background(shellColors.danger.copy(alpha = fillAlpha))
-                    .border(
-                        width = borderWidth,
-                        color = shellColors.danger,
-                        shape = CircleShape
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "\u274C",
-                    fontSize = 24.sp,
-                    color = shellColors.danger,
-                    modifier = Modifier.graphicsLayer {
-                        alpha = crossAlpha
-                        scaleX = crossScale
-                        scaleY = crossScale
-                    }
-                )
-            }
+            LanTransferBlockedIcon(
+                modifier = Modifier.size(84.dp),
+                color = shellColors.danger,
+                ringProgress = ringProgress.value,
+                crossProgress = crossProgress.value
+            )
 
             Spacer(modifier = Modifier.height(22.dp))
             Text(
@@ -670,10 +644,105 @@ private fun LanTransferBlockedState(modifier: Modifier = Modifier) {
                 textAlign = TextAlign.Center,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .alpha(textAlpha)
+                    .alpha(textAlpha.value)
             )
         }
     }
+}
+
+@Composable
+private fun LanTransferBlockedIcon(
+    modifier: Modifier = Modifier,
+    color: Color,
+    ringProgress: Float,
+    crossProgress: Float,
+) {
+    Canvas(modifier = modifier) {
+        val strokeWidth = 3.dp.toPx()
+        val dotRadius = 4.dp.toPx()
+        val ringRadius = size.minDimension / 2f - strokeWidth
+        val center = Offset(size.width / 2f, size.height / 2f)
+        val ringTopLeft = Offset(center.x - ringRadius, center.y - ringRadius)
+        val ringSize = Size(ringRadius * 2f, ringRadius * 2f)
+
+        if (ringProgress <= 0.001f) {
+            drawCircle(
+                color = color,
+                radius = dotRadius,
+                center = center
+            )
+        } else {
+            val sweepAngle = 360f * ringProgress
+            drawArc(
+                color = color,
+                startAngle = -90f,
+                sweepAngle = sweepAngle,
+                useCenter = false,
+                topLeft = ringTopLeft,
+                size = ringSize,
+                style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+            )
+
+            val endRadians = Math.toRadians((sweepAngle - 90f).toDouble())
+            val headOffset = Offset(
+                x = center.x + cos(endRadians).toFloat() * ringRadius,
+                y = center.y + sin(endRadians).toFloat() * ringRadius
+            )
+            val headDotAlpha = ((1f - ringProgress) / 0.08f).coerceIn(0f, 1f)
+            if (headDotAlpha > 0f) {
+                drawCircle(
+                    color = color.copy(alpha = headDotAlpha),
+                    radius = dotRadius,
+                    center = headOffset
+                )
+            }
+
+            val centerDotAlpha = (1f - ringProgress).coerceIn(0f, 1f)
+            if (centerDotAlpha > 0f) {
+                drawCircle(
+                    color = color.copy(alpha = centerDotAlpha),
+                    radius = dotRadius,
+                    center = center
+                )
+            }
+        }
+
+        if (crossProgress > 0f) {
+            val crossRadius = ringRadius * 0.42f
+            val firstLineProgress = (crossProgress / 0.55f).coerceIn(0f, 1f)
+            val secondLineProgress = ((crossProgress - 0.35f) / 0.65f).coerceIn(0f, 1f)
+            val start1 = Offset(center.x - crossRadius, center.y - crossRadius)
+            val end1 = Offset(center.x + crossRadius, center.y + crossRadius)
+            val start2 = Offset(center.x + crossRadius, center.y - crossRadius)
+            val end2 = Offset(center.x - crossRadius, center.y + crossRadius)
+
+            if (firstLineProgress > 0f) {
+                drawLine(
+                    color = color,
+                    start = start1,
+                    end = lerpOffset(start1, end1, firstLineProgress),
+                    strokeWidth = strokeWidth,
+                    cap = StrokeCap.Round
+                )
+            }
+            if (secondLineProgress > 0f) {
+                drawLine(
+                    color = color,
+                    start = start2,
+                    end = lerpOffset(start2, end2, secondLineProgress),
+                    strokeWidth = strokeWidth,
+                    cap = StrokeCap.Round
+                )
+            }
+        }
+    }
+}
+
+private fun lerpOffset(start: Offset, end: Offset, progress: Float): Offset {
+    return Offset(
+        x = start.x + (end.x - start.x) * progress,
+        y = start.y + (end.y - start.y) * progress
+    )
 }
 
 @Composable

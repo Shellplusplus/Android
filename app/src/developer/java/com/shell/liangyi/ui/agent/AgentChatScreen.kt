@@ -3,7 +3,6 @@ package com.shell.liangyi.ui.agent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,11 +21,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.Add
@@ -46,7 +41,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -449,8 +443,10 @@ private fun ExecCard(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(shellColors.previewBackground)
+                    .background(
+                        color = shellColors.previewBackground,
+                        shape = RoundedCornerShape(14.dp),
+                    )
                     .padding(12.dp),
             ) {
                 Text(
@@ -596,8 +592,10 @@ private fun ExecStateChip(state: ExecState) {
 
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(999.dp))
-            .background(accent.copy(alpha = 0.14f))
+            .background(
+                color = accent.copy(alpha = 0.14f),
+                shape = RoundedCornerShape(999.dp),
+            )
             .padding(horizontal = 10.dp, vertical = 4.dp),
     ) {
         Text(
@@ -647,81 +645,60 @@ private fun ComposerBar(
 ) {
     val colors = MiuixTheme.colorScheme
     val shellColors = ShellTheme.colors
-    Card(
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
         modifier = Modifier.fillMaxWidth(),
-        colors = CardColors(
-            color = shellColors.cardBackground,
-            contentColor = colors.onSurface,
+        enabled = enabled,
+        textStyle = TextStyle(
+            color = colors.onSurface,
+            fontSize = 15.sp,
+            lineHeight = 21.sp,
         ),
-        cornerRadius = 22.dp,
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.Bottom,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            BasicTextField(
-                value = value,
-                onValueChange = onValueChange,
-                enabled = enabled,
-                modifier = Modifier.weight(1f),
-                textStyle = TextStyle(
-                    color = colors.onSurface,
-                    fontSize = 15.sp,
-                    lineHeight = 21.sp,
-                ),
-                keyboardOptions = KeyboardOptions(
-                    capitalization = KeyboardCapitalization.Sentences,
-                    imeAction = ImeAction.Send,
-                ),
-                keyboardActions = KeyboardActions(onSend = { onSend() }),
-                maxLines = 5,
-                decorationBox = { innerTextField ->
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 6.dp),
-                    ) {
-                        if (value.isBlank()) {
-                            Text(
-                                text = "输入问题、命令需求或调试上下文…",
-                                fontSize = 15.sp,
-                                color = colors.onSurfaceVariantSummary,
-                            )
-                        }
-                        innerTextField()
-                    }
-                },
-            )
-            Box(
-                modifier = Modifier
-                    .size(42.dp)
-                    .clip(CircleShape)
-                    .background(
-                        if (enabled && value.isNotBlank()) {
-                            shellColors.primaryAction
-                        } else {
-                            shellColors.disabledAction.copy(alpha = 0.18f)
-                        },
-                    )
-                    .clickable(
-                        enabled = enabled && value.isNotBlank(),
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = onSend,
-                    ),
-                contentAlignment = Alignment.Center,
+        placeholder = {
+            MaterialText("输入问题、命令需求或调试上下文…")
+        },
+        shape = RoundedCornerShape(24.dp),
+        maxLines = 5,
+        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+            capitalization = KeyboardCapitalization.Sentences,
+            imeAction = ImeAction.Send,
+        ),
+        keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSend = { onSend() }),
+        trailingIcon = {
+            IconButton(
+                enabled = enabled && value.isNotBlank(),
+                onClick = onSend,
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Rounded.Send,
                     contentDescription = "发送",
-                    tint = if (enabled && value.isNotBlank()) Color.White else colors.onSurfaceVariantSummary,
+                    tint = if (enabled && value.isNotBlank()) {
+                        shellColors.primaryAction
+                    } else {
+                        colors.onSurfaceVariantSummary
+                    },
                 )
             }
-        }
-    }
+        },
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = shellColors.primaryAction.copy(alpha = 0.32f),
+            unfocusedBorderColor = colors.outline.copy(alpha = 0.14f),
+            disabledBorderColor = colors.outline.copy(alpha = 0.10f),
+            focusedContainerColor = Color.White,
+            unfocusedContainerColor = Color.White,
+            disabledContainerColor = Color.White,
+            focusedTextColor = colors.onSurface,
+            unfocusedTextColor = colors.onSurface,
+            disabledTextColor = colors.onSurface,
+            focusedPlaceholderColor = colors.onSurfaceVariantSummary,
+            unfocusedPlaceholderColor = colors.onSurfaceVariantSummary,
+            disabledPlaceholderColor = colors.onSurfaceVariantSummary,
+            focusedTrailingIconColor = shellColors.primaryAction,
+            unfocusedTrailingIconColor = colors.onSurfaceVariantSummary,
+            disabledTrailingIconColor = colors.onSurfaceVariantSummary,
+        ),
+    )
 }
 
 private enum class AgentButtonStyle {
@@ -747,7 +724,6 @@ private fun AgentActionButton(
     val contentColor = when (style) {
         AgentButtonStyle.Primary,
         AgentButtonStyle.Destructive -> Color.White
-
         AgentButtonStyle.Secondary -> colors.onSurface
     }
     val borderColor = when (style) {
@@ -757,8 +733,7 @@ private fun AgentActionButton(
 
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(14.dp))
-            .background(containerColor)
+            .background(containerColor, RoundedCornerShape(14.dp))
             .border(1.dp, borderColor, RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 10.dp),
