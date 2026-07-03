@@ -27,9 +27,12 @@ import androidx.compose.ui.unit.sp
 import com.shell.liangyi.ui.theme.ShellTheme
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.ScrollBehavior
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -40,6 +43,8 @@ fun ShellBackScaffold(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     showBackButton: Boolean = true,
+    collapseTitleOnScroll: Boolean = false,
+    scrollBehavior: ScrollBehavior = MiuixScrollBehavior(),
     actions: @Composable RowScope.() -> Unit = {},
     content: @Composable (PaddingValues) -> Unit
 ) {
@@ -49,47 +54,77 @@ fun ShellBackScaffold(
     Scaffold(
         modifier = modifier.background(shellColors.pageBackground),
         topBar = {
-            SmallTopAppBar(
-                title = "",
-                color = shellColors.pageBackground,
-                navigationIcon = {
-                    if (showBackButton) {
-                        IconButton(onClick = onBack) {
-                            val layoutDirection = LocalLayoutDirection.current
-                            Icon(
-                                modifier = Modifier.graphicsLayer {
-                                    if (layoutDirection == LayoutDirection.Rtl) scaleX = -1f
-                                },
-                                imageVector = MiuixIcons.Back,
-                                contentDescription = null,
-                                tint = colors.onBackground
-                            )
+            if (collapseTitleOnScroll) {
+                TopAppBar(
+                    title = title,
+                    color = shellColors.pageBackground,
+                    navigationIcon = {
+                        if (showBackButton) {
+                            IconButton(onClick = onBack) {
+                                val layoutDirection = LocalLayoutDirection.current
+                                Icon(
+                                    modifier = Modifier.graphicsLayer {
+                                        if (layoutDirection == LayoutDirection.Rtl) scaleX = -1f
+                                    },
+                                    imageVector = MiuixIcons.Back,
+                                    contentDescription = null,
+                                    tint = colors.onBackground
+                                )
+                            }
+                        } else {
+                            Spacer(modifier = Modifier.width(40.dp))
                         }
-                    } else {
-                        Spacer(modifier = Modifier.width(40.dp))
-                    }
-                },
-                actions = actions
-            )
+                    },
+                    actions = actions,
+                    scrollBehavior = scrollBehavior,
+                )
+            } else {
+                SmallTopAppBar(
+                    title = "",
+                    color = shellColors.pageBackground,
+                    navigationIcon = {
+                        if (showBackButton) {
+                            IconButton(onClick = onBack) {
+                                val layoutDirection = LocalLayoutDirection.current
+                                Icon(
+                                    modifier = Modifier.graphicsLayer {
+                                        if (layoutDirection == LayoutDirection.Rtl) scaleX = -1f
+                                    },
+                                    imageVector = MiuixIcons.Back,
+                                    contentDescription = null,
+                                    tint = colors.onBackground
+                                )
+                            }
+                        } else {
+                            Spacer(modifier = Modifier.width(40.dp))
+                        }
+                    },
+                    actions = actions
+                )
+            }
         },
         popupHost = {},
         contentWindowInsets = WindowInsets.systemBars.add(WindowInsets.displayCutout).only(WindowInsetsSides.Horizontal)
     ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
-            Text(
-                text = title,
-                modifier = Modifier.padding(start = 26.dp, top = 12.dp),
-                fontSize = 30.sp,
-                fontWeight = FontWeight.Normal,
-                fontFamily = FontFamily.Default,
-                color = colors.onSurface
-            )
-            Box(modifier = Modifier.weight(1f)) {
-                content(PaddingValues(0.dp))
+        if (collapseTitleOnScroll) {
+            content(innerPadding)
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+            ) {
+                Text(
+                    text = title,
+                    modifier = Modifier.padding(start = 26.dp, top = 12.dp),
+                    fontSize = 30.sp,
+                    fontWeight = FontWeight.Normal,
+                    fontFamily = FontFamily.Default,
+                    color = colors.onSurface
+                )
+                Box(modifier = Modifier.weight(1f)) {
+                    content(PaddingValues(0.dp))
+                }
             }
         }
     }

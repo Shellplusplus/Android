@@ -39,8 +39,6 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
     private val _currentConversationId = MutableStateFlow(_conversations.value.firstOrNull()?.id)
     val currentConversationId: StateFlow<String?> = _currentConversationId.asStateFlow()
 
-    // 每次 conversations/currentConversationId 变化时手动同步这个 flow，
-    // 不引入 combine/stateIn 的额外样板
     private val _currentConversationFlow = MutableStateFlow(currentConversationValue())
     val currentConversationFlow: StateFlow<Conversation?> = _currentConversationFlow.asStateFlow()
 
@@ -56,7 +54,7 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
     private fun loadApiConfig(): AgentApiConfig = AgentApiConfig(
         baseUrl = prefs.getString(KEY_BASE_URL, "") ?: "",
         token = prefs.getString(KEY_TOKEN, "") ?: "",
-        model = prefs.getString(KEY_MODEL, "") ?: ""
+        model = prefs.getString(KEY_MODEL, "") ?: "",
     )
 
     fun updateApiConfig(baseUrl: String, token: String, model: String) {
@@ -69,14 +67,14 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun newConversation() {
-        val conv = Conversation(
-            id = "conv-" + System.currentTimeMillis(),
+        val conversation = Conversation(
+            id = "conv-${System.currentTimeMillis()}",
             title = "新对话",
-            createdAt = System.currentTimeMillis()
+            createdAt = System.currentTimeMillis(),
         )
-        _conversations.value = listOf(conv) + _conversations.value
-        _currentConversationId.value = conv.id
-        _currentConversationFlow.value = conv
+        _conversations.value = listOf(conversation) + _conversations.value
+        _currentConversationId.value = conversation.id
+        _currentConversationFlow.value = conversation
         persist()
     }
 
@@ -96,7 +94,9 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun mutateCurrent(transform: (Conversation) -> Conversation) {
         val id = _currentConversationId.value ?: return
-        _conversations.value = _conversations.value.map { if (it.id == id) transform(it) else it }
+        _conversations.value = _conversations.value.map { conversation ->
+            if (conversation.id == id) transform(conversation) else conversation
+        }
         _currentConversationFlow.value = currentConversationValue()
         persist()
     }
@@ -111,17 +111,23 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
             _errorMessage.value = "请先在设置里填写 API 地址和模型名称"
             return
         }
-        if (_currentConversationId.value == null) newConversation()
+        if (_currentConversationId.value == null) {
+            newConversation()
+        }
 
-        val userMsg = ChatMessage(
-            id = "msg-" + System.currentTimeMillis(),
+        val userMessage = ChatMessage(
+            id = "msg-${System.currentTimeMillis()}",
             role = "user",
             content = text,
-            timestamp = System.currentTimeMillis()
+            timestamp = System.currentTimeMillis(),
         )
-        mutateCurrent { conv ->
-            val retitled = if (conv.messages.isEmpty()) conv.copy(title = text.take(20)) else conv
-            retitled.copy(messages = retitled.messages + userMsg)
+        mutateCurrent { conversation ->
+            val retitled = if (conversation.messages.isEmpty()) {
+                conversation.copy(title = text.take(20))
+            } else {
+                conversation
+            }
+            retitled.copy(messages = retitled.messages + userMessage)
         }
 
         requestAssistantReply()
@@ -134,37 +140,45 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 val reply = OpenAIClient.chatCompletion(_apiConfig.value, history)
-                val execCmd = AgentPrompts.parseExecCommand(reply)
-                val assistantMsg = ChatMessage(
-                    id = "msg-" + System.currentTimeMillis(),
+                val execCommand = AgentPrompts.parseExecCommand(reply)
+                val assistantMessage = ChatMessage(
+                    id = "msg-${System.currentTimeMillis()}",
                     role = "assistant",
                     content = reply,
                     timestamp = System.currentTimeMillis(),
-                    execCommand = execCmd,
-                    execState = if (execCmd != null) ExecState.PENDING_CONFIRM else ExecState.NONE
+                    execCommand = execCommand,
+                    execState = if (execCommand != null) ExecState.PENDING_CONFIRM else ExecState.NONE,
                 )
-                mutateCurrent { it.copy(messages = it.messages + assistantMsg) }
+                mutateCurrent { it.copy(messages = it.messages + assistantMessage) }
             } catch (e: Exception) {
-                _errorMessage.value = "请求模型失败：${e.message}"
+                _errorMessage.value = "请求模型失败：${e.message ?: "未知错误"}"
             } finally {
                 _isSending.value = false
             }
         }
     }
 
-    /** 用户在"待确认"卡片上点了运行。 */
     fun confirmExec(assistantMessageId: String) {
-        val cmd = currentConversationValue()?.messages?.find { it.id == assistantMessageId }?.execCommand
+        val command = currentConversationValue()
+            ?.messages
+            ?.find { it.id == assistantMessageId }
+            ?.execCommand
             ?: return
+
         setExecState(assistantMessageId, ExecState.RUNNING)
         viewModelScope.launch {
             try {
-                val result = bridge.runCommand(cmd)
+                val result = bridge.runCommand(command)
                 val state = if (result.timedOut) ExecState.FAILED else ExecState.DONE
                 updateExecResult(assistantMessageId, state, result.stdout, result.stderr)
                 appendExecTurnAndContinue(assistantMessageId)
             } catch (e: AgentCommandBridge.BridgeException) {
-                updateExecResult(assistantMessageId, ExecState.FAILED, "", e.message ?: "执行失败")
+                updateExecResult(
+                    assistantMessageId = assistantMessageId,
+                    state = ExecState.FAILED,
+                    stdout = "",
+                    stderr = e.message ?: "执行失败",
+                )
                 appendExecTurnAndContinue(assistantMessageId)
             }
         }
@@ -176,33 +190,53 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun setExecState(assistantMessageId: String, state: ExecState) {
-        mutateCurrent { conv ->
-            conv.copy(messages = conv.messages.map {
-                if (it.id == assistantMessageId) it.copy(execState = state) else it
-            })
+        mutateCurrent { conversation ->
+            conversation.copy(
+                messages = conversation.messages.map { message ->
+                    if (message.id == assistantMessageId) {
+                        message.copy(execState = state)
+                    } else {
+                        message
+                    }
+                },
+            )
         }
     }
 
-    private fun updateExecResult(assistantMessageId: String, state: ExecState, stdout: String, stderr: String) {
-        mutateCurrent { conv ->
-            conv.copy(messages = conv.messages.map {
-                if (it.id == assistantMessageId) it.copy(execState = state, execStdout = stdout, execStderr = stderr) else it
-            })
+    private fun updateExecResult(
+        assistantMessageId: String,
+        state: ExecState,
+        stdout: String,
+        stderr: String,
+    ) {
+        mutateCurrent { conversation ->
+            conversation.copy(
+                messages = conversation.messages.map { message ->
+                    if (message.id == assistantMessageId) {
+                        message.copy(
+                            execState = state,
+                            execStdout = stdout,
+                            execStderr = stderr,
+                        )
+                    } else {
+                        message
+                    }
+                },
+            )
         }
     }
 
-    /** 把执行结果作为一轮 exec 消息追加进对话，再自动请求模型总结/继续。 */
     private fun appendExecTurnAndContinue(assistantMessageId: String) {
-        val msg = currentConversationValue()?.messages?.find { it.id == assistantMessageId } ?: return
+        val message = currentConversationValue()?.messages?.find { it.id == assistantMessageId } ?: return
         val execTurn = ChatMessage(
-            id = "msg-" + System.currentTimeMillis(),
+            id = "msg-${System.currentTimeMillis()}",
             role = "exec",
             content = "",
             timestamp = System.currentTimeMillis(),
-            execCommand = msg.execCommand,
-            execState = msg.execState,
-            execStdout = msg.execStdout,
-            execStderr = msg.execStderr
+            execCommand = message.execCommand,
+            execState = message.execState,
+            execStdout = message.execStdout,
+            execStderr = message.execStderr,
         )
         mutateCurrent { it.copy(messages = it.messages + execTurn) }
         requestAssistantReply()

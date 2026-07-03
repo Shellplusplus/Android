@@ -1,39 +1,54 @@
 package com.shell.liangyi.ui.fetch
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.net.Uri
+import android.widget.Toast
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.Downloading
+import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -52,15 +67,17 @@ import com.shell.liangyi.ui.Routes
 import com.shell.liangyi.ui.ShellViewModel
 import com.shell.liangyi.ui.components.ShellBackScaffold
 import com.shell.liangyi.ui.theme.ShellTheme
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardColors
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
-import kotlinx.coroutines.delay
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun FetchScreen(
@@ -69,20 +86,27 @@ fun FetchScreen(
     isRootDestination: Boolean = false,
     bottomContentPadding: Dp = 0.dp,
 ) {
-    val colors = MiuixTheme.colorScheme
-    val shellColors = ShellTheme.colors
-
+    val context = LocalContext.current
+    var isLogExpanded by rememberSaveable { mutableStateOf(false) }
     val httpRunning by shellViewModel.httpServerRunning.collectAsState()
+    val httpTransferInProgress by shellViewModel.httpTransferInProgress.collectAsState()
     val httpIp by shellViewModel.httpServerIp.collectAsState()
     val httpPort by shellViewModel.httpServerPort.collectAsState()
     val receiveProgress by shellViewModel.receiveProgress.collectAsState()
     val logs by shellViewModel.logs.collectAsState(initial = emptyList())
     val watchProductCode by shellViewModel.watchProductCode.collectAsState()
-    val lanLogs = remember(logs) { logs.filter { it.direction == "HTTP" || it.type == "transfer" }.take(6) }
+    val lanLogs = remember(logs) { logs.filter { it.direction == "HTTP" || it.type == "transfer" } }
     val screenshots by shellViewModel.screenshots.collectAsState()
     val isLanTransferBlocked = shellViewModel.isLanTransferBlocked(watchProductCode)
+    val scrollBehavior = MiuixScrollBehavior()
 
     val serverAddress = if (httpRunning && httpIp.isNotEmpty()) "${httpIp}:${httpPort}" else ""
+    val logSummary = when {
+        httpTransferInProgress && receiveProgress.isNotBlank() -> receiveProgress
+        serverAddress.isNotBlank() -> serverAddress
+        lanLogs.isNotEmpty() -> lanLogs.first().message
+        else -> stringResource(R.string.no_lan_transfer_logs)
+    }
 
     LaunchedEffect(isLanTransferBlocked, httpRunning) {
         if (isLanTransferBlocked && httpRunning) {
@@ -94,6 +118,8 @@ fun FetchScreen(
         title = stringResource(R.string.lan_transfer),
         onBack = { navController.popBackStack() },
         showBackButton = !isRootDestination,
+        collapseTitleOnScroll = true,
+        scrollBehavior = scrollBehavior,
     ) { innerPadding ->
         if (isLanTransferBlocked) {
             LanTransferBlockedState(
@@ -104,92 +130,457 @@ fun FetchScreen(
             return@ShellBackScaffold
         }
 
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
+                .nestedScroll(scrollBehavior.nestedScrollConnection)
+                .padding(horizontal = 12.dp)
         ) {
-            Spacer(modifier = Modifier.height(14.dp))
-            LanStatusCard(isRunning = httpRunning, address = serverAddress, progress = receiveProgress)
-
-            Spacer(modifier = Modifier.height(23.dp))
-            ActionButton(
-                text = if (httpRunning) stringResource(R.string.stop_server) else stringResource(R.string.start_server),
-                enabled = true,
-                primary = httpRunning,
-                onClick = {
-                    if (httpRunning) shellViewModel.stopHttpServer()
-                    else shellViewModel.startHttpServer()
-                }
-            )
-
-            Spacer(modifier = Modifier.height(14.dp))
-            Text(
-                text = stringResource(R.string.lan_transfer_logs),
-                modifier = Modifier.padding(start = 26.dp),
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                fontFamily = FontFamily.Default,
-                color = shellColors.mutedText
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            LanTransferLogCard(logs = lanLogs)
-
-            Spacer(modifier = Modifier.height(18.dp))
-            Text(
-                text = stringResource(R.string.fetched_screenshots),
-                modifier = Modifier.padding(start = 26.dp),
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                fontFamily = FontFamily.Default,
-                color = shellColors.mutedText
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-            if (screenshots.isNotEmpty()) {
-                val previewShots = screenshots.take(2)
+            item {
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+            item {
+                LanHeroCard(
+                    isRunning = httpRunning,
+                    isTransferring = httpTransferInProgress,
+                    address = serverAddress,
+                    progress = receiveProgress,
+                    screenshotCount = screenshots.size,
+                )
+            }
+            item {
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+            item {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 9.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    previewShots.forEachIndexed { i, shot ->
-                        if (i > 0) Spacer(modifier = Modifier.width(13.dp))
-                        ScreenshotCard(
-                            shot = shot,
-                            modifier = Modifier.weight(1f),
-                            onClick = { navController.navigate(Routes.screenshotDetail(Uri.encode(shot.shotId))) },
-                            shellViewModel = shellViewModel
-                        )
-                    }
-                    if (previewShots.size == 1) {
-                        Spacer(modifier = Modifier.weight(1f))
-                    }
-                }
-            } else {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 9.dp)
-                        .height(214.dp),
-                    colors = CardColors(
-                        color = shellColors.cardBackground,
-                        contentColor = colors.onSurface
-                    ),
-                    cornerRadius = 15.dp
-                ) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(
-                            text = stringResource(R.string.screenshot_empty),
-                            fontSize = 16.sp,
-                            color = colors.onSurface.copy(alpha = 0.4f)
-                        )
-                    }
+                    ActionButton(
+                        modifier = Modifier.weight(1f),
+                        text = stringResource(R.string.copy),
+                        icon = Icons.Rounded.ContentCopy,
+                        enabled = serverAddress.isNotBlank(),
+                        filled = false,
+                        onClick = {
+                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            clipboard.setPrimaryClip(
+                                ClipData.newPlainText("Shell++ LAN Address", serverAddress)
+                            )
+                            Toast.makeText(context, serverAddress, Toast.LENGTH_SHORT).show()
+                        }
+                    )
+                    ActionButton(
+                        modifier = Modifier.weight(1f),
+                        text = if (httpRunning) stringResource(R.string.stop_server) else stringResource(R.string.start_server),
+                        icon = Icons.Rounded.Wifi,
+                        enabled = true,
+                        filled = true,
+                        onClick = {
+                            if (httpRunning) shellViewModel.stopHttpServer()
+                            else shellViewModel.startHttpServer()
+                        }
+                    )
                 }
             }
+            item {
+                Spacer(modifier = Modifier.height(20.dp))
+            }
+            item {
+                SectionHeader(
+                    title = stringResource(R.string.lan_transfer_logs),
+                    summary = logSummary
+                )
+            }
+            item {
+                Spacer(modifier = Modifier.height(10.dp))
+            }
+            item {
+                LanTransferLogCard(
+                    logs = lanLogs,
+                    isExpanded = isLogExpanded,
+                    onExpandToggle = { isLogExpanded = !isLogExpanded }
+                )
+            }
+            item {
+                Spacer(modifier = Modifier.height(20.dp))
+            }
+            item {
+                SectionHeader(
+                    title = stringResource(R.string.fetched_screenshots),
+                    summary = if (screenshots.isEmpty()) {
+                        stringResource(R.string.screenshot_empty_desc)
+                    } else {
+                        stringResource(R.string.screenshot_count, screenshots.size)
+                    }
+                )
+            }
+            item {
+                Spacer(modifier = Modifier.height(10.dp))
+            }
+            item {
+                if (screenshots.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        screenshots.forEach { shot ->
+                            ScreenshotCard(
+                                shot = shot,
+                                modifier = Modifier.width(176.dp),
+                                onClick = { navController.navigate(Routes.screenshotDetail(Uri.encode(shot.shotId))) },
+                                shellViewModel = shellViewModel
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "左右滑动以查看更多截图",
+                        fontSize = 11.sp,
+                        color = Color(0xFF409EFF),
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                } else {
+                    EmptyScreenshotCard()
+                }
+            }
+            item {
+                Spacer(modifier = Modifier.height(20.dp + bottomContentPadding))
+            }
+        }
+    }
+}
 
-            Spacer(modifier = Modifier.height(20.dp + bottomContentPadding))
+@Composable
+private fun LanHeroCard(
+    isRunning: Boolean,
+    isTransferring: Boolean,
+    address: String,
+    progress: String,
+    screenshotCount: Int,
+) {
+    val colors = MiuixTheme.colorScheme
+    val shellColors = ShellTheme.colors
+    val accent = when {
+        isTransferring -> shellColors.warning
+        isRunning -> shellColors.success
+        else -> shellColors.primaryAction
+    }
+    val statusText = when {
+        isTransferring -> stringResource(R.string.syncing)
+        isRunning -> stringResource(R.string.enabled_short)
+        else -> stringResource(R.string.disabled_short)
+    }
+    val title = when {
+        isTransferring -> stringResource(R.string.receiving_watch_screenshots)
+        isRunning -> stringResource(R.string.server_started)
+        else -> stringResource(R.string.server_not_started)
+    }
+    val summary = when {
+        isTransferring && progress.isNotBlank() && address.isNotBlank() -> "$address\n$progress"
+        isTransferring && progress.isNotBlank() -> progress
+        address.isNotBlank() -> address
+        else -> stringResource(R.string.action_lan_sync_summary)
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardColors(
+            color = shellColors.cardBackground,
+            contentColor = colors.onSurface
+        ),
+        cornerRadius = 22.dp,
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    brush = Brush.linearGradient(
+                        colors = listOf(
+                            accent.copy(alpha = 0.18f),
+                            accent.copy(alpha = 0.05f),
+                            shellColors.cardBackground
+                        )
+                    )
+                )
+                .padding(18.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        StatusPill(
+                            text = statusText,
+                            dotColor = accent
+                        )
+                        Text(
+                            text = title,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = colors.onSurface,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = summary,
+                            fontSize = 13.sp,
+                            color = colors.onSurfaceVariantSummary,
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .padding(start = 12.dp)
+                            .size(56.dp)
+                            .clip(CircleShape)
+                            .background(accent.copy(alpha = 0.14f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Wifi,
+                            contentDescription = null,
+                            modifier = Modifier.size(28.dp),
+                            tint = accent
+                        )
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    MetricChip(
+                        modifier = Modifier.weight(1f),
+                        label = stringResource(R.string.lan_service),
+                        value = statusText
+                    )
+                    MetricChip(
+                        modifier = Modifier.weight(1f),
+                        label = stringResource(R.string.fetched_screenshots),
+                        value = screenshotCount.toString()
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatusPill(
+    text: String,
+    dotColor: Color,
+) {
+    val colors = MiuixTheme.colorScheme
+    Card(
+        colors = CardColors(
+            color = colors.surface.copy(alpha = 0.78f),
+            contentColor = colors.onSurface
+        ),
+        cornerRadius = 999.dp,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(dotColor)
+            )
+            Text(
+                text = text,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                color = colors.onSurface
+            )
+        }
+    }
+}
+
+@Composable
+private fun MetricChip(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+) {
+    val colors = MiuixTheme.colorScheme
+    Card(
+        modifier = modifier,
+        colors = CardColors(
+            color = colors.surface.copy(alpha = 0.74f),
+            contentColor = colors.onSurface
+        ),
+        cornerRadius = 18.dp,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = label,
+                fontSize = 12.sp,
+                color = colors.onSurfaceVariantSummary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = value,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = colors.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun ActionButton(
+    text: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    enabled: Boolean,
+    filled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = MiuixTheme.colorScheme
+    val shellColors = ShellTheme.colors
+    val containerColor = when {
+        !enabled && filled -> shellColors.disabledAction
+        filled -> shellColors.primaryAction
+        else -> colors.surfaceContainer
+    }
+    val contentColor = if (filled) Color.White else colors.onSurface
+
+    Card(
+        modifier = modifier.height(56.dp),
+        colors = CardColors(
+            color = containerColor,
+            contentColor = contentColor
+        ),
+        cornerRadius = 18.dp,
+        onClick = if (enabled) onClick else ({}),
+        showIndication = enabled,
+        pressFeedbackType = PressFeedbackType.Sink
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = contentColor.copy(alpha = if (enabled) 1f else 0.72f)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = text,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = contentColor.copy(alpha = if (enabled) 1f else 0.72f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun SectionHeader(
+    title: String,
+    summary: String,
+) {
+    val shellColors = ShellTheme.colors
+    val colors = MiuixTheme.colorScheme
+    Column(
+        modifier = Modifier.padding(horizontal = 2.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text(
+            text = title,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = colors.onSurface
+        )
+        Text(
+            text = summary,
+            fontSize = 12.sp,
+            color = shellColors.secondaryText,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun EmptyScreenshotCard() {
+    val colors = MiuixTheme.colorScheme
+    val shellColors = ShellTheme.colors
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(220.dp),
+        colors = CardColors(
+            color = shellColors.cardBackground,
+            contentColor = colors.onSurface
+        ),
+        cornerRadius = 22.dp,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(CircleShape)
+                    .background(colors.surfaceContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Downloading,
+                    contentDescription = null,
+                    modifier = Modifier.size(28.dp),
+                    tint = colors.onSurfaceVariantSummary
+                )
+            }
+            Spacer(modifier = Modifier.height(14.dp))
+            Text(
+                text = stringResource(R.string.screenshot_empty),
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = colors.onSurface
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = stringResource(R.string.screenshot_empty_desc),
+                fontSize = 13.sp,
+                color = shellColors.secondaryText,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
@@ -286,104 +677,127 @@ private fun LanTransferBlockedState(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun LanStatusCard(isRunning: Boolean, address: String, progress: String) {
+private fun LanTransferLogCard(
+    logs: List<LogEntry>,
+    isExpanded: Boolean,
+    onExpandToggle: () -> Unit,
+) {
     val colors = MiuixTheme.colorScheme
     val shellColors = ShellTheme.colors
-    val dotColor = if (isRunning) shellColors.success else shellColors.danger
-    val statusText = if (isRunning) stringResource(R.string.server_started) else stringResource(R.string.server_not_started)
-    val cardHeight = when {
-        progress.isNotEmpty() -> 104.dp
-        isRunning && address.isNotEmpty() -> 80.dp
-        else -> 56.dp
+    val previewCount = 4
+    val visibleLogs = remember(logs, isExpanded) {
+        if (isExpanded) logs else logs.take(previewCount)
     }
+    val showExpandHint = !isExpanded && logs.size > previewCount
+    val showCollapseHint = isExpanded && logs.isNotEmpty()
+    val hintAlpha by animateFloatAsState(
+        targetValue = if (showExpandHint || showCollapseHint) 1f else 0f,
+        animationSpec = tween(durationMillis = 180),
+        label = "lanLogHintAlpha"
+    )
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 11.dp)
-            .height(cardHeight),
+            .then(
+                when {
+                    logs.isEmpty() -> Modifier
+                    isExpanded -> Modifier
+                    showExpandHint -> Modifier.height(224.dp)
+                    else -> Modifier
+                }
+            ),
         colors = CardColors(
             color = shellColors.cardBackground,
             contentColor = colors.onSurface
         ),
-        cornerRadius = 15.dp
+        cornerRadius = 22.dp
     ) {
-        Column(
+        Box(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(start = 13.dp, end = 13.dp, top = 12.dp, bottom = 12.dp)
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 12.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(10.dp)
-                        .clip(CircleShape)
-                        .background(dotColor)
-                )
-                Spacer(modifier = Modifier.width(13.dp))
-                Text(
-                    text = statusText,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium,
-                    fontFamily = FontFamily.Default,
-                    color = colors.onSurface
-                )
-            }
-            if (isRunning && address.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = address,
-                    modifier = Modifier.padding(start = 23.dp),
-                    fontSize = 12.sp,
-                    color = colors.onSurface.copy(alpha = 0.6f)
-                )
-            }
-            if (progress.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = progress,
-                    modifier = Modifier.padding(start = 23.dp),
-                    fontSize = 11.sp,
-                    color = shellColors.secondaryText,
-                    maxLines = 2
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun LanTransferLogCard(logs: List<LogEntry>) {
-    val colors = MiuixTheme.colorScheme
-    val shellColors = ShellTheme.colors
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 11.dp)
-            .height(126.dp),
-        colors = CardColors(
-            color = shellColors.cardBackground,
-            contentColor = colors.onSurface
-        ),
-        cornerRadius = 15.dp
-    ) {
-        Box(modifier = Modifier.fillMaxSize()) {
             if (logs.isEmpty()) {
-                Text(
-                    text = stringResource(R.string.no_lan_transfer_logs),
-                    modifier = Modifier.align(Alignment.Center),
-                    fontSize = 13.sp,
-                    color = colors.onSurface.copy(alpha = 0.4f)
+                LanLogEmptyState(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 20.dp)
+                        .align(Alignment.Center)
                 )
                 return@Box
             }
+
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 10.dp, vertical = 8.dp)
+                    .fillMaxWidth()
+                    .then(if (showExpandHint) Modifier.fillMaxHeight() else Modifier)
+                    .padding(top = 2.dp, bottom = if (showExpandHint || showCollapseHint) 40.dp else 2.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                logs.forEach { entry ->
+                visibleLogs.forEach { entry ->
                     LanLogItem(entry)
+                }
+            }
+
+            if (showExpandHint) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .height(46.dp)
+                        .alpha(hintAlpha)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.Transparent,
+                                    shellColors.cardBackground.copy(alpha = 0.94f)
+                                )
+                            )
+                        ),
+                    contentAlignment = Alignment.BottomCenter
+                ) {
+                    Card(
+                        colors = CardColors(
+                            color = Color.Transparent,
+                            contentColor = shellColors.secondaryText
+                        ),
+                        onClick = onExpandToggle,
+                        showIndication = true,
+                        pressFeedbackType = PressFeedbackType.Sink
+                        ) {
+                        Text(
+                            text = "\u70B9\u51FB\u67E5\u770B\u66F4\u591A\u65E5\u5FD7",
+                            modifier = Modifier.padding(bottom = 8.dp),
+                            fontSize = 11.sp,
+                            color = shellColors.secondaryText
+                        )
+                    }
+                }
+            } else if (showCollapseHint) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .alpha(hintAlpha),
+                    contentAlignment = Alignment.BottomCenter
+                ) {
+                    Card(
+                        colors = CardColors(
+                            color = Color.Transparent,
+                            contentColor = shellColors.secondaryText
+                        ),
+                        onClick = onExpandToggle,
+                        showIndication = true,
+                        pressFeedbackType = PressFeedbackType.Sink
+                    ) {
+                        Text(
+                            text = "\u6536\u8D77\u65E5\u5FD7",
+                            modifier = Modifier.padding(top = 6.dp, bottom = 2.dp),
+                            fontSize = 11.sp,
+                            color = shellColors.secondaryText
+                        )
+                    }
                 }
             }
         }
@@ -392,59 +806,110 @@ private fun LanTransferLogCard(logs: List<LogEntry>) {
 
 @Composable
 private fun LanLogItem(entry: LogEntry) {
+    val colors = MiuixTheme.colorScheme
     val shellColors = ShellTheme.colors
     val time = remember(entry.timestamp) {
         SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(entry.timestamp))
     }
-    Row(
+    val accent = remember(entry.direction, entry.type, entry.message) {
+        when {
+            entry.direction.equals("ERROR", ignoreCase = true) ||
+                entry.type.contains("error", ignoreCase = true) ||
+                entry.message.contains("failed", ignoreCase = true) -> shellColors.danger
+            entry.message.contains("complete", ignoreCase = true) ||
+                entry.message.contains("started", ignoreCase = true) -> shellColors.success
+            entry.message.contains("chunk", ignoreCase = true) ||
+                entry.message.contains("receiving", ignoreCase = true) -> shellColors.warning
+            else -> shellColors.primaryAction
+        }
+    }
+
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 1.dp),
-        verticalAlignment = Alignment.Top
+            .padding(horizontal = 12.dp, vertical = 7.dp)
     ) {
-        Text(
-            text = time,
-            fontSize = 10.sp,
-            fontFamily = FontFamily.Monospace,
-            color = shellColors.secondaryText,
-            modifier = Modifier.width(54.dp)
-        )
-        Text(
-            text = entry.message,
-            fontSize = 10.sp,
-            fontFamily = FontFamily.Monospace,
-            color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.76f),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f)
-        )
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(accent.copy(alpha = 0.14f))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = time,
+                        fontSize = 10.sp,
+                        fontFamily = FontFamily.Monospace,
+                        color = accent
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = entry.type.uppercase(Locale.ROOT),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = shellColors.secondaryText,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Text(
+                text = entry.message,
+                fontSize = 12.sp,
+                lineHeight = 18.sp,
+                color = colors.onSurface.copy(alpha = 0.82f),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 
 @Composable
-private fun ActionButton(text: String, enabled: Boolean, primary: Boolean, onClick: () -> Unit) {
+private fun LanLogEmptyState(modifier: Modifier = Modifier) {
+    val colors = MiuixTheme.colorScheme
     val shellColors = ShellTheme.colors
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 10.dp)
-            .height(52.dp),
-        colors = CardColors(
-            color = if (primary) shellColors.primaryAction else shellColors.destructiveAction,
-            contentColor = Color.White
-        ),
-        cornerRadius = 15.dp,
-        onClick = if (enabled) onClick else ({}),
-        showIndication = enabled,
-        pressFeedbackType = PressFeedbackType.Sink
+
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Box(
+            modifier = Modifier
+                .size(52.dp)
+                .clip(CircleShape)
+                .background(colors.surface.copy(alpha = 0.92f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Wifi,
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+                tint = shellColors.secondaryText
+            )
+        }
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
             Text(
-                text = text,
-                fontSize = 17.sp,
-                fontWeight = FontWeight.Medium,
-                fontFamily = FontFamily.Default,
-                color = Color.White
+                text = stringResource(R.string.no_lan_transfer_logs),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = colors.onSurface
+            )
+            Text(
+                text = stringResource(R.string.action_lan_sync_summary),
+                fontSize = 12.sp,
+                color = shellColors.secondaryText,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center
             )
         }
     }
@@ -455,32 +920,36 @@ private fun ScreenshotCard(
     shot: Screenshot,
     modifier: Modifier,
     onClick: () -> Unit,
-    shellViewModel: ShellViewModel
+    shellViewModel: ShellViewModel,
 ) {
     val colors = MiuixTheme.colorScheme
     val shellColors = ShellTheme.colors
     val previewPath = remember(shot.localFilePath, shot.shotId) {
         shot.localFilePath.takeIf { it.isNotBlank() } ?: shellViewModel.getScreenshotFilePath(shot.shotId)
     }
+    val footerText = shot.transferHint.ifBlank { shot.capturedAt }
+
     Card(
-        modifier = modifier.height(214.dp),
+        modifier = modifier.height(240.dp),
         colors = CardColors(
             color = shellColors.cardBackground,
             contentColor = colors.onSurface
         ),
-        cornerRadius = 15.dp,
+        cornerRadius = 22.dp,
         onClick = onClick,
         showIndication = true,
         pressFeedbackType = PressFeedbackType.Sink
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(12.dp)
+        ) {
             Box(
                 modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 9.dp)
-                    .width(112.dp)
-                    .height(160.dp)
-                    .background(shellColors.previewBackground),
+                    .fillMaxWidth()
+                    .height(162.dp)
+                    .clip(RoundedCornerShape(16.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 if (previewPath != null) {
@@ -491,27 +960,33 @@ private fun ScreenshotCard(
                             .build(),
                         contentDescription = null,
                         modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
+                        contentScale = ContentScale.FillHeight
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Rounded.Downloading,
+                        contentDescription = null,
+                        modifier = Modifier.size(28.dp),
+                        tint = Color.White.copy(alpha = 0.72f)
                     )
                 }
             }
+            Spacer(modifier = Modifier.height(12.dp))
             Text(
-                text = "#${shot.index}",
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 18.dp),
+                text = shot.displayTitle.ifBlank { "#${shot.index}" },
                 fontSize = 17.sp,
-                fontWeight = FontWeight.Medium,
-                color = colors.onSurface
+                fontWeight = FontWeight.SemiBold,
+                color = colors.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = shot.capturedAt,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 4.dp),
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Medium,
-                color = shellColors.secondaryText
+                text = footerText,
+                fontSize = 11.sp,
+                color = shellColors.secondaryText,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }

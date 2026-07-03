@@ -46,14 +46,16 @@ import com.shell.liangyi.feature.AgentEntryPointProvider
 import com.shell.liangyi.ui.about.AboutScreen
 import com.shell.liangyi.ui.bluetooth.BluetoothScreen
 import com.shell.liangyi.ui.components.LiquidGlassBottomBar
+import com.shell.liangyi.ui.components.LiquidGlassConfirmDialog
 import com.shell.liangyi.ui.components.LiquidGlassInfoDialog
 import com.shell.liangyi.ui.components.LiquidGlassTabItem
 import com.shell.liangyi.ui.components.LiquidGlassUpdateDialog
-import com.shell.liangyi.ui.components.rememberShellBlurBackdrop
 import com.shell.liangyi.ui.components.ShellBackScaffold
+import com.shell.liangyi.ui.components.rememberShellBlurBackdrop
 import com.shell.liangyi.ui.fetch.FetchScreen
 import com.shell.liangyi.ui.index.IndexScreen
 import com.shell.liangyi.ui.screenshot.ScreenshotDetailScreen
+import com.shell.liangyi.ui.screenshot.ScreenshotTimelineScreen
 import com.shell.liangyi.ui.settings.SettingsScreen
 import com.shell.liangyi.ui.settings.SettingsTabScreen
 import com.shell.liangyi.ui.theme.ShellTheme
@@ -72,6 +74,7 @@ object Routes {
     const val FETCH = "fetch"
     const val TERMINAL = "terminal"
     const val LOGS = "logs"
+    const val SCREENSHOT_TIMELINE = "screenshot_timeline"
     const val SCREENSHOT_DETAIL = "screenshot_detail/{shotId}"
 
     fun screenshotDetail(shotId: String) = "screenshot_detail/$shotId"
@@ -105,12 +108,15 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
     val rootBackdrop = rememberShellBlurBackdrop(enableBlur = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S_V2)
     val updatePrompt by shellViewModel.updatePrompt.collectAsState()
     val skipOptionalUpdateInfoDialogVisible by shellViewModel.skipOptionalUpdateInfoDialogVisible.collectAsState()
+    val deleteScreenshotConfirmShotId by shellViewModel.deleteScreenshotConfirmShotId.collectAsState()
     var displayedUpdatePrompt by remember { mutableStateOf(updatePrompt) }
     var updateDialogVisible by remember { mutableStateOf(updatePrompt != null) }
     var showMountedSkipOptionalInfoDialog by remember { mutableStateOf(skipOptionalUpdateInfoDialogVisible) }
     var animatedSkipOptionalInfoDialogVisible by remember {
         mutableStateOf(skipOptionalUpdateInfoDialogVisible)
     }
+    var displayedDeleteScreenshotShotId by remember { mutableStateOf(deleteScreenshotConfirmShotId) }
+    var deleteConfirmDialogVisible by remember { mutableStateOf(deleteScreenshotConfirmShotId != null) }
 
     LaunchedEffect(Unit) {
         shellViewModel.checkForUpdates(manual = false)
@@ -137,6 +143,15 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
             animatedSkipOptionalInfoDialogVisible = true
         } else if (showMountedSkipOptionalInfoDialog) {
             animatedSkipOptionalInfoDialogVisible = false
+        }
+    }
+
+    LaunchedEffect(deleteScreenshotConfirmShotId) {
+        if (deleteScreenshotConfirmShotId != null) {
+            displayedDeleteScreenshotShotId = deleteScreenshotConfirmShotId
+            deleteConfirmDialogVisible = true
+        } else if (displayedDeleteScreenshotShotId != null) {
+            deleteConfirmDialogVisible = false
         }
     }
 
@@ -174,6 +189,12 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
                     shellViewModel = shellViewModel,
                 )
             }
+            composable(Routes.SCREENSHOT_TIMELINE) {
+                ScreenshotTimelineScreen(
+                    navController = navController,
+                    shellViewModel = shellViewModel,
+                )
+            }
             composable(Routes.TERMINAL) {
                 if (AgentEntryPointProvider.entryPoint.isEnabled) {
                     AgentEntryPointProvider.entryPoint.Screen(navController, shellViewModel)
@@ -191,7 +212,11 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
             composable(Routes.SCREENSHOT_DETAIL) { backStackEntry ->
                 val rawShotId = backStackEntry.arguments?.getString("shotId") ?: "0"
                 val shotId = Uri.decode(rawShotId)
-                ScreenshotDetailScreen(shotId, navController, shellViewModel)
+                ScreenshotDetailScreen(
+                    shotId = shotId,
+                    navController = navController,
+                    shellViewModel = shellViewModel,
+                )
             }
         }
 
@@ -229,6 +254,28 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
                 onExitFinished = {
                     if (!animatedSkipOptionalInfoDialogVisible) {
                         showMountedSkipOptionalInfoDialog = false
+                    }
+                },
+                backdrop = rootBackdrop,
+            )
+        }
+
+        displayedDeleteScreenshotShotId?.let { shotId ->
+            LiquidGlassConfirmDialog(
+                title = "确认删除",
+                message = "删除后当前截图缓存将从本机移除，且无法恢复。确定继续吗？",
+                confirmText = "删除",
+                dismissText = "取消",
+                visible = deleteConfirmDialogVisible,
+                onDismissRequest = { shellViewModel.dismissDeleteScreenshotConfirm() },
+                onConfirm = {
+                    shellViewModel.deleteScreenshot(shotId)
+                    shellViewModel.dismissDeleteScreenshotConfirm()
+                    navController.popBackStack()
+                },
+                onExitFinished = {
+                    if (!deleteConfirmDialogVisible) {
+                        displayedDeleteScreenshotShotId = null
                     }
                 },
                 backdrop = rootBackdrop,

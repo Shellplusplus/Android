@@ -48,6 +48,9 @@ class ScreenshotReceiver(
     private val _receiveProgress = MutableStateFlow("")
     val receiveProgress: StateFlow<String> = _receiveProgress.asStateFlow()
 
+    private val _httpTransferInProgress = MutableStateFlow(false)
+    val httpTransferInProgress: StateFlow<Boolean> = _httpTransferInProgress.asStateFlow()
+
     // 当前同步会话
     private var currentSessionId: Long = 0
     private var pendingScreenshots = mutableListOf<Screenshot>()
@@ -112,10 +115,11 @@ class ScreenshotReceiver(
                 _httpServerIp.value = ip
                 _httpServerPort.value = httpServer.port
                 _httpServerRunning.value = true
+                _httpTransferInProgress.value = false
+                _receiveProgress.value = ""
                 val address = "$ip:${httpServer.port}"
                 Log.i(TAG, "HTTP server ready at $address")
                 val serverStartedText = tr(R.string.http_server_started, address)
-                _receiveProgress.value = serverStartedText
                 appendHttpLog(serverStartedText)
                 notifyWatchWifiServer(address)
                 address
@@ -132,8 +136,10 @@ class ScreenshotReceiver(
         httpServer.stop()
         _httpServerRunning.value = false
         _httpServerIp.value = ""
+        _httpServerPort.value = 0
+        _httpTransferInProgress.value = false
+        _receiveProgress.value = ""
         val serverStoppedText = tr(R.string.http_server_stopped)
-        _receiveProgress.value = serverStoppedText
         appendHttpLog(serverStoppedText)
     }
 
@@ -152,6 +158,7 @@ class ScreenshotReceiver(
     private suspend fun onHttpScreenshotReceived(shotId: String, file: File) {
         Log.i(TAG, "HTTP screenshot received: $shotId (${file.length()} bytes)")
         registerLocalFile(shotId, file)
+        _httpTransferInProgress.value = false
         _receiveProgress.value = tr(R.string.http_transfer_complete, shotId, formatHttpBytes(file.length()))
         appendHttpLog(tr(R.string.http_transfer_complete, shotId, "${file.length()} bytes"))
         // 重新加载列表以包含新收到的截图
@@ -182,6 +189,7 @@ class ScreenshotReceiver(
                 formatHttpBytes(progress.totalBytes)
             )
         }
+        _httpTransferInProgress.value = !progress.completed
         _receiveProgress.value = text
     }
 

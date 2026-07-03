@@ -1,7 +1,6 @@
 package com.shell.liangyi.ui.screenshot
 
 import android.content.Context
-import android.os.Build
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -53,14 +52,11 @@ import coil.request.ImageRequest
 import com.shell.liangyi.R
 import com.shell.liangyi.model.Screenshot
 import com.shell.liangyi.ui.ShellViewModel
-import com.shell.liangyi.ui.components.LiquidGlassConfirmDialog
 import com.shell.liangyi.ui.components.ShellBackScaffold
-import com.shell.liangyi.ui.components.rememberShellBlurBackdrop
 import com.shell.liangyi.ui.theme.ShellColors
 import com.shell.liangyi.ui.theme.ShellTheme
 import com.shell.liangyi.util.GallerySaver
 import com.shell.liangyi.util.ImageProcessor
-import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -70,21 +66,19 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
+import java.io.File
 
 @Composable
 fun ScreenshotDetailScreen(
     shotId: String,
     navController: NavHostController,
-    shellViewModel: ShellViewModel
+    shellViewModel: ShellViewModel,
 ) {
     val screenshots by shellViewModel.screenshots.collectAsState()
     val shot = screenshots.find { it.shotId == shotId }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var actionInProgress by remember { mutableStateOf(false) }
-    val dialogBackdrop = rememberShellBlurBackdrop(enableBlur = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S_V2)
-    var showMountedDeleteDialog by remember { mutableStateOf(false) }
-    var deleteDialogVisible by remember { mutableStateOf(false) }
 
     val resolvedPath = remember(shot?.localFilePath, shotId) {
         shot?.localFilePath?.takeIf { it.isNotBlank() } ?: shellViewModel.getScreenshotFilePath(shotId)
@@ -129,104 +123,80 @@ fun ScreenshotDetailScreen(
         title = displayTitle,
         onBack = { navController.popBackStack() }
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 12.dp),
-                contentPadding = PaddingValues(top = 14.dp, bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                item {
-                    PreviewActionCard(
-                        title = stringResource(R.string.screenshot_preview),
-                        subtitle = shot?.capturedAt?.ifBlank { shotId } ?: shotId,
-                        status = statusVisual,
-                        roundedPath = roundedPath,
-                        shot = shot,
-                        shellViewModel = shellViewModel,
-                        hasLocalFile = hasLocalFile,
-                        actionInProgress = actionInProgress,
-                        onFrameClick = {
-                            val inputPath = resolvedPath ?: return@PreviewActionCard
-                            actionInProgress = true
-                            scope.launch {
-                                val result = withContext(Dispatchers.IO) {
-                                    val deviceFile = prepareDevice(context, cacheDir)
-                                        ?: return@withContext SaveResult.CompositeFailed
-                                    val out = File(cacheDir, "framed_${File(inputPath).name}")
-                                    if (!ImageProcessor.compositeWithFrame(inputPath, deviceFile.absolutePath, out.absolutePath)) {
-                                        return@withContext SaveResult.CompositeFailed
-                                    }
-                                    val fileName = "Shell++_framed_${shot?.index ?: System.currentTimeMillis()}"
-                                    if (gallerySaver.saveFileToGallery(out.absolutePath, fileName)) {
-                                        SaveResult.Success
-                                    } else {
-                                        SaveResult.SaveFailed
-                                    }
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 12.dp),
+            contentPadding = PaddingValues(top = 12.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            item {
+                PreviewActionCard(
+                    title = stringResource(R.string.screenshot_preview),
+                    subtitle = shot?.capturedAt?.ifBlank { shotId } ?: shotId,
+                    status = statusVisual,
+                    roundedPath = roundedPath,
+                    shot = shot,
+                    shellViewModel = shellViewModel,
+                    hasLocalFile = hasLocalFile,
+                    actionInProgress = actionInProgress,
+                    onFrameClick = {
+                        val inputPath = resolvedPath ?: return@PreviewActionCard
+                        actionInProgress = true
+                        scope.launch {
+                            val result = withContext(Dispatchers.IO) {
+                                val deviceFile = prepareDevice(context, cacheDir)
+                                    ?: return@withContext SaveResult.CompositeFailed
+                                val out = File(cacheDir, "framed_${File(inputPath).name}")
+                                if (!ImageProcessor.compositeWithFrame(inputPath, deviceFile.absolutePath, out.absolutePath)) {
+                                    return@withContext SaveResult.CompositeFailed
                                 }
-                                actionInProgress = false
-                                Toast.makeText(
-                                    context,
-                                    when (result) {
-                                        SaveResult.Success -> context.getString(R.string.screenshot_saved)
-                                        SaveResult.CompositeFailed -> context.getString(R.string.composite_failed)
-                                        SaveResult.SaveFailed -> context.getString(R.string.save_failed)
-                                    },
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                        },
-                        onSaveClick = {
-                            val inputPath = resolvedPath ?: return@PreviewActionCard
-                            actionInProgress = true
-                            scope.launch {
-                                val ok = withContext(Dispatchers.IO) {
-                                    val fileName = "Shell++_${shot?.index ?: System.currentTimeMillis()}"
-                                    gallerySaver.saveFileToGallery(inputPath, fileName)
+                                val fileName = "Shell++_framed_${shot?.index ?: System.currentTimeMillis()}"
+                                if (gallerySaver.saveFileToGallery(out.absolutePath, fileName)) {
+                                    SaveResult.Success
+                                } else {
+                                    SaveResult.SaveFailed
                                 }
-                                actionInProgress = false
-                                Toast.makeText(
-                                    context,
-                                    if (ok) context.getString(R.string.screenshot_saved) else context.getString(R.string.save_failed),
-                                    Toast.LENGTH_SHORT
-                                ).show()
                             }
-                        },
-                        onDeleteClick = {
-                            showMountedDeleteDialog = true
-                            deleteDialogVisible = true
-                        },
-                    )
-                }
-
-                item {
-                    DetailInfoCard(
-                        shot = shot,
-                        hasLocalFile = hasLocalFile,
-                        status = statusVisual,
-                    )
-                }
-            }
-
-            if (showMountedDeleteDialog) {
-                LiquidGlassConfirmDialog(
-                    title = "确认删除",
-                    message = "删除后当前截图缓存将从本机移除，且无法恢复。确定继续吗？",
-                    confirmText = "删除",
-                    dismissText = "取消",
-                    visible = deleteDialogVisible,
-                    onDismissRequest = { deleteDialogVisible = false },
-                    onConfirm = {
-                        shot?.shotId?.let { shellViewModel.deleteScreenshot(it) }
-                        navController.popBackStack()
-                    },
-                    onExitFinished = {
-                        if (!deleteDialogVisible) {
-                            showMountedDeleteDialog = false
+                            actionInProgress = false
+                            Toast.makeText(
+                                context,
+                                when (result) {
+                                    SaveResult.Success -> context.getString(R.string.screenshot_saved)
+                                    SaveResult.CompositeFailed -> context.getString(R.string.composite_failed)
+                                    SaveResult.SaveFailed -> context.getString(R.string.save_failed)
+                                },
+                                Toast.LENGTH_SHORT
+                            ).show()
                         }
                     },
-                    backdrop = dialogBackdrop,
+                    onSaveClick = {
+                        val inputPath = resolvedPath ?: return@PreviewActionCard
+                        actionInProgress = true
+                        scope.launch {
+                            val ok = withContext(Dispatchers.IO) {
+                                val fileName = "Shell++_${shot?.index ?: System.currentTimeMillis()}"
+                                gallerySaver.saveFileToGallery(inputPath, fileName)
+                            }
+                            actionInProgress = false
+                            Toast.makeText(
+                                context,
+                                if (ok) context.getString(R.string.screenshot_saved) else context.getString(R.string.save_failed),
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    },
+                    onDeleteClick = {
+                        shot?.shotId?.let(shellViewModel::showDeleteScreenshotConfirm)
+                    },
+                )
+            }
+
+            item {
+                DetailInfoCard(
+                    shot = shot,
+                    hasLocalFile = hasLocalFile,
+                    status = statusVisual,
                 )
             }
         }

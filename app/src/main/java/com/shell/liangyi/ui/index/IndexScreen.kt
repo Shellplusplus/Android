@@ -128,8 +128,8 @@ fun IndexScreen(
                         ),
                         actions = HomeActions(
                             onRefreshConnection = shellViewModel::ensureConnection,
-                            onOpenBluetooth = { navController.navigate(Routes.BLUETOOTH) },
                             onOpenLan = { navController.navigate(Routes.FETCH) },
+                            onOpenTimeline = { navController.navigate(Routes.SCREENSHOT_TIMELINE) },
                         ),
                     )
                     ActionList(navController)
@@ -168,8 +168,8 @@ private data class HomeState(
 
 private data class HomeActions(
     val onRefreshConnection: () -> Unit,
-    val onOpenBluetooth: () -> Unit,
     val onOpenLan: () -> Unit,
+    val onOpenTimeline: () -> Unit,
 )
 
 @Composable
@@ -248,7 +248,7 @@ private fun StatusCard(
                     } else {
                         stringResource(R.string.pending_fetch)
                     },
-                    onClick = actions.onOpenBluetooth,
+                    onClick = actions.onOpenTimeline,
                 )
                 Spacer(Modifier.height(12.dp))
                 CounterCard(
