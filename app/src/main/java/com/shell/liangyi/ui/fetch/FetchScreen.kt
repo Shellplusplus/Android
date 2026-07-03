@@ -1,7 +1,11 @@
 package com.shell.liangyi.ui.fetch
 
 import android.net.Uri
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,18 +19,25 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -49,6 +60,7 @@ import top.yukonga.miuix.kmp.basic.CardColors
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
+import kotlinx.coroutines.delay
 
 @Composable
 fun FetchScreen(
@@ -65,16 +77,33 @@ fun FetchScreen(
     val httpPort by shellViewModel.httpServerPort.collectAsState()
     val receiveProgress by shellViewModel.receiveProgress.collectAsState()
     val logs by shellViewModel.logs.collectAsState(initial = emptyList())
+    val watchProductCode by shellViewModel.watchProductCode.collectAsState()
     val lanLogs = remember(logs) { logs.filter { it.direction == "HTTP" || it.type == "transfer" }.take(6) }
     val screenshots by shellViewModel.screenshots.collectAsState()
+    val isLanTransferBlocked = shellViewModel.isLanTransferBlocked(watchProductCode)
 
     val serverAddress = if (httpRunning && httpIp.isNotEmpty()) "${httpIp}:${httpPort}" else ""
+
+    LaunchedEffect(isLanTransferBlocked, httpRunning) {
+        if (isLanTransferBlocked && httpRunning) {
+            shellViewModel.stopHttpServer()
+        }
+    }
 
     ShellBackScaffold(
         title = stringResource(R.string.lan_transfer),
         onBack = { navController.popBackStack() },
         showBackButton = !isRootDestination,
     ) { innerPadding ->
+        if (isLanTransferBlocked) {
+            LanTransferBlockedState(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+            )
+            return@ShellBackScaffold
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -161,6 +190,97 @@ fun FetchScreen(
             }
 
             Spacer(modifier = Modifier.height(20.dp + bottomContentPadding))
+        }
+    }
+}
+
+@Composable
+private fun LanTransferBlockedState(modifier: Modifier = Modifier) {
+    val colors = MiuixTheme.colorScheme
+    val shellColors = ShellTheme.colors
+    var showFinalState by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        showFinalState = false
+        delay(220)
+        showFinalState = true
+    }
+
+    val iconSize by animateDpAsState(
+        targetValue = if (showFinalState) 74.dp else 10.dp,
+        animationSpec = tween(durationMillis = 520),
+        label = "lanBlockedIconSize"
+    )
+    val borderWidth by animateDpAsState(
+        targetValue = if (showFinalState) 3.dp else 0.dp,
+        animationSpec = tween(durationMillis = 460),
+        label = "lanBlockedBorderWidth"
+    )
+    val fillAlpha by animateFloatAsState(
+        targetValue = if (showFinalState) 0f else 1f,
+        animationSpec = tween(durationMillis = 420),
+        label = "lanBlockedFillAlpha"
+    )
+    val crossAlpha by animateFloatAsState(
+        targetValue = if (showFinalState) 1f else 0f,
+        animationSpec = tween(durationMillis = 240, delayMillis = 220),
+        label = "lanBlockedCrossAlpha"
+    )
+    val crossScale by animateFloatAsState(
+        targetValue = if (showFinalState) 1f else 0.7f,
+        animationSpec = tween(durationMillis = 280, delayMillis = 220),
+        label = "lanBlockedCrossScale"
+    )
+    val textAlpha by animateFloatAsState(
+        targetValue = if (showFinalState) 1f else 0f,
+        animationSpec = tween(durationMillis = 260, delayMillis = 300),
+        label = "lanBlockedTextAlpha"
+    )
+
+    Box(
+        modifier = modifier.background(ShellTheme.colors.pageBackground),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(horizontal = 32.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(iconSize)
+                    .clip(CircleShape)
+                    .background(shellColors.danger.copy(alpha = fillAlpha))
+                    .border(
+                        width = borderWidth,
+                        color = shellColors.danger,
+                        shape = CircleShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "\u274C",
+                    fontSize = 24.sp,
+                    color = shellColors.danger,
+                    modifier = Modifier.graphicsLayer {
+                        alpha = crossAlpha
+                        scaleX = crossScale
+                        scaleY = crossScale
+                    }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(22.dp))
+            Text(
+                text = "\u62B1\u6B49\uFF0C\u60A8\u4F7F\u7528\u7684\u5C0F\u7C73\u624B\u73AF10Pro\u6682\u65F6\u4E0D\u53EF\u4F7F\u7528\u8BE5\u4F20\u8F93\u65B9\u5F0F",
+                fontSize = 15.sp,
+                lineHeight = 22.sp,
+                fontWeight = FontWeight.Medium,
+                color = colors.onSurface.copy(alpha = 0.82f),
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .alpha(textAlpha)
+            )
         }
     }
 }

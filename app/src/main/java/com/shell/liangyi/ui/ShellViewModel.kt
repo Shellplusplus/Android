@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.Locale
 
 class ShellViewModel : ViewModel() {
 
@@ -93,9 +94,18 @@ class ShellViewModel : ViewModel() {
     fun ensureConnection() = wearMessageCenter.ensureConnection()
     fun requestScreenshot(shotId: String) = screenshotReceiver.requestScreenshot(shotId)
     fun deleteScreenshot(shotId: String) = screenshotReceiver.deleteScreenshot(shotId)
-    fun startHttpServer(): String? = screenshotReceiver.startHttpServer()
+    fun startHttpServer(): String? {
+        if (isLanTransferBlocked()) {
+            return null
+        }
+        return screenshotReceiver.startHttpServer()
+    }
     fun stopHttpServer() = screenshotReceiver.stopHttpServer()
     fun appContext(): Context = appCtx!!
+
+    fun isLanTransferBlocked(productCode: String = watchProductCode.value): Boolean {
+        return productCode.trim().lowercase(Locale.ROOT) == "10pro"
+    }
 
     fun getScreenshotFilePath(shotId: String): String? {
         val existingPath = screenshotReceiver.screenshots.value

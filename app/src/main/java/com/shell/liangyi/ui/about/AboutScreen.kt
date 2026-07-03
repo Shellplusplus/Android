@@ -215,6 +215,11 @@ private fun OpenSourceCard() {
             summary = stringResource(R.string.library_hyperos_bg),
         ),
         OpenSourceLibrary(
+            name = "Backdrop (AndroidLiquidGlass)",
+            license = "Apache-2.0",
+            summary = "Compose Multiplatform 液态玻璃效果组件库",
+        ),
+        OpenSourceLibrary(
             name = "Kotlin Coroutines",
             license = "Apache-2.0",
             summary = "协程与异步任务支持",
