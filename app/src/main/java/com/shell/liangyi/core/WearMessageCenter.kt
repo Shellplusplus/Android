@@ -177,12 +177,17 @@ class WearMessageCenter private constructor(private val context: Context) {
     }
 
     fun ensureConnection() {
+        ensureConnectionReady()
+    }
+
+    fun ensureConnectionReady(onReady: (Boolean) -> Unit = {}) {
         if (nodeApi == null || messageApi == null || authApi == null) {
             initialize()
+            ensureSession(force = true, onReady = onReady)
             return
         }
         addLog("SYSTEM", "ensure", tr(R.string.keepalive_check))
-        ensureSession(force = true)
+        ensureSession(force = true, onReady = onReady)
     }
 
     private fun ensureSession(force: Boolean, onReady: (Boolean) -> Unit = {}) {
@@ -533,13 +538,19 @@ class WearMessageCenter private constructor(private val context: Context) {
         }
     }
 
-    fun send(type: String, payload: JSONObject) {
+    fun send(
+        type: String,
+        payload: JSONObject,
+        onResult: ((Boolean, Exception?) -> Unit)? = null
+    ) {
         ensureSession(force = false) { success ->
             if (!success) {
-                addLog("ERROR", type, tr(R.string.connection_not_ready_send_cancelled))
+                val error = IllegalStateException(tr(R.string.connection_not_ready_send_cancelled))
+                addLog("ERROR", type, error.message ?: tr(R.string.send_failed))
+                onResult?.invoke(false, error)
                 return@ensureSession
             }
-            sendDirect(type, payload, logTraffic = shouldLogTraffic(type))
+            sendDirect(type, payload, logTraffic = shouldLogTraffic(type), onResult = onResult)
         }
     }
 

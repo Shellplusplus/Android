@@ -27,8 +27,6 @@ class AgentCommandBridge(
         var rejectReason: String? = null
     )
 
-    // 写入发生在调用方所在的调度器上，读取发生在 Dispatchers.IO 的 collect 协程里，
-    // 普通 HashMap 跨线程可见性没有保证，这里必须用线程安全的 map
     private val pendingByReqId = ConcurrentHashMap<String, Pending>()
 
     init {
@@ -64,8 +62,15 @@ class AgentCommandBridge(
 
     class BridgeException(message: String) : Exception(message)
 
-    /** 发送一条命令到手环执行，等待 execAck + execResult。会抛出 BridgeException 表示被拒绝/超时。 */
-    suspend fun runCommand(cmd: String, timeoutMs: Long = 15000L): ExecResult {
+    private suspend fun awaitReady(timeoutMs: Long = 6000L): Boolean {
+        val ready = CompletableDeferred<Boolean>()
+        messageCenter.ensureConnectionReady { success ->
+            ready.complete(success)
+        }
+        return withTimeoutOrNull(timeoutMs) { ready.await() } == true
+    }
+
+    private suspend fun runCommandOnce(cmd: String, timeoutMs: Long): ExecResult {
         val reqId = "req-" + System.currentTimeMillis() + "-" + (0..9999).random()
         val pending = Pending(CompletableDeferred(), CompletableDeferred())
         pendingByReqId[reqId] = pending
@@ -74,7 +79,12 @@ class AgentCommandBridge(
             put("reqId", reqId)
             put("cmd", cmd)
         }
-        messageCenter.send("execCommand", payload)
+        messageCenter.send("execCommand", payload) { success, error ->
+            if (!success) {
+                pending.rejectReason = error?.message ?: "send_failed"
+                pending.ack.complete(false)
+            }
+        }
 
         val accepted = withTimeoutOrNull(timeoutMs) { pending.ack.await() }
         if (accepted != true) {
@@ -85,5 +95,21 @@ class AgentCommandBridge(
         val result = withTimeoutOrNull(timeoutMs) { pending.result.await() }
         pendingByReqId.remove(reqId)
         return result ?: throw BridgeException("timeout")
+    }
+
+    /** 发送一条命令到手环执行，等待 execAck + execResult。会抛出 BridgeException 表示被拒绝/超时。 */
+    suspend fun runCommand(cmd: String, timeoutMs: Long = 15000L): ExecResult {
+        try {
+            return runCommandOnce(cmd, timeoutMs)
+        } catch (e: BridgeException) {
+            if (e.message != "no_ack") {
+                throw e
+            }
+        }
+
+        if (!awaitReady()) {
+            throw BridgeException("no_ack")
+        }
+        return runCommandOnce(cmd, timeoutMs)
     }
 }
