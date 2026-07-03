@@ -46,6 +46,8 @@ class ShellViewModel : ViewModel() {
     val skipOptionalUpdateHint = _skipOptionalUpdateHint.asStateFlow()
     private val _skipOptionalUpdateInfoDialogVisible = MutableStateFlow(false)
     val skipOptionalUpdateInfoDialogVisible = _skipOptionalUpdateInfoDialogVisible.asStateFlow()
+    private val _deleteScreenshotConfirmShotId = MutableStateFlow<String?>(null)
+    val deleteScreenshotConfirmShotId = _deleteScreenshotConfirmShotId.asStateFlow()
 
     private val _updateMessages = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val updateMessages = _updateMessages.asSharedFlow()
@@ -84,6 +86,9 @@ class ShellViewModel : ViewModel() {
     val httpServerRunning: StateFlow<Boolean>
         get() = screenshotReceiver.httpServerRunning
 
+    val httpTransferInProgress: StateFlow<Boolean>
+        get() = screenshotReceiver.httpTransferInProgress
+
     val httpServerIp: StateFlow<String>
         get() = screenshotReceiver.httpServerIp
 
@@ -94,6 +99,12 @@ class ShellViewModel : ViewModel() {
     fun ensureConnection() = wearMessageCenter.ensureConnection()
     fun requestScreenshot(shotId: String) = screenshotReceiver.requestScreenshot(shotId)
     fun deleteScreenshot(shotId: String) = screenshotReceiver.deleteScreenshot(shotId)
+    fun showDeleteScreenshotConfirm(shotId: String) {
+        _deleteScreenshotConfirmShotId.value = shotId
+    }
+    fun dismissDeleteScreenshotConfirm() {
+        _deleteScreenshotConfirmShotId.value = null
+    }
     fun startHttpServer(): String? {
         if (isLanTransferBlocked()) {
             return null
@@ -104,7 +115,11 @@ class ShellViewModel : ViewModel() {
     fun appContext(): Context = appCtx!!
 
     fun isLanTransferBlocked(productCode: String = watchProductCode.value): Boolean {
-        return productCode.trim().lowercase(Locale.ROOT) == "10pro"
+        val normalized = productCode
+            .trim()
+            .lowercase(Locale.ROOT)
+            .replace(Regex("[^a-z0-9]+"), "")
+        return normalized == "xiaomiband10pro" || normalized == "10pro"
     }
 
     fun getScreenshotFilePath(shotId: String): String? {

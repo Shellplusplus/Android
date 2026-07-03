@@ -152,4 +152,9 @@
     <string name="screenshot_cache">截图缓存</string>
     <string name="screenshot_count">%1$d 张</string>
     <string name="lan_service">局域网服务</string>
+    <string name="screenshot_timeline">截图列表</string>
+    <string name="screenshot_timeline_summary">按时间线浏览已缓存截图</string>
+    <string name="screenshot_timeline_summary_detail">共 %1$d 张，最新一张 %2$s</string>
+    <string name="screenshot_timeline_empty_hint">先从手表同步截图，列表会按时间自动整理在这里</string>
+    <string name="timeline_unknown_time">时间未知</string>
 </resources>

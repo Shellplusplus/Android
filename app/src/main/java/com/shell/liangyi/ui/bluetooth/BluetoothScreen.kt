@@ -3,6 +3,7 @@ package com.shell.liangyi.ui.bluetooth
 import android.net.Uri
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,9 +32,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -52,6 +55,7 @@ import com.shell.liangyi.ui.theme.ShellTheme
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardColors
 import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
@@ -68,6 +72,7 @@ fun BluetoothScreen(
     val syncState by shellViewModel.syncState.collectAsState(initial = ScreenshotReceiver.SyncState.Idle)
     val progress by shellViewModel.receiveProgress.collectAsState(initial = "")
     val isConnected = connectionState == ConnectionState.CONNECTED
+    val scrollBehavior = MiuixScrollBehavior()
     val isBusy = syncState is ScreenshotReceiver.SyncState.Receiving ||
         syncState is ScreenshotReceiver.SyncState.WaitingAck
 
@@ -75,11 +80,14 @@ fun BluetoothScreen(
         title = stringResource(R.string.bluetooth_transfer),
         onBack = { navController.popBackStack() },
         showBackButton = !isRootDestination,
+        collapseTitleOnScroll = true,
+        scrollBehavior = scrollBehavior,
     ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .nestedScroll(scrollBehavior.nestedScrollConnection)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 12.dp)
         ) {
@@ -130,23 +138,29 @@ fun BluetoothScreen(
 
             Spacer(modifier = Modifier.height(10.dp))
             if (screenshots.isNotEmpty()) {
-                val previewShots = screenshots.take(2)
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    previewShots.forEach { shot ->
+                    screenshots.forEach { shot ->
                         ScreenshotCard(
                             shot = shot,
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.width(176.dp),
                             onClick = { navController.navigate(Routes.screenshotDetail(Uri.encode(shot.shotId))) },
                             shellViewModel = shellViewModel
                         )
                     }
-                    if (previewShots.size == 1) {
-                        Spacer(modifier = Modifier.weight(1f))
-                    }
                 }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "左右滑动以查看更多截图",
+                    fontSize = 11.sp,
+                    color = Color(0xFF409EFF),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
             } else {
                 EmptyScreenshotCard()
             }
@@ -516,8 +530,7 @@ private fun ScreenshotCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(162.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(shellColors.previewBackground),
+                    .clip(RoundedCornerShape(16.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 if (previewPath != null) {
@@ -528,7 +541,7 @@ private fun ScreenshotCard(
                             .build(),
                         contentDescription = null,
                         modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
+                        contentScale = ContentScale.FillHeight
                     )
                 } else {
                     Icon(
