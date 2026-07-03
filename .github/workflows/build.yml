@@ -9,7 +9,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
 
     steps:
       - name: Checkout code
@@ -69,11 +69,14 @@ jobs:
             app/build/outputs/apk/release/*.apk
             app/build/outputs/apk/standard/release/*.apk
             app/build/outputs/apk/developer/release/*.apk
+          if-no-files-found: error
           retention-days: 7
 
-      - name: Create GitHub Release
+      - name: Create public download release
         uses: softprops/action-gh-release@v2
         with:
+          repository: DefateStar/public-shellpp
+          token: ${{ secrets.PUBLIC_SHELLPP_TOKEN }}
           tag_name: beta${{ github.run_number }}
           name: "Shell++ beta${{ github.run_number }}"
           body: |
@@ -88,8 +91,10 @@ jobs:
             app/build/outputs/apk/release/*.apk
             app/build/outputs/apk/standard/release/*.apk
             app/build/outputs/apk/developer/release/*.apk
+          fail_on_unmatched_files: true
           draft: false
-          prerelease: true
+          prerelease: false
+          make_latest: true
 
       - name: Notify QQ group
         if: always() && github.event_name == 'push'
