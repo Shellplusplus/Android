@@ -252,11 +252,6 @@ private fun MainPagerScreen(
     val rootBottomPadding = 88.dp + navigationBarPadding
     val blurSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S_V2
     val pageBackground = ShellTheme.colors.pageBackground
-    val activeTabIndex = if (pagerState.targetPage != pagerState.currentPage) {
-        pagerState.targetPage
-    } else {
-        pagerState.currentPage
-    }
     val liquidGlassBackdrop = if (blurSupported) {
         rememberLayerBackdrop {
             drawRect(pageBackground)
@@ -298,7 +293,7 @@ private fun MainPagerScreen(
 
         LiquidGlassBottomBar(
             items = rootTabItems,
-            selectedIndex = activeTabIndex,
+            selectedIndex = pagerState.currentPage,
             onSelectedIndexChange = { index ->
                 scope.launch {
                     if (index == pagerState.currentPage && index == pagerState.targetPage) {
@@ -317,7 +312,11 @@ private fun MainPagerScreen(
             blurEnabled = blurSupported,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 12.dp + navigationBarPadding),
+                .padding(
+                    start = 52.dp,
+                    end = 52.dp,
+                    bottom = 12.dp + navigationBarPadding,
+                ),
         )
     }
 }
