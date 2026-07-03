@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -123,6 +124,8 @@ fun AgentChatScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .navigationBarsPadding()
+                .imePadding()
                 .padding(horizontal = 12.dp),
         ) {
             Spacer(modifier = Modifier.height(12.dp))
@@ -645,9 +648,7 @@ private fun ComposerBar(
     val colors = MiuixTheme.colorScheme
     val shellColors = ShellTheme.colors
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .imePadding(),
+        modifier = Modifier.fillMaxWidth(),
         colors = CardColors(
             color = shellColors.cardBackground,
             contentColor = colors.onSurface,
