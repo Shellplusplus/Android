@@ -70,6 +70,7 @@ jobs:
           retention-days: 7
 
       - name: List built APK files
+        # Keep this for runner-side path debugging when artifact layouts change.
         run: find app/build/outputs/apk -type f | sort
 
       - name: Create public download release
