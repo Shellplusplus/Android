@@ -64,6 +64,7 @@ import com.shell.liangyi.ui.components.LiquidGlassUpdateProgressDialog
 import com.shell.liangyi.ui.components.ShellBackScaffold
 import com.shell.liangyi.ui.components.rememberShellBlurBackdrop
 import com.shell.liangyi.ui.fetch.FetchScreen
+import com.shell.liangyi.ui.glassport.rememberCatalogDialogBackdrop
 import com.shell.liangyi.ui.index.IndexScreen
 import com.shell.liangyi.ui.onboarding.OnboardingFlow
 import com.shell.liangyi.ui.screenshot.ScreenshotDetailScreen
@@ -79,6 +80,7 @@ import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlin.math.abs
+import com.shell.liangyi.ui.glassport.backdrops.layerBackdrop as catalogLayerBackdrop
 
 object Routes {
     const val MAIN = "main"
@@ -118,6 +120,7 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
         (configuration.screenWidthDp * density.density).toInt()
     }
     val rootBackdrop = rememberShellBlurBackdrop(enableBlur = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S_V2)
+    val catalogDialogBackdrop = rememberCatalogDialogBackdrop()
     val showOnboarding by shellViewModel.showOnboarding.collectAsState()
     val updatePrompt by shellViewModel.updatePrompt.collectAsState()
     val updateDownloadState by shellViewModel.updateDownloadState.collectAsState()
@@ -125,6 +128,8 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
     val deleteScreenshotConfirmShotId by shellViewModel.deleteScreenshotConfirmShotId.collectAsState()
     var displayedUpdatePrompt by remember { mutableStateOf(updatePrompt) }
     var updateDialogVisible by remember { mutableStateOf(updatePrompt != null) }
+    var displayedUpdateDownloadState by remember { mutableStateOf(updateDownloadState) }
+    var updateProgressDialogVisible by remember { mutableStateOf(updateDownloadState.isVisible) }
     var showMountedSkipOptionalInfoDialog by remember { mutableStateOf(skipOptionalUpdateInfoDialogVisible) }
     var animatedSkipOptionalInfoDialogVisible by remember {
         mutableStateOf(skipOptionalUpdateInfoDialogVisible)
@@ -164,6 +169,15 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
             updateDialogVisible = true
         } else if (displayedUpdatePrompt != null) {
             updateDialogVisible = false
+        }
+    }
+
+    LaunchedEffect(updateDownloadState) {
+        if (updateDownloadState.isVisible) {
+            displayedUpdateDownloadState = updateDownloadState
+            updateProgressDialogVisible = true
+        } else if (displayedUpdateDownloadState.isVisible) {
+            updateProgressDialogVisible = false
         }
     }
 
@@ -236,13 +250,22 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
                 NavHost(
                     navController = navController,
                     startDestination = Routes.MAIN,
-                    modifier = if (rootBackdrop != null) {
-                        Modifier
-                            .fillMaxSize()
-                            .layerBackdrop(rootBackdrop)
-                    } else {
-                        Modifier.fillMaxSize()
-                    },
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .then(
+                            if (rootBackdrop != null) {
+                                Modifier.layerBackdrop(rootBackdrop)
+                            } else {
+                                Modifier
+                            },
+                        )
+                        .then(
+                            if (catalogDialogBackdrop != null) {
+                                Modifier.catalogLayerBackdrop(catalogDialogBackdrop)
+                            } else {
+                                Modifier
+                            },
+                        ),
                     enterTransition = { AnimTools.enterTransition(windowWidth) },
                     exitTransition = { AnimTools.exitTransition(windowWidth) },
                     popEnterTransition = { AnimTools.popEnterTransition(windowWidth) },
@@ -312,14 +335,22 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
                         displayedUpdatePrompt = null
                     }
                 },
-                backdrop = rootBackdrop,
+                backdrop = catalogDialogBackdrop,
             )
         }
 
-        LiquidGlassUpdateProgressDialog(
-            state = updateDownloadState,
-            backdrop = rootBackdrop,
-        )
+        if (displayedUpdateDownloadState.isVisible || updateProgressDialogVisible) {
+            LiquidGlassUpdateProgressDialog(
+                state = displayedUpdateDownloadState,
+                visible = updateProgressDialogVisible,
+                onExitFinished = {
+                    if (!updateProgressDialogVisible) {
+                        displayedUpdateDownloadState = displayedUpdateDownloadState.copy(isVisible = false)
+                    }
+                },
+                backdrop = catalogDialogBackdrop,
+            )
+        }
 
         if (showMountedSkipOptionalInfoDialog) {
             LiquidGlassInfoDialog(
@@ -333,7 +364,7 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
                         showMountedSkipOptionalInfoDialog = false
                     }
                 },
-                backdrop = rootBackdrop,
+                backdrop = catalogDialogBackdrop,
             )
         }
 
@@ -355,7 +386,7 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
                         displayedDeleteScreenshotShotId = null
                     }
                 },
-                backdrop = rootBackdrop,
+                backdrop = catalogDialogBackdrop,
             )
         }
     }

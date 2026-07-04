@@ -21,10 +21,12 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.CircularProgressIndicator
@@ -41,7 +43,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -66,6 +70,9 @@ import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardColors
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import androidx.compose.material3.Text as MaterialText
 
 @Composable
@@ -102,17 +109,6 @@ fun AgentChatScreen(
     ShellBackScaffold(
         title = "AI 助手",
         onBack = { navController.popBackStack() },
-        actions = {
-            IconButton(onClick = { showHistory = true }) {
-                Icon(Icons.Rounded.History, contentDescription = "历史对话")
-            }
-            IconButton(onClick = { viewModel.newConversation() }) {
-                Icon(Icons.Rounded.Add, contentDescription = "新建对话")
-            }
-            IconButton(onClick = { showSettings = true }) {
-                Icon(Icons.Rounded.Settings, contentDescription = "API 设置")
-            }
-        },
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -123,9 +119,10 @@ fun AgentChatScreen(
                 .padding(horizontal = 12.dp),
         ) {
             Spacer(modifier = Modifier.height(12.dp))
-            ConversationSummaryCard(
-                conversation = conversation,
-                apiConfig = apiConfig,
+            AgentQuickActionStrip(
+                onOpenHistory = { showHistory = true },
+                onNewConversation = viewModel::newConversation,
+                onOpenSettings = { showSettings = true },
             )
 
             errorMessage?.let { message ->
@@ -206,47 +203,84 @@ fun AgentChatScreen(
 }
 
 @Composable
-private fun ConversationSummaryCard(
-    conversation: Conversation?,
-    apiConfig: AgentApiConfig,
+private fun AgentQuickActionStrip(
+    onOpenHistory: () -> Unit,
+    onNewConversation: () -> Unit,
+    onOpenSettings: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        AgentQuickActionButton(
+            icon = Icons.Rounded.History,
+            label = "历史对话",
+            onClick = onOpenHistory,
+            modifier = Modifier.weight(1f),
+        )
+        AgentQuickActionButton(
+            icon = Icons.Rounded.Add,
+            label = "新建对话",
+            onClick = onNewConversation,
+            modifier = Modifier.weight(1f),
+        )
+        AgentQuickActionButton(
+            icon = Icons.Rounded.Settings,
+            label = "API 设置",
+            onClick = onOpenSettings,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+@Composable
+private fun AgentQuickActionButton(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val colors = MiuixTheme.colorScheme
     val shellColors = ShellTheme.colors
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardColors(
-            color = shellColors.cardBackground,
-            contentColor = colors.onSurface,
-        ),
-        cornerRadius = 18.dp,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-        ) {
-            Text(
-                text = conversation?.title?.ifBlank { "新对话" } ?: "新对话",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = colors.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(18.dp))
+            .background(shellColors.cardBackground)
+            .border(
+                width = 1.dp,
+                color = colors.outline.copy(alpha = 0.08f),
+                shape = RoundedCornerShape(18.dp),
             )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = buildString {
-                    append("共 ")
-                    append(conversation?.messages?.count { it.role != "exec" } ?: 0)
-                    append(" 条消息")
-                    append(" · ")
-                    append(if (apiConfig.isConfigured) "API 已配置" else "需要先配置 API")
-                },
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-                color = colors.onSurfaceVariantSummary,
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(28.dp)
+                .background(
+                    color = shellColors.primaryAction.copy(alpha = 0.12f),
+                    shape = CircleShape,
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = shellColors.primaryAction,
+                modifier = Modifier.size(16.dp),
             )
         }
+        Spacer(modifier = Modifier.size(8.dp))
+        Text(
+            text = label,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            color = colors.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -802,51 +836,66 @@ private fun HistoryItem(
 ) {
     val colors = MiuixTheme.colorScheme
     val shellColors = ShellTheme.colors
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardColors(
-            color = if (selected) {
-                shellColors.primaryAction.copy(alpha = 0.12f)
-            } else {
-                shellColors.pageBackground
-            },
-            contentColor = colors.onSurface,
-        ),
-        cornerRadius = 16.dp,
+    val shape = RoundedCornerShape(18.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(
+                color = if (selected) {
+                    shellColors.primaryAction.copy(alpha = 0.10f)
+                } else {
+                    shellColors.pageBackground
+                },
+                shape = shape,
+            )
+            .border(
+                width = 1.dp,
+                color = if (selected) {
+                    shellColors.primaryAction.copy(alpha = 0.22f)
+                } else {
+                    colors.outline.copy(alpha = 0.08f)
+                },
+                shape = shape,
+            )
+            .clickable(onClick = onSelect)
+            .padding(horizontal = 14.dp, vertical = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-        ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = conversation.title.ifBlank { "新对话" },
+                    modifier = Modifier.weight(1f, fill = false),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (selected) {
+                    AgentInlineBadge(text = "当前")
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = conversation.title.ifBlank { "新对话" },
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = colors.onSurface,
+                text = "${conversation.messages.count { it.role != "exec" }} 条消息 · ${formatConversationTime(conversation.createdAt)}",
+                fontSize = 12.sp,
+                color = colors.onSurfaceVariantSummary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "${conversation.messages.count { it.role != "exec" }} 条消息",
-                fontSize = 12.sp,
-                color = colors.onSurfaceVariantSummary,
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                AgentActionButton(
-                    text = if (selected) "当前会话" else "打开",
-                    style = if (selected) AgentButtonStyle.Secondary else AgentButtonStyle.Primary,
-                    onClick = onSelect,
-                )
-                AgentActionButton(
-                    text = "删除",
-                    style = AgentButtonStyle.Destructive,
-                    onClick = onDelete,
-                )
-            }
         }
+        AgentIconActionButton(
+            icon = Icons.Rounded.DeleteOutline,
+            contentDescription = "删除对话",
+            tint = shellColors.destructiveAction,
+            onClick = onDelete,
+        )
     }
 }
 
@@ -882,6 +931,10 @@ private fun ApiConfigDialog(
         },
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            AgentConfigStatusCard(
+                isConfigured = config.isConfigured,
+                model = config.model,
+            )
             AgentOutlinedField(
                 value = baseUrl,
                 onValueChange = { baseUrl = it },
@@ -903,6 +956,46 @@ private fun ApiConfigDialog(
                 label = "模型名称",
                 placeholder = "gpt-4o-mini",
                 singleLine = true,
+            )
+        }
+    }
+}
+
+@Composable
+private fun AgentConfigStatusCard(
+    isConfigured: Boolean,
+    model: String,
+) {
+    val colors = MiuixTheme.colorScheme
+    val shellColors = ShellTheme.colors
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardColors(
+            color = shellColors.pageBackground,
+            contentColor = colors.onSurface,
+        ),
+        cornerRadius = 18.dp,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+        ) {
+            Text(
+                text = if (isConfigured) "当前已连接模型" else "尚未完成 API 配置",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = colors.onSurface,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = if (isConfigured) {
+                    model.ifBlank { "已填写自定义模型" }
+                } else {
+                    "填写地址、密钥和模型名后，就可以直接开始对话。"
+                },
+                fontSize = 12.sp,
+                color = colors.onSurfaceVariantSummary,
             )
         }
     }
@@ -953,6 +1046,7 @@ private fun AgentDialog(
     content: @Composable () -> Unit,
 ) {
     val colors = MiuixTheme.colorScheme
+    val shape = RoundedCornerShape(30.dp)
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
@@ -966,12 +1060,17 @@ private fun AgentDialog(
                 color = ShellTheme.colors.cardBackground,
                 contentColor = colors.onSurface,
             ),
-            cornerRadius = 28.dp,
+            cornerRadius = 30.dp,
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(20.dp),
+                    .border(
+                        width = 1.dp,
+                        color = colors.outline.copy(alpha = 0.08f),
+                        shape = shape,
+                    )
+                    .padding(22.dp),
             ) {
                 Text(
                     text = title,
@@ -992,4 +1091,53 @@ private fun AgentDialog(
             }
         }
     }
+}
+
+@Composable
+private fun AgentInlineBadge(text: String) {
+    val shellColors = ShellTheme.colors
+    Box(
+        modifier = Modifier
+            .background(
+                color = shellColors.primaryAction.copy(alpha = 0.14f),
+                shape = RoundedCornerShape(999.dp),
+            )
+            .padding(horizontal = 10.dp, vertical = 4.dp),
+    ) {
+        Text(
+            text = text,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium,
+            color = shellColors.primaryAction,
+        )
+    }
+}
+
+@Composable
+private fun AgentIconActionButton(
+    icon: ImageVector,
+    contentDescription: String,
+    tint: Color,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .size(36.dp)
+            .clip(CircleShape)
+            .background(tint.copy(alpha = 0.10f))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = tint,
+            modifier = Modifier.size(18.dp),
+        )
+    }
+}
+
+private fun formatConversationTime(timestamp: Long): String {
+    val formatter = SimpleDateFormat("MM/dd HH:mm", Locale.getDefault())
+    return formatter.format(Date(timestamp))
 }

@@ -1,7 +1,9 @@
 package com.shell.liangyi.ui.components
 
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -26,19 +28,23 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.shell.liangyi.ui.glassport.Backdrop
+import com.shell.liangyi.ui.glassport.drawBackdrop
+import com.shell.liangyi.ui.glassport.effects.blur
+import com.shell.liangyi.ui.glassport.effects.colorControls
+import com.shell.liangyi.ui.glassport.effects.lens
+import com.shell.liangyi.ui.glassport.highlight.Highlight
 import kotlinx.coroutines.delay
-import top.yukonga.miuix.kmp.blur.Backdrop
-import top.yukonga.miuix.kmp.blur.blur
-import top.yukonga.miuix.kmp.blur.colorControls
-import top.yukonga.miuix.kmp.blur.drawBackdrop
 
-private const val INFO_DIALOG_ANIMATION_DURATION_MS = 220
+private const val INFO_DIALOG_EXIT_DURATION_MS = 180
 
 @Composable
 fun LiquidGlassInfoDialog(
@@ -64,13 +70,13 @@ fun LiquidGlassInfoDialog(
         Color(0xFF121212).copy(alpha = 0.56f)
     }
     val cardShape = remember { RoundedCornerShape(48.dp) }
-    var animatedVisible by remember(title, message) {
+    var animatedVisible by remember(title, message, buttonText) {
         mutableStateOf(false)
     }
     val overlayAlpha by animateFloatAsState(
         targetValue = if (animatedVisible) 1f else 0f,
         animationSpec = tween(
-            durationMillis = INFO_DIALOG_ANIMATION_DURATION_MS,
+            durationMillis = if (animatedVisible) 220 else 160,
             easing = FastOutSlowInEasing,
         ),
         label = "info_dialog_overlay_alpha",
@@ -78,35 +84,51 @@ fun LiquidGlassInfoDialog(
     val dialogAlpha by animateFloatAsState(
         targetValue = if (animatedVisible) 1f else 0f,
         animationSpec = tween(
-            durationMillis = INFO_DIALOG_ANIMATION_DURATION_MS,
+            durationMillis = if (animatedVisible) 260 else INFO_DIALOG_EXIT_DURATION_MS,
             easing = FastOutSlowInEasing,
         ),
         label = "info_dialog_alpha",
     )
     val dialogScale by animateFloatAsState(
-        targetValue = if (animatedVisible) 1f else 0.94f,
-        animationSpec = tween(
-            durationMillis = INFO_DIALOG_ANIMATION_DURATION_MS,
-            easing = FastOutSlowInEasing,
-        ),
+        targetValue = if (animatedVisible) 1f else 0.90f,
+        animationSpec = if (animatedVisible) {
+            spring(
+                dampingRatio = 0.72f,
+                stiffness = Spring.StiffnessLow,
+            )
+        } else {
+            tween(INFO_DIALOG_EXIT_DURATION_MS, easing = FastOutSlowInEasing)
+        },
         label = "info_dialog_scale",
     )
     val dialogOffsetY by animateFloatAsState(
-        targetValue = if (animatedVisible) 0f else 18f,
-        animationSpec = tween(
-            durationMillis = INFO_DIALOG_ANIMATION_DURATION_MS,
-            easing = FastOutSlowInEasing,
-        ),
+        targetValue = if (animatedVisible) 0f else 30f,
+        animationSpec = if (animatedVisible) {
+            spring(
+                dampingRatio = 0.82f,
+                stiffness = Spring.StiffnessMediumLow,
+            )
+        } else {
+            tween(INFO_DIALOG_EXIT_DURATION_MS, easing = FastOutSlowInEasing)
+        },
         label = "info_dialog_offset",
     )
+    val dialogTiltX by animateFloatAsState(
+        targetValue = if (animatedVisible) 0f else -3f,
+        animationSpec = tween(
+            durationMillis = if (animatedVisible) 260 else INFO_DIALOG_EXIT_DURATION_MS,
+            easing = FastOutSlowInEasing,
+        ),
+        label = "info_dialog_tilt_x",
+    )
 
-    LaunchedEffect(title, message, visible) {
+    LaunchedEffect(title, message, buttonText, visible) {
         animatedVisible = visible
     }
 
-    LaunchedEffect(visible, title, message) {
+    LaunchedEffect(visible, title, message, buttonText) {
         if (!visible) {
-            delay(INFO_DIALOG_ANIMATION_DURATION_MS.toLong())
+            delay(INFO_DIALOG_EXIT_DURATION_MS.toLong())
             onExitFinished()
         }
     }
@@ -136,6 +158,8 @@ fun LiquidGlassInfoDialog(
                     scaleX = dialogScale
                     scaleY = dialogScale
                     translationY = dialogOffsetY
+                    rotationX = dialogTiltX
+                    transformOrigin = TransformOrigin(0.5f, 0.15f)
                 }
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
@@ -159,6 +183,7 @@ fun LiquidGlassInfoDialog(
                                     depthEffect = true,
                                 )
                             },
+                            highlight = { Highlight.Plain },
                             onDrawSurface = { drawRect(containerColor) },
                         )
                     } else {
@@ -183,9 +208,13 @@ fun LiquidGlassInfoDialog(
             )
             BasicText(
                 text = message,
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                modifier = Modifier
+                    .then(
+                        if (isLightTheme) Modifier else Modifier.graphicsLayer(blendMode = BlendMode.Plus)
+                    )
+                    .padding(start = 24.dp, top = 12.dp, end = 24.dp, bottom = 12.dp),
                 style = TextStyle(
-                    color = contentColor.copy(alpha = 0.72f),
+                    color = contentColor.copy(alpha = 0.68f),
                     fontSize = 15.sp,
                 ),
             )

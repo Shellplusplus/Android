@@ -1,10 +1,11 @@
 package com.shell.liangyi.ui.components
 
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -41,13 +42,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.shell.liangyi.R
 import com.shell.liangyi.core.update.UpdatePrompt
+import com.shell.liangyi.ui.glassport.Backdrop
+import com.shell.liangyi.ui.glassport.drawBackdrop
+import com.shell.liangyi.ui.glassport.effects.blur
+import com.shell.liangyi.ui.glassport.effects.colorControls
+import com.shell.liangyi.ui.glassport.effects.lens
+import com.shell.liangyi.ui.glassport.highlight.Highlight
 import kotlinx.coroutines.delay
-import top.yukonga.miuix.kmp.blur.Backdrop
-import top.yukonga.miuix.kmp.blur.blur
-import top.yukonga.miuix.kmp.blur.colorControls
-import top.yukonga.miuix.kmp.blur.drawBackdrop
 
-private const val DIALOG_ANIMATION_DURATION_MS = 220
+private const val UPDATE_DIALOG_EXIT_DURATION_MS = 180
 
 @Composable
 fun LiquidGlassUpdateDialog(
@@ -71,16 +74,33 @@ fun LiquidGlassUpdateDialog(
     } else {
         Color(0xFF121212).copy(alpha = 0.56f)
     }
-    val secondaryButtonColor = Color.White
-    val secondaryButtonBorderColor = Color.Transparent
     val cardShape = remember { RoundedCornerShape(48.dp) }
     var animatedVisible by remember(prompt.info.latestVersionCode, prompt.mandatory) {
         mutableStateOf(false)
     }
+    val notes = if (prompt.info.changelog.isBlank()) {
+        stringResource(R.string.no_update_notes)
+    } else {
+        prompt.info.changelog
+    }
+    val bodyText = buildString {
+        append(
+            stringResource(
+                R.string.update_dialog_versions,
+                prompt.currentVersionName,
+                prompt.currentVersionCode.toString(),
+                prompt.info.latestVersion,
+                prompt.info.latestVersionCode.toString(),
+                prompt.info.releaseDate,
+            ),
+        )
+        append("\n\n")
+        append(notes)
+    }
     val overlayAlpha by animateFloatAsState(
         targetValue = if (animatedVisible) 1f else 0f,
         animationSpec = tween(
-            durationMillis = DIALOG_ANIMATION_DURATION_MS,
+            durationMillis = if (animatedVisible) 220 else 160,
             easing = FastOutSlowInEasing,
         ),
         label = "update_dialog_overlay_alpha",
@@ -88,26 +108,48 @@ fun LiquidGlassUpdateDialog(
     val dialogAlpha by animateFloatAsState(
         targetValue = if (animatedVisible) 1f else 0f,
         animationSpec = tween(
-            durationMillis = DIALOG_ANIMATION_DURATION_MS,
+            durationMillis = if (animatedVisible) 260 else UPDATE_DIALOG_EXIT_DURATION_MS,
             easing = FastOutSlowInEasing,
         ),
         label = "update_dialog_alpha",
     )
     val dialogScale by animateFloatAsState(
-        targetValue = if (animatedVisible) 1f else 0.94f,
-        animationSpec = tween(
-            durationMillis = DIALOG_ANIMATION_DURATION_MS,
-            easing = FastOutSlowInEasing,
-        ),
+        targetValue = if (animatedVisible) 1f else 0.90f,
+        animationSpec = if (animatedVisible) {
+            spring(
+                dampingRatio = 0.72f,
+                stiffness = Spring.StiffnessLow,
+            )
+        } else {
+            tween(
+                durationMillis = UPDATE_DIALOG_EXIT_DURATION_MS,
+                easing = FastOutSlowInEasing,
+            )
+        },
         label = "update_dialog_scale",
     )
     val dialogOffsetY by animateFloatAsState(
-        targetValue = if (animatedVisible) 0f else 18f,
+        targetValue = if (animatedVisible) 0f else 30f,
+        animationSpec = if (animatedVisible) {
+            spring(
+                dampingRatio = 0.82f,
+                stiffness = Spring.StiffnessMediumLow,
+            )
+        } else {
+            tween(
+                durationMillis = UPDATE_DIALOG_EXIT_DURATION_MS,
+                easing = FastOutSlowInEasing,
+            )
+        },
+        label = "update_dialog_offset",
+    )
+    val dialogTiltX by animateFloatAsState(
+        targetValue = if (animatedVisible) 0f else -3f,
         animationSpec = tween(
-            durationMillis = DIALOG_ANIMATION_DURATION_MS,
+            durationMillis = if (animatedVisible) 260 else UPDATE_DIALOG_EXIT_DURATION_MS,
             easing = FastOutSlowInEasing,
         ),
-        label = "update_dialog_offset",
+        label = "update_dialog_tilt_x",
     )
 
     LaunchedEffect(prompt.info.latestVersionCode, prompt.mandatory, visible) {
@@ -116,7 +158,7 @@ fun LiquidGlassUpdateDialog(
 
     LaunchedEffect(visible, prompt.info.latestVersionCode, prompt.mandatory) {
         if (!visible) {
-            delay(DIALOG_ANIMATION_DURATION_MS.toLong())
+            delay(UPDATE_DIALOG_EXIT_DURATION_MS.toLong())
             onExitFinished()
         }
     }
@@ -137,6 +179,7 @@ fun LiquidGlassUpdateDialog(
                     onClick = onDismissRequest,
                 ),
         )
+
         Column(
             modifier = Modifier
                 .padding(40.dp)
@@ -146,6 +189,8 @@ fun LiquidGlassUpdateDialog(
                     scaleX = dialogScale
                     scaleY = dialogScale
                     translationY = dialogOffsetY
+                    rotationX = dialogTiltX
+                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 0.15f)
                 }
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
@@ -169,6 +214,7 @@ fun LiquidGlassUpdateDialog(
                                     depthEffect = true,
                                 )
                             },
+                            highlight = { Highlight.Plain },
                             onDrawSurface = { drawRect(containerColor) },
                         )
                     } else {
@@ -191,27 +237,9 @@ fun LiquidGlassUpdateDialog(
                     fontWeight = FontWeight.Medium,
                 ),
             )
+
             BasicText(
-                text = stringResource(
-                    R.string.update_dialog_versions,
-                    prompt.currentVersionName,
-                    prompt.currentVersionCode.toString(),
-                    prompt.info.latestVersion,
-                    prompt.info.latestVersionCode.toString(),
-                    prompt.info.releaseDate,
-                ),
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
-                style = TextStyle(
-                    color = contentColor.copy(alpha = 0.72f),
-                    fontSize = 14.sp,
-                ),
-            )
-            BasicText(
-                text = if (prompt.info.changelog.isBlank()) {
-                    stringResource(R.string.no_update_notes)
-                } else {
-                    prompt.info.changelog
-                },
+                text = bodyText,
                 modifier = Modifier
                     .then(
                         if (isLightTheme) {
@@ -220,14 +248,15 @@ fun LiquidGlassUpdateDialog(
                             Modifier.graphicsLayer(blendMode = BlendMode.Plus)
                         }
                     )
-                    .padding(horizontal = 24.dp, vertical = 8.dp)
-                    .heightIn(max = 220.dp)
+                    .padding(start = 24.dp, top = 12.dp, end = 24.dp, bottom = 12.dp)
+                    .heightIn(max = 240.dp)
                     .verticalScroll(rememberScrollState()),
                 style = TextStyle(
                     color = contentColor.copy(alpha = 0.68f),
                     fontSize = 15.sp,
                 ),
             )
+
             Row(
                 modifier = Modifier
                     .padding(start = 24.dp, top = 12.dp, end = 24.dp, bottom = 24.dp)
@@ -238,18 +267,17 @@ fun LiquidGlassUpdateDialog(
                 if (!prompt.mandatory) {
                     DialogActionButton(
                         text = stringResource(R.string.later),
-                        containerColor = secondaryButtonColor,
-                        borderColor = secondaryButtonBorderColor,
-                        contentColor = accentColor,
+                        containerColor = containerColor.copy(alpha = 0.2f),
+                        contentColor = contentColor,
                         modifier = Modifier.weight(1f),
                         enabled = visible,
                         onClick = onDismissRequest,
                     )
                 }
+
                 DialogActionButton(
                     text = stringResource(R.string.download_update),
                     containerColor = accentColor,
-                    borderColor = Color.Transparent,
                     contentColor = Color.White,
                     modifier = Modifier.weight(1f),
                     enabled = visible,
@@ -264,7 +292,6 @@ fun LiquidGlassUpdateDialog(
 private fun DialogActionButton(
     text: String,
     containerColor: Color,
-    borderColor: Color,
     contentColor: Color,
     modifier: Modifier = Modifier,
     enabled: Boolean,
@@ -274,11 +301,6 @@ private fun DialogActionButton(
         modifier = modifier
             .clip(RoundedCornerShape(999.dp))
             .background(containerColor)
-            .border(
-                width = 1.dp,
-                color = borderColor,
-                shape = RoundedCornerShape(999.dp),
-            )
             .clickable(
                 enabled = enabled,
                 interactionSource = remember { MutableInteractionSource() },
