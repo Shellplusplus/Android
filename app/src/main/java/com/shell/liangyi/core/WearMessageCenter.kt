@@ -52,6 +52,12 @@ object MessageType {
     const val REQUEST_SCREENSHOT_LIST = "requestScreenshotList"
     const val SCREENSHOT_LIST_DATA = "screenshotListData"
     const val REQUEST_SCREENSHOT_DATA = "requestScreenshotData"
+    const val REQUEST_SCREENSHOT_BULK = "requestScreenshotBulk"
+    const val SCREENSHOT_BULK_START = "screenshotBulkStart"
+    const val SCREENSHOT_BULK_DATA = "screenshotBulkData"
+    const val SCREENSHOT_BULK_ACK = "screenshotBulkAck"
+    const val SCREENSHOT_BULK_FINISH = "screenshotBulkFinish"
+    const val SCREENSHOT_BULK_ABORT = "screenshotBulkAbort"
 
     // 连接保活
     const val HEARTBEAT = "heartbeat"
@@ -95,6 +101,7 @@ class WearMessageCenter private constructor(private val context: Context) {
         private const val HEARTBEAT_INTERVAL_MS = 5000L
         private const val HEARTBEAT_TIMEOUT_MS = 12000L
         private const val RECONNECT_DELAY_MS = 5000L
+        private val TYPE_PREVIEW_REGEX = Regex(""""type"\s*:\s*"([^"]+)"""")
 
         @Volatile
         private var instance: WearMessageCenter? = null
@@ -156,8 +163,10 @@ class WearMessageCenter private constructor(private val context: Context) {
     private val messageListener = OnMessageReceivedListener { nodeId, bytes ->
         try {
             val text = String(bytes, Charsets.UTF_8)
-            Log.d(TAG, "onMessageReceived nodeId=$nodeId length=${text.length}")
-            addLog("RECEIVE", "raw", "nodeId=$nodeId len=${text.length} ${text.take(100)}")
+            if (shouldLogRawTraffic(text)) {
+                Log.d(TAG, "onMessageReceived nodeId=$nodeId length=${text.length}")
+                addLog("RECEIVE", "raw", "nodeId=$nodeId len=${text.length} ${text.take(100)}")
+            }
             onMessageReceived(text)
         } catch (e: Throwable) {
             Log.e(TAG, "Message listener internal error", Exception(e))
@@ -498,7 +507,14 @@ class WearMessageCenter private constructor(private val context: Context) {
     private fun shouldLogTraffic(type: String): Boolean {
         return type != MessageType.HANDSHAKE &&
             type != MessageType.HEARTBEAT &&
-            type != MessageType.HEARTBEAT_ACK
+            type != MessageType.HEARTBEAT_ACK &&
+            type != MessageType.SCREENSHOT_BULK_DATA &&
+            type != MessageType.SCREENSHOT_CHUNK_PART
+    }
+
+    private fun shouldLogRawTraffic(message: String): Boolean {
+        val match = TYPE_PREVIEW_REGEX.find(message) ?: return true
+        return shouldLogTraffic(match.groupValues.getOrElse(1) { "" })
     }
 
     private fun startHeartbeatMonitor() {
@@ -836,6 +852,29 @@ class WearMessageCenter private constructor(private val context: Context) {
         send(MessageType.SCREENSHOT_CHUNK_ACK, payload)
     }
 
+    fun sendBulkAck(sessionId: String, ackIndex: Int, ok: Boolean, code: String = "") {
+        val payload = JSONObject().apply {
+            put("sessionId", sessionId)
+            put("ackIndex", ackIndex)
+            put("ok", ok)
+            if (code.isNotBlank()) {
+                put("code", code)
+            }
+        }
+        send(MessageType.SCREENSHOT_BULK_ACK, payload)
+    }
+
+    fun sendBulkAbort(sessionId: String, code: String, detail: String = "") {
+        val payload = JSONObject().apply {
+            put("sessionId", sessionId)
+            put("code", code)
+            if (detail.isNotBlank()) {
+                put("detail", detail)
+            }
+        }
+        send(MessageType.SCREENSHOT_BULK_ABORT, payload)
+    }
+
     fun requestScreenshotList() {
         send(MessageType.REQUEST_SCREENSHOT_LIST, JSONObject())
     }
@@ -856,6 +895,31 @@ class WearMessageCenter private constructor(private val context: Context) {
         }
         Log.d(TAG, "requestScreenshotData: shotId=$shotId startIndex=${startIndex.coerceAtLeast(0)} chunkSize=${chunkSize.coerceAtLeast(1024)}")
         send(MessageType.REQUEST_SCREENSHOT_DATA, payload)
+    }
+
+    fun requestScreenshotBulk(
+        sessionId: String,
+        shotId: String,
+        startIndex: Int = 0,
+        chunkBytes: Int = 4096,
+        windowSize: Int = 4,
+        ackEvery: Int = 4
+    ) {
+        val payload = JSONObject().apply {
+            put("sessionId", sessionId)
+            put("shotId", shotId)
+            put("startIndex", startIndex.coerceAtLeast(0))
+            put("chunkBytes", chunkBytes.coerceAtLeast(1024))
+            put("windowSize", windowSize.coerceAtLeast(1))
+            put("ackEvery", ackEvery.coerceAtLeast(1))
+        }
+        Log.d(
+            TAG,
+            "requestScreenshotBulk: shotId=$shotId sessionId=$sessionId " +
+                "startIndex=${startIndex.coerceAtLeast(0)} chunkBytes=${chunkBytes.coerceAtLeast(1024)} " +
+                "windowSize=${windowSize.coerceAtLeast(1)} ackEvery=${ackEvery.coerceAtLeast(1)}"
+        )
+        send(MessageType.REQUEST_SCREENSHOT_BULK, payload)
     }
 
     fun destroy() {

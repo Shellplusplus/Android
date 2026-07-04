@@ -29,6 +29,10 @@ class ScreenshotReceiver(
     companion object {
         private const val TAG = "ScreenshotReceiver"
         private const val REQUEST_TIMEOUT_MS = 12000L
+        private const val BULK_START_TIMEOUT_MS = 1500L
+        private const val BULK_CHUNK_BYTES = 4096
+        private const val BULK_WINDOW_SIZE = 4
+        private const val BULK_ACK_EVERY = 4
         private val INVALID_SHOT_ID_CHARS = Regex("[^A-Za-z0-9._-]")
         private val STORED_SHOT_FILE_PATTERN = Regex("""^(\d{14})_(\d+)_([0-9a-fA-F]+)$""")
     }
@@ -58,6 +62,7 @@ class ScreenshotReceiver(
     private var totalCount = 0
     private var currentRequestedShotId: String? = null
     private var requestTimeoutJob: Job? = null
+    private var bulkStartTimeoutJob: Job? = null
     private var lastTransferActivityAt: Long = 0L
     private val requestRetryCounts = mutableMapOf<String, Int>()
     private val localFilePathByShotId = linkedMapOf<String, String>()
@@ -214,6 +219,24 @@ class ScreenshotReceiver(
         val gcEvery: Int
     )
 
+    private data class BulkPullSession(
+        val sessionId: String,
+        val shotId: String,
+        val startIndex: Int,
+        val chunkBytes: Int,
+        val windowSize: Int,
+        val ackEvery: Int,
+        var totalChunks: Int = 0,
+        var totalBytes: Long = 0L,
+        var nextExpected: Int = startIndex,
+        var highestAcked: Int = startIndex - 1,
+        var retryCount: Int = 0,
+        var ackCount: Int = 0,
+        var fallbackCount: Int = 0,
+        var timeoutCount: Int = 0,
+        val startedAtMs: Long = System.currentTimeMillis()
+    )
+
     private data class TransferRecord(
         val shotId: String,
         val capturedAt: String,
@@ -247,6 +270,7 @@ class ScreenshotReceiver(
     }
 
     private val chunkSessions = mutableMapOf<String, ChunkSession>()
+    private var activeBulkSession: BulkPullSession? = null
 
     private fun nowUnix(): Long = System.currentTimeMillis() / 1000
 
@@ -720,8 +744,158 @@ class ScreenshotReceiver(
         requestTimeoutJob = null
     }
 
+    private fun cancelBulkStartTimeout() {
+        bulkStartTimeoutJob?.cancel()
+        bulkStartTimeoutJob = null
+    }
+
     private fun markTransferActivity() {
         lastTransferActivityAt = System.currentTimeMillis()
+    }
+
+    private fun logBulkSessionStats(session: BulkPullSession, status: String, reason: String = "") {
+        val elapsedMs = (System.currentTimeMillis() - session.startedAtMs).coerceAtLeast(1L)
+        val avgKbps = (session.totalBytes.toDouble() / 1024.0) / (elapsedMs.toDouble() / 1000.0)
+        val message = buildString {
+            append("status=").append(status)
+            append(" shotId=").append(session.shotId)
+            append(" sessionId=").append(session.sessionId)
+            append(" totalBytes=").append(session.totalBytes)
+            append(" totalChunks=").append(session.totalChunks)
+            append(" ackCount=").append(session.ackCount)
+            append(" fallbackCount=").append(session.fallbackCount)
+            append(" timeoutCount=").append(session.timeoutCount)
+            append(" retryCount=").append(session.retryCount)
+            append(" avgKbps=").append(String.format(java.util.Locale.US, "%.1f", avgKbps))
+            if (reason.isNotBlank()) {
+                append(" reason=").append(reason)
+            }
+        }
+        Log.i(TAG, "bulk pull: $message")
+        messageCenter.addExternalLog("BULK", status, message.take(240))
+    }
+
+    private fun logBulkAckProgress(session: BulkPullSession, ackIndex: Int) {
+        val elapsedMs = (System.currentTimeMillis() - session.startedAtMs).coerceAtLeast(1L)
+        val ackedChunks = (ackIndex + 1).coerceAtLeast(0)
+        var ackedBytes = ackedChunks.toLong() * session.chunkBytes.toLong()
+        if (ackIndex >= session.totalChunks - 1 && session.totalBytes > 0L) {
+            ackedBytes = session.totalBytes
+        }
+        val avgKbps = (ackedBytes.toDouble() / 1024.0) / (elapsedMs.toDouble() / 1000.0)
+        val message = buildString {
+            append("shotId=").append(session.shotId)
+            append(" sessionId=").append(session.sessionId)
+            append(" ackIndex=").append(ackIndex)
+            append(" totalChunks=").append(session.totalChunks)
+            append(" ackedBytes=").append(ackedBytes)
+            append(" elapsedMs=").append(elapsedMs)
+            append(" avgKbps=").append(String.format(java.util.Locale.US, "%.1f", avgKbps))
+            append(" ackCount=").append(session.ackCount)
+            append(" retryCount=").append(session.retryCount)
+        }
+        Log.i(TAG, "bulk ack: $message")
+        messageCenter.addExternalLog("BULK", "ack", message.take(240))
+    }
+
+    private fun clearActiveBulkSession(): BulkPullSession? {
+        cancelBulkStartTimeout()
+        val session = activeBulkSession
+        activeBulkSession = null
+        return session
+    }
+
+    private fun scheduleBulkStartTimeout(session: BulkPullSession) {
+        cancelBulkStartTimeout()
+        bulkStartTimeoutJob = scope.launch(Dispatchers.IO) {
+            delay(BULK_START_TIMEOUT_MS)
+            val active = activeBulkSession ?: return@launch
+            if (active.sessionId != session.sessionId || currentRequestedShotId != session.shotId) {
+                return@launch
+            }
+            active.timeoutCount++
+            handleBulkFailure(session.shotId, "bulk_start_timeout")
+        }
+    }
+
+    private fun startBulkPullRequest(shotId: String) {
+        val resumeIndex = resolveResumeStartIndex(shotId)
+        val session = BulkPullSession(
+            sessionId = "bulk-$shotId-${System.currentTimeMillis()}",
+            shotId = shotId,
+            startIndex = resumeIndex,
+            chunkBytes = BULK_CHUNK_BYTES,
+            windowSize = BULK_WINDOW_SIZE,
+            ackEvery = BULK_ACK_EVERY
+        )
+        activeBulkSession = session
+        currentRequestedShotId = shotId
+        _syncState.value = SyncState.Receiving
+        updateImageProgressText()
+        scheduleRequestTimeout(shotId)
+        scheduleBulkStartTimeout(session)
+        markTransferActivity()
+        Log.d(
+            TAG,
+            "startBulkPullRequest: shotId=$shotId sessionId=${session.sessionId} " +
+                "startIndex=$resumeIndex chunkBytes=${session.chunkBytes} windowSize=${session.windowSize} ackEvery=${session.ackEvery}"
+        )
+        logBulkSessionStats(
+            session,
+            "start",
+            "startIndex=$resumeIndex chunkBytes=${session.chunkBytes} windowSize=${session.windowSize} ackEvery=${session.ackEvery}"
+        )
+        messageCenter.requestScreenshotBulk(
+            sessionId = session.sessionId,
+            shotId = shotId,
+            startIndex = resumeIndex,
+            chunkBytes = session.chunkBytes,
+            windowSize = session.windowSize,
+            ackEvery = session.ackEvery
+        )
+    }
+
+    private fun handleBulkFailure(shotId: String, reason: String) {
+        if (currentRequestedShotId != shotId) {
+            return
+        }
+        val previousBulk = clearActiveBulkSession()
+        if (previousBulk != null && previousBulk.shotId == shotId) {
+            logBulkSessionStats(previousBulk, "failed", reason)
+            closeChunkSession(previousBulk.sessionId)
+        }
+        closeSessionsForShot(shotId)
+        val retries = requestRetryCounts[shotId] ?: 0
+        if (retries < 2) {
+            requestRetryCounts[shotId] = retries + 1
+            markTransferFailed(shotId, "bulk failure retry=${retries + 1} reason=$reason")
+            startBulkPullRequest(shotId)
+            return
+        }
+
+        markTransferFailed(shotId, "bulk failure exhausted reason=$reason")
+        requestRetryCounts.remove(shotId)
+        currentRequestedShotId = null
+
+        if (pendingScreenshots.removeAll { it.shotId == shotId }) {
+            if (pendingScreenshots.isEmpty()) {
+                _syncState.value = SyncState.Error(reason)
+                _receiveProgress.value = ""
+            } else {
+                requestNextPendingScreenshot()
+            }
+            return
+        }
+
+        _syncState.value = SyncState.Error(reason)
+        _receiveProgress.value = ""
+    }
+
+    private fun shouldSendBulkAck(session: BulkPullSession, chunkSession: ChunkSession, index: Int): Boolean {
+        if (index >= chunkSession.total - 1) {
+            return true
+        }
+        return ((index - session.startIndex + 1) % session.ackEvery) == 0
     }
 
     private fun scheduleRequestTimeout(shotId: String) {
@@ -807,6 +981,8 @@ class ScreenshotReceiver(
 
     private fun completePullSync() {
         cancelRequestTimeout()
+        cancelBulkStartTimeout()
+        activeBulkSession = null
         currentRequestedShotId = null
         requestRetryCounts.clear()
         _syncState.value = SyncState.Success(receivedCount)
@@ -904,27 +1080,14 @@ class ScreenshotReceiver(
 
     private fun requestNextPendingScreenshot() {
         cancelRequestTimeout()
+        cancelBulkStartTimeout()
 
         val next = pendingScreenshots.firstOrNull() ?: run {
             completePullSync()
             return
         }
 
-        val resumeIndex = resolveResumeStartIndex(next.shotId)
-        val profile = chooseTransferProfile(next.shotId)
-
-        currentRequestedShotId = next.shotId
-        _syncState.value = SyncState.Receiving
-        updateImageProgressText()
-        scheduleRequestTimeout(next.shotId)
-        Log.d(TAG, "requestNextPendingScreenshot: shotId=${next.shotId} startIndex=$resumeIndex chunkSize=${profile.chunkSize} throttleMs=${profile.throttleMs} gcEvery=${profile.gcEvery}")
-        messageCenter.requestScreenshotData(
-            shotId = next.shotId,
-            startIndex = resumeIndex,
-            chunkSize = profile.chunkSize,
-            throttleMs = profile.throttleMs,
-            gcEvery = profile.gcEvery
-        )
+        startBulkPullRequest(next.shotId)
     }
 
     private fun onPulledScreenshotReceived(shotId: String) {
@@ -933,6 +1096,8 @@ class ScreenshotReceiver(
         }
 
         cancelRequestTimeout()
+        cancelBulkStartTimeout()
+        activeBulkSession = null
         currentRequestedShotId = null
         requestRetryCounts.remove(shotId)
         pendingScreenshots.removeAll { it.shotId == shotId }
@@ -970,12 +1135,337 @@ class ScreenshotReceiver(
         when (type) {
             MessageType.SCREENSHOT_SYNC_REQUEST -> handleSyncRequest(json)
             MessageType.SCREENSHOT_DATA -> handleScreenshotData(json)
+            MessageType.SCREENSHOT_BULK_START -> handleBulkStart(json)
+            MessageType.SCREENSHOT_BULK_DATA -> handleBulkData(json)
+            MessageType.SCREENSHOT_BULK_FINISH -> handleBulkFinish(json)
+            MessageType.SCREENSHOT_BULK_ABORT -> handleBulkAbort(json)
             MessageType.SCREENSHOT_CHUNK_START -> handleChunkStart(json)
             MessageType.SCREENSHOT_CHUNK_PART -> handleChunkPart(json)
             MessageType.SCREENSHOT_CHUNK_FINISH -> handleChunkFinish(json)
             MessageType.SCREENSHOT_SYNC_COMPLETE -> handleSyncComplete(json)
             MessageType.SCREENSHOT_LIST_DATA -> handleScreenshotListData(json)
         }
+    }
+
+    private fun handleBulkStart(json: JSONObject) {
+        val sessionId = json.optString("sessionId")
+        val shotId = json.optString("shotId")
+        val totalChunks = json.optInt("totalChunks", 0)
+        val totalBytes = json.optLong("totalBytes", 0L)
+        val chunkBytes = json.optInt("chunkBytes", 0)
+        val startIndex = json.optInt("startIndex", 0)
+        val windowSize = json.optInt("windowSize", 0)
+
+        val active = activeBulkSession
+        if (active == null || active.sessionId != sessionId || active.shotId != shotId || currentRequestedShotId != shotId) {
+            messageCenter.sendBulkAbort(sessionId, "unexpected_session", "bulk start does not match active request")
+            return
+        }
+        if (totalChunks <= 0 || totalBytes <= 0L || chunkBytes <= 0 || windowSize <= 0) {
+            messageCenter.sendBulkAbort(sessionId, "invalid_start", "invalid bulk start payload")
+            handleBulkFailure(shotId, "bulk_invalid_start")
+            return
+        }
+
+        cancelBulkStartTimeout()
+        active.totalChunks = totalChunks
+        active.totalBytes = totalBytes
+        active.nextExpected = startIndex
+        active.highestAcked = startIndex - 1
+        markTransferActivity()
+
+        closeSessionsForShot(shotId)
+
+        val finalFile = completedFile(shotId)
+        val tempFile = partialFile(shotId)
+        val resumeRecord = readTransferRecord(shotId)
+        val resumeLastChunk = startIndex - 1
+
+        if (startIndex > 0) {
+            val expectedLength = startIndex.toLong() * chunkBytes.toLong()
+            val tempExists = tempFile.exists()
+            val tempLen = if (tempExists) tempFile.length() else -1L
+            val resumeValid =
+                resumeRecord != null &&
+                    resumeRecord.completed == false &&
+                    resumeRecord.totalChunks == totalChunks &&
+                    resumeRecord.totalBytes == totalBytes &&
+                    resumeRecord.chunkSize == chunkBytes &&
+                    resumeRecord.lastChunkNum == resumeLastChunk &&
+                    tempExists &&
+                    tempLen == expectedLength
+            if (!resumeValid) {
+                clearTransferState(shotId, keepCompletedFile = true)
+                messageCenter.sendBulkAbort(sessionId, "invalid_resume", "bulk resume state validation failed")
+                handleBulkFailure(shotId, "bulk_invalid_resume")
+                return
+            }
+        } else {
+            safeDelete(tempFile)
+        }
+
+        val existing = findExistingScreenshot(shotId)
+        val capturedAt = existing?.capturedAt.orEmpty().ifEmpty { formatCapturedAtFromShotId(shotId) }
+        val outputStream = FileOutputStream(tempFile, true)
+
+        val session = ChunkSession(
+            shotId = shotId,
+            capturedAt = capturedAt,
+            total = totalChunks,
+            totalBytes = totalBytes,
+            chunkSize = chunkBytes,
+            tempFile = tempFile,
+            finalFile = finalFile,
+            outputStream = outputStream,
+            resumeLastChunkNum = resumeLastChunk
+        )
+
+        chunkSessions[sessionId] = session
+        writeTransferRecord(
+            TransferRecord(
+                shotId = shotId,
+                capturedAt = session.capturedAt,
+                totalChunks = totalChunks,
+                totalBytes = totalBytes,
+                chunkSize = chunkBytes,
+                lastChunkNum = resumeLastChunk,
+                completed = false,
+                status = "receiving",
+                updatedAtUnix = nowUnix()
+            )
+        )
+
+        replaceScreenshotEntry(
+            hydrateStoredScreenshot(
+                Screenshot(
+                    shotId = shotId,
+                    capturedAt = session.capturedAt,
+                    capturedAtUnix = existing?.capturedAtUnix ?: parseCapturedAtUnix(shotId),
+                    displayTitle = existing?.displayTitle ?: buildDisplayTitle(shotId, existing?.index ?: (receivedCount + 1)),
+                    index = existing?.index ?: (receivedCount + 1),
+                    totalChunks = totalChunks,
+                    lastTransferFailed = false,
+                    transferHint = ""
+                )
+            )
+        )
+
+        _syncState.value = SyncState.Receiving
+        updateChunkProgressText(
+            session.receivedCount,
+            totalChunks,
+            session.receivedBytes,
+            totalBytes,
+            active.startedAtMs
+        )
+        Log.d(TAG, "Bulk session start: $sessionId shotId=$shotId totalChunks=$totalChunks chunkBytes=$chunkBytes startIndex=$startIndex")
+    }
+
+    private fun handleBulkData(json: JSONObject) {
+        val sessionId = json.optString("sessionId")
+        val index = json.optInt("index", -1)
+        val data = json.optString("d")
+        val active = activeBulkSession
+        if (active == null || active.sessionId != sessionId) {
+            messageCenter.sendBulkAbort(sessionId, "unexpected_session", "bulk data without active session")
+            return
+        }
+        val session = chunkSessions[sessionId]
+        if (session == null) {
+            messageCenter.sendBulkAbort(sessionId, "io_failed", "bulk chunk session missing")
+            handleBulkFailure(active.shotId, "bulk_chunk_session_missing")
+            return
+        }
+        if (index < 0 || index >= session.total || data.isEmpty()) {
+            messageCenter.sendBulkAck(sessionId, active.highestAcked, false, "gap")
+            handleBulkFailure(active.shotId, "bulk_invalid_chunk")
+            return
+        }
+        if (index <= session.lastChunkNum) {
+            messageCenter.sendBulkAck(sessionId, active.highestAcked.coerceAtLeast(index), true)
+            return
+        }
+        if (index != session.lastChunkNum + 1 || index != active.nextExpected) {
+            messageCenter.sendBulkAck(sessionId, active.highestAcked, false, "gap")
+            handleBulkFailure(active.shotId, "bulk_gap")
+            return
+        }
+
+        try {
+            val bytes = Base64.decode(data, Base64.DEFAULT)
+            session.outputStream.write(bytes)
+            session.lastChunkNum = index
+            session.receivedCount = index + 1
+            session.receivedBytes = session.tempFile.length()
+            active.nextExpected = index + 1
+            markTransferActivity()
+            if (session.lastChunkNum == session.total - 1 || session.lastChunkNum - session.lastStateFlushChunkNum >= active.ackEvery) {
+                session.outputStream.flush()
+                writeTransferRecord(
+                    TransferRecord(
+                        shotId = session.shotId,
+                        capturedAt = session.capturedAt,
+                        totalChunks = session.total,
+                        totalBytes = session.totalBytes,
+                        chunkSize = session.chunkSize,
+                        lastChunkNum = session.lastChunkNum,
+                        completed = false,
+                        status = "receiving",
+                        updatedAtUnix = nowUnix()
+                    )
+                )
+                session.lastStateFlushChunkNum = session.lastChunkNum
+            }
+            val now = System.currentTimeMillis()
+            if (index == session.total - 1 || now - session.lastUiUpdateAtMs >= 200L) {
+                session.lastUiUpdateAtMs = now
+                updateChunkProgressText(
+                    session.receivedCount,
+                    session.total,
+                    session.receivedBytes,
+                    session.totalBytes,
+                    active.startedAtMs
+                )
+
+                val existing = findExistingScreenshot(session.shotId)
+                replaceScreenshotEntry(
+                    hydrateStoredScreenshot(
+                        Screenshot(
+                            shotId = session.shotId,
+                            capturedAt = session.capturedAt.ifEmpty { existing?.capturedAt.orEmpty() },
+                            capturedAtUnix = existing?.capturedAtUnix ?: parseCapturedAtUnix(session.shotId),
+                            displayTitle = existing?.displayTitle ?: buildDisplayTitle(session.shotId, existing?.index ?: (receivedCount + 1)),
+                            index = existing?.index ?: (receivedCount + 1),
+                            lastChunkNum = session.lastChunkNum,
+                            receivedChunks = session.receivedCount,
+                            totalChunks = session.total,
+                            receivedBytes = session.receivedBytes,
+                            totalBytes = session.totalBytes,
+                            lastTransferFailed = false,
+                            transferHint = ""
+                        )
+                    )
+                )
+            }
+
+            if (shouldSendBulkAck(active, session, index)) {
+                active.highestAcked = index
+                active.ackCount++
+                logBulkAckProgress(active, index)
+                messageCenter.sendBulkAck(sessionId, index, true)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "bulkData decode failed", e)
+            messageCenter.sendBulkAck(sessionId, active.highestAcked, false, "decode_failed")
+            handleBulkFailure(active.shotId, "bulk_decode_failed")
+        }
+    }
+
+    private fun handleBulkFinish(json: JSONObject) {
+        val sessionId = json.optString("sessionId")
+        val lastIndex = json.optInt("lastIndex", -1)
+        val active = activeBulkSession
+        if (active == null || active.sessionId != sessionId) {
+            messageCenter.sendBulkAbort(sessionId, "unexpected_session", "bulk finish without active session")
+            return
+        }
+        val session = chunkSessions[sessionId]
+        if (session == null) {
+            messageCenter.sendBulkAbort(sessionId, "io_failed", "bulk finish missing chunk session")
+            handleBulkFailure(active.shotId, "bulk_finish_missing_session")
+            return
+        }
+        if (active.highestAcked != session.total - 1 || lastIndex != session.total - 1) {
+            messageCenter.sendBulkAbort(sessionId, "incomplete", "bulk finish before all chunks were acknowledged")
+            handleBulkFailure(active.shotId, "bulk_incomplete_finish")
+            return
+        }
+        if (session.totalBytes > 0 && session.tempFile.length() != session.totalBytes) {
+            messageCenter.sendBulkAbort(sessionId, "size_mismatch", "bulk temp file size mismatch")
+            handleBulkFailure(active.shotId, "bulk_size_mismatch")
+            return
+        }
+
+        try {
+            session.outputStream.flush()
+            session.outputStream.close()
+            if (session.finalFile.exists()) {
+                safeDelete(session.finalFile)
+            }
+            val moved = session.tempFile.renameTo(session.finalFile)
+            if (!moved) {
+                session.tempFile.copyTo(session.finalFile, overwrite = true)
+                safeDelete(session.tempFile)
+            }
+            registerLocalFile(session.shotId, session.finalFile)
+            writeTransferRecord(
+                TransferRecord(
+                    shotId = session.shotId,
+                    capturedAt = session.capturedAt,
+                    totalChunks = session.total,
+                    totalBytes = session.totalBytes,
+                    chunkSize = session.chunkSize,
+                    lastChunkNum = session.lastChunkNum,
+                    completed = true,
+                    status = "completed",
+                    updatedAtUnix = nowUnix()
+                )
+            )
+
+            receivedCount++
+            val existing = findExistingScreenshot(session.shotId)
+            replaceScreenshotEntry(
+                Screenshot(
+                    shotId = session.shotId,
+                    capturedAt = session.capturedAt.ifEmpty { existing?.capturedAt.orEmpty() },
+                    capturedAtUnix = existing?.capturedAtUnix ?: (System.currentTimeMillis() / 1000),
+                    displayTitle = existing?.displayTitle ?: buildDisplayTitle(session.shotId, existing?.index ?: receivedCount),
+                    localFilePath = session.finalFile.absolutePath,
+                    index = existing?.index ?: receivedCount,
+                    lastChunkNum = session.lastChunkNum,
+                    receivedChunks = session.total,
+                    totalChunks = session.total,
+                    receivedBytes = session.totalBytes,
+                    totalBytes = session.totalBytes,
+                    isComplete = true,
+                    lastTransferFailed = false,
+                    transferHint = ""
+                )
+            )
+
+            chunkSessions.remove(sessionId)
+            clearActiveBulkSession()?.let {
+                it.totalChunks = session.total
+                it.totalBytes = session.totalBytes
+                logBulkSessionStats(it, "success")
+            }
+            Log.d(TAG, "Bulk session done: ${session.shotId} bytes=${session.totalBytes}")
+            onPulledScreenshotReceived(session.shotId)
+        } catch (e: Exception) {
+            Log.e(TAG, "bulkFinish assemble failed", e)
+            messageCenter.sendBulkAbort(sessionId, "io_failed", e.message ?: "bulk finish failed")
+            handleBulkFailure(active.shotId, "bulk_finish_failed")
+        } finally {
+            try {
+                session.outputStream.close()
+            } catch (_: Exception) {
+            }
+            chunkSessions.remove(sessionId)
+        }
+    }
+
+    private fun handleBulkAbort(json: JSONObject) {
+        val sessionId = json.optString("sessionId")
+        val code = json.optString("code", "unknown")
+        val detail = json.optString("detail")
+        val active = activeBulkSession ?: return
+        if (active.sessionId != sessionId) {
+            return
+        }
+        if (code == "ack_timeout") {
+            active.timeoutCount++
+        }
+        handleBulkFailure(active.shotId, "watch_abort_$code${if (detail.isNotBlank()) ":$detail" else ""}")
     }
 
     /**
@@ -1439,6 +1929,8 @@ class ScreenshotReceiver(
     fun requestFromWatch() {
         scope.launch(Dispatchers.IO) {
             cancelRequestTimeout()
+            cancelBulkStartTimeout()
+            activeBulkSession = null
             currentRequestedShotId = null
             pendingScreenshots.clear()
             chunkSessions.clear()
@@ -1460,17 +1952,7 @@ class ScreenshotReceiver(
             if (resolveCompletedFile(shotId)?.exists() == true) {
                 return@launch
             }
-            val resumeIndex = resolveResumeStartIndex(shotId)
-            val profile = chooseTransferProfile(shotId)
-            currentRequestedShotId = shotId
-            scheduleRequestTimeout(shotId)
-            messageCenter.requestScreenshotData(
-                shotId = shotId,
-                startIndex = resumeIndex,
-                chunkSize = profile.chunkSize,
-                throttleMs = profile.throttleMs,
-                gcEvery = profile.gcEvery
-            )
+            startBulkPullRequest(shotId)
         }
     }
 
@@ -1493,6 +1975,8 @@ class ScreenshotReceiver(
     fun clearAll() {
         val activeSessionIds = chunkSessions.keys.toList()
         activeSessionIds.forEach { closeChunkSession(it) }
+        cancelBulkStartTimeout()
+        activeBulkSession = null
         transferRootDir.listFiles()?.forEach { safeDelete(it) }
         localFilePathByShotId.clear()
         chunkSessions.clear()
