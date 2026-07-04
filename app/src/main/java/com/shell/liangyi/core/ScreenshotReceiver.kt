@@ -843,6 +843,24 @@ class ScreenshotReceiver(
             gcEvery = 8
         )
     }
+            val gcEvery = when {
+                record.totalChunks >= 180 -> 4
+                record.totalChunks >= 96 -> 6
+                else -> 8
+            }
+            return TransferProfile(
+                chunkSize = record.chunkSize,
+                throttleMs = throttle,
+                gcEvery = gcEvery
+            )
+        }
+
+        return TransferProfile(
+            chunkSize = 6144,
+            throttleMs = 4,
+            gcEvery = 8
+        )
+    }
 
     private fun resolveResumeStartIndex(shotId: String): Int {
         val rawRecord = readTransferRecord(shotId)
