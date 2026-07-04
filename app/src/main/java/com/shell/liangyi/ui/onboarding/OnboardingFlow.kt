@@ -8,7 +8,6 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -61,7 +60,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
@@ -272,20 +270,6 @@ private fun WelcomePage() {
         horizontalAlignment = Alignment.Start,
         verticalArrangement = Arrangement.Center,
     ) {
-        Box(
-            modifier = Modifier
-                .size(138.dp)
-                .clip(RoundedCornerShape(38.dp))
-                .background(shellColors.cardBackground),
-            contentAlignment = Alignment.Center,
-        ) {
-            Image(
-                painter = painterResource(R.drawable.ic_launcher_foreground),
-                contentDescription = null,
-                modifier = Modifier.size(92.dp),
-            )
-        }
-        Spacer(modifier = Modifier.height(28.dp))
         Text(
             text = stringResource(R.string.onboarding_title),
             fontSize = 30.sp,
