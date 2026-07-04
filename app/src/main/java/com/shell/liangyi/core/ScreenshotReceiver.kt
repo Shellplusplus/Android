@@ -244,6 +244,8 @@ class ScreenshotReceiver(
         val startedAtMs: Long = System.currentTimeMillis()
         var lastUiUpdateAtMs: Long = 0L
         var lastStateFlushChunkNum: Int = resumeLastChunkNum
+        var lastAckedChunkNum: Int = resumeLastChunkNum
+        var pendingAckCount: Int = 0
     }
 
     private val chunkSessions = mutableMapOf<String, ChunkSession>()
@@ -819,9 +821,9 @@ class ScreenshotReceiver(
         val record = readTransferRecord(shotId)
         if (record != null && !record.completed && record.chunkSize > 0) {
             val throttle = when {
-                record.totalBytes >= 1024 * 1024 -> 18
-                record.totalBytes >= 512 * 1024 -> 10
-                else -> 6
+                record.totalBytes >= 1024 * 1024 -> 6
+                record.totalBytes >= 512 * 1024 -> 4
+                else -> 2
             }
             val gcEvery = when {
                 record.totalChunks >= 180 -> 4
@@ -836,8 +838,8 @@ class ScreenshotReceiver(
         }
 
         return TransferProfile(
-            chunkSize = 2560,
-            throttleMs = 8,
+            chunkSize = 6144,
+            throttleMs = 4,
             gcEvery = 8
         )
     }
@@ -1096,7 +1098,7 @@ class ScreenshotReceiver(
     }
 
     /**
-     * 收到分片数据：解码后直接写入临时文件，回 ACK
+     * 收到分片数据：解码后直接写入临时文件，批量回 ACK
      */
     private fun handleChunkPart(json: JSONObject) {
         val sessionId = json.optString("sessionId")
@@ -1130,6 +1132,7 @@ class ScreenshotReceiver(
             session.lastChunkNum = index
             session.receivedCount = index + 1
             session.receivedBytes = session.tempFile.length()
+            session.pendingAckCount++
             markTransferActivity()
             if (session.lastChunkNum == session.total - 1 || session.lastChunkNum - session.lastStateFlushChunkNum >= 4) {
                 session.outputStream.flush()
@@ -1180,7 +1183,14 @@ class ScreenshotReceiver(
                 )
             }
 
-            messageCenter.sendChunkAck(sessionId, "part", true, index)
+            // 批量ACK：每8片或最后一个分片时发送ACK
+            val isLastChunk = index == session.total - 1
+            val shouldSendAck = isLastChunk || session.pendingAckCount >= 8
+            if (shouldSendAck) {
+                messageCenter.sendChunkAck(sessionId, "part", true, index)
+                session.lastAckedChunkNum = index
+                session.pendingAckCount = 0
+            }
         } catch (e: Exception) {
             Log.e(TAG, "chunkPart decode failed", e)
             closeChunkSession(sessionId)
