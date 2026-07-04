@@ -1183,9 +1183,9 @@ class ScreenshotReceiver(
                 )
             }
 
-            // 批量ACK：每8片或最后一个分片时发送ACK
+            // 批量ACK：每16片或最后一个分片时发送ACK
             val isLastChunk = index == session.total - 1
-            val shouldSendAck = isLastChunk || session.pendingAckCount >= 8
+            val shouldSendAck = isLastChunk || session.pendingAckCount >= 16
             if (shouldSendAck) {
                 messageCenter.sendChunkAck(sessionId, "part", true, index)
                 session.lastAckedChunkNum = index
