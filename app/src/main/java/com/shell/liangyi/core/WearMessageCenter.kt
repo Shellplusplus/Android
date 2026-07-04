@@ -89,11 +89,11 @@ class WearMessageCenter private constructor(private val context: Context) {
 
     companion object {
         private const val TAG = "WearMessageCenter"
-        private const val CHUNK_SIZE = 8192
+        private const val CHUNK_SIZE = 4096
         private const val WEAR_APP_ENTRY_URI = "/pages/index"
-        private const val HANDSHAKE_TIMEOUT_MS = 2000L
+        private const val HANDSHAKE_TIMEOUT_MS = 3000L
         private const val HEARTBEAT_INTERVAL_MS = 5000L
-        private const val HEARTBEAT_TIMEOUT_MS = 10000L
+        private const val HEARTBEAT_TIMEOUT_MS = 12000L
         private const val RECONNECT_DELAY_MS = 5000L
 
         @Volatile
@@ -843,8 +843,8 @@ class WearMessageCenter private constructor(private val context: Context) {
     fun requestScreenshotData(
         shotId: String,
         startIndex: Int = 0,
-        chunkSize: Int = 6144,
-        throttleMs: Int = 4,
+        chunkSize: Int = 2560,
+        throttleMs: Int = 8,
         gcEvery: Int = 8
     ) {
         val payload = JSONObject().apply {

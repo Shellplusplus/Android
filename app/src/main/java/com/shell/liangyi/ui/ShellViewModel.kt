@@ -4,8 +4,6 @@ import android.content.Context
 import android.text.format.Formatter
 import androidx.lifecycle.ViewModel
 import com.shell.liangyi.R
-import com.shell.liangyi.core.RemoteExecResult
-import com.shell.liangyi.core.RemoteTerminalBridge
 import com.shell.liangyi.core.ScreenshotReceiver
 import com.shell.liangyi.core.WearMessageCenter
 import com.shell.liangyi.core.onboarding.GitHubProxyBenchmarkUiState
@@ -21,10 +19,6 @@ import com.shell.liangyi.core.update.UpdateChecker
 import com.shell.liangyi.core.update.UpdateDownloadUiState
 import com.shell.liangyi.core.update.UpdatePrompt
 import com.shell.liangyi.model.Screenshot
-import com.shell.liangyi.ui.terminal.RemoteTerminalGuard
-import com.shell.liangyi.ui.terminal.RemoteTerminalResultKind
-import com.shell.liangyi.ui.terminal.RemoteTerminalUiState
-import com.shell.liangyi.ui.terminal.RemoteTerminalValidationError
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -37,7 +31,6 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.json.JSONArray
 import java.util.Locale
 
 class ShellViewModel : ViewModel() {
@@ -46,7 +39,6 @@ class ShellViewModel : ViewModel() {
     private var githubProxyManualSelection = false
     private var updateDownloadJob: Job? = null
     private var activeDownloadPrompt: UpdatePrompt? = null
-    private lateinit var remoteTerminalBridge: RemoteTerminalBridge
 
     lateinit var wearMessageCenter: WearMessageCenter
         private set
@@ -87,10 +79,6 @@ class ShellViewModel : ViewModel() {
     val updateMessages = _updateMessages.asSharedFlow()
     private val _installUpdateRequests = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val installUpdateRequests = _installUpdateRequests.asSharedFlow()
-    private val _remoteTerminalUiState = MutableStateFlow(RemoteTerminalUiState())
-    val remoteTerminalUiState = _remoteTerminalUiState.asStateFlow()
-    private val _remoteTerminalMessages = MutableSharedFlow<String>(extraBufferCapacity = 1)
-    val remoteTerminalMessages = _remoteTerminalMessages.asSharedFlow()
 
     fun initialize(context: Context) {
         appCtx = context
@@ -102,9 +90,7 @@ class ShellViewModel : ViewModel() {
         )
         wearMessageCenter = WearMessageCenter.getInstance(context)
         wearMessageCenter.initialize()
-        remoteTerminalBridge = RemoteTerminalBridge(wearMessageCenter, scope)
         screenshotReceiver = ScreenshotReceiver(context, scope)
-        loadRemoteTerminalPreferences(context)
     }
 
     val connectionState: SharedFlow<com.shell.liangyi.core.ConnectionState>
@@ -175,106 +161,6 @@ class ShellViewModel : ViewModel() {
     }
 
     fun clearAll() = screenshotReceiver.clearAll()
-
-    fun updateRemoteTerminalInput(value: String) {
-        _remoteTerminalUiState.value = _remoteTerminalUiState.value.copy(input = value)
-    }
-
-    fun applyRemoteTerminalCommand(command: String) {
-        _remoteTerminalUiState.value = _remoteTerminalUiState.value.copy(input = command)
-    }
-
-    fun toggleRemoteTerminalFavorite(command: String) {
-        val context = appCtx ?: return
-        val current = _remoteTerminalUiState.value.favorites.toMutableList()
-        if (current.contains(command)) {
-            current.remove(command)
-        } else {
-            current.add(0, command)
-        }
-        val normalized = normalizeRemoteTerminalList(current, limit = 12)
-        _remoteTerminalUiState.value = _remoteTerminalUiState.value.copy(favorites = normalized)
-        saveRemoteTerminalList(context, REMOTE_TERMINAL_FAVORITES_KEY, normalized)
-    }
-
-    fun sendRemoteTerminalCommand() {
-        val command = _remoteTerminalUiState.value.input.trim()
-        val validationError = RemoteTerminalGuard.validate(command)
-        if (validationError != null) {
-            scope.launch {
-                _remoteTerminalMessages.emit(validationMessage(validationError))
-            }
-            if (command.isNotBlank()) {
-                val output = buildString {
-                    append("> ").append(command).append("\n\n")
-                    append(validationMessage(validationError))
-                }
-                _remoteTerminalUiState.value = _remoteTerminalUiState.value.copy(
-                    lastCommand = command,
-                    hasResult = true,
-                    resultKind = RemoteTerminalResultKind.Error,
-                    output = output,
-                    fullOutput = output,
-                )
-            }
-            return
-        }
-
-        if (_remoteTerminalUiState.value.isRunning) {
-            return
-        }
-
-        val context = appCtx ?: return
-        val nextHistory = normalizeRemoteTerminalList(
-            listOf(command) + _remoteTerminalUiState.value.history,
-            limit = REMOTE_TERMINAL_HISTORY_LIMIT,
-        )
-        saveRemoteTerminalList(context, REMOTE_TERMINAL_HISTORY_KEY, nextHistory)
-        _remoteTerminalUiState.value = _remoteTerminalUiState.value.copy(
-            input = "",
-            lastCommand = command,
-            hasResult = true,
-            isRunning = true,
-            resultKind = RemoteTerminalResultKind.Waiting,
-            history = nextHistory,
-            output = "> $command\n\n等待手表返回执行结果...",
-            fullOutput = "> $command\n\n等待手表返回执行结果...",
-        )
-
-        scope.launch {
-            runCatching {
-                withContext(Dispatchers.IO) {
-                    remoteTerminalBridge.runCommand(command)
-                }
-            }.onSuccess { result ->
-                val output = buildRemoteTerminalOutput(command, result)
-                _remoteTerminalUiState.value = _remoteTerminalUiState.value.copy(
-                    isRunning = false,
-                    resultKind = if (result.timedOut || result.stderr.isNotBlank()) {
-                        RemoteTerminalResultKind.Error
-                    } else {
-                        RemoteTerminalResultKind.Success
-                    },
-                    output = output,
-                    fullOutput = output,
-                )
-                _remoteTerminalMessages.emit("命令已执行完成")
-            }.onFailure { error ->
-                val reason = remoteTerminalFailureMessage(error.message ?: "unknown")
-                val output = buildString {
-                    append("> ").append(command).append("\n\n")
-                    append(reason)
-                }
-                _remoteTerminalUiState.value = _remoteTerminalUiState.value.copy(
-                    isRunning = false,
-                    resultKind = RemoteTerminalResultKind.Error,
-                    output = output,
-                    fullOutput = output,
-                )
-                _remoteTerminalMessages.emit(reason)
-            }
-        }
-    }
 
     fun restartOnboarding() {
         applyOnboardingState(onboardingStateStore.readState())
@@ -576,118 +462,5 @@ class ShellViewModel : ViewModel() {
         super.onCleared()
         updateDownloadJob?.cancel()
         wearMessageCenter.destroy()
-    }
-
-    private fun loadRemoteTerminalPreferences(context: Context) {
-        val prefs = context.getSharedPreferences(REMOTE_TERMINAL_PREFS, Context.MODE_PRIVATE)
-        _remoteTerminalUiState.value = _remoteTerminalUiState.value.copy(
-            history = readRemoteTerminalList(
-                raw = prefs.getString(REMOTE_TERMINAL_HISTORY_KEY, null),
-                limit = REMOTE_TERMINAL_HISTORY_LIMIT,
-            ),
-            favorites = readRemoteTerminalList(
-                raw = prefs.getString(REMOTE_TERMINAL_FAVORITES_KEY, null),
-                limit = 12,
-            ),
-        )
-    }
-
-    private fun saveRemoteTerminalList(
-        context: Context,
-        key: String,
-        values: List<String>,
-    ) {
-        context.getSharedPreferences(REMOTE_TERMINAL_PREFS, Context.MODE_PRIVATE)
-            .edit()
-            .putString(key, JSONArray(values).toString())
-            .apply()
-    }
-
-    private fun readRemoteTerminalList(raw: String?, limit: Int): List<String> {
-        if (raw.isNullOrBlank()) {
-            return emptyList()
-        }
-        return runCatching {
-            val array = JSONArray(raw)
-            buildList {
-                for (index in 0 until array.length()) {
-                    val value = array.optString(index).trim()
-                    if (value.isNotBlank() && !contains(value)) {
-                        add(value)
-                    }
-                    if (size >= limit) {
-                        break
-                    }
-                }
-            }
-        }.getOrDefault(emptyList())
-    }
-
-    private fun normalizeRemoteTerminalList(values: List<String>, limit: Int): List<String> {
-        val normalized = ArrayList<String>(limit)
-        for (value in values) {
-            val trimmed = value.trim()
-            if (trimmed.isBlank() || normalized.contains(trimmed)) {
-                continue
-            }
-            normalized += trimmed
-            if (normalized.size >= limit) {
-                break
-            }
-        }
-        return normalized
-    }
-
-    private fun validationMessage(error: RemoteTerminalValidationError): String = when (error) {
-        RemoteTerminalValidationError.Empty -> "请输入命令后再发送"
-        RemoteTerminalValidationError.ProtectedIpc -> "命令涉及受保护的 IPC 文件，已拒绝发送"
-        RemoteTerminalValidationError.NestedScript -> "命令包含脚本链路或后台执行特征，已拒绝发送"
-    }
-
-    private fun remoteTerminalFailureMessage(reason: String): String = when (reason) {
-        "blocked_ipc" -> "手表拒绝执行：命令涉及受保护的 IPC 文件"
-        "blocked_nested" -> "手表拒绝执行：命令包含脚本链路或后台执行特征"
-        "guard_missing" -> "手表后端安全令牌未就绪，请确认 Lua 后端正在运行"
-        "screenshot_busy" -> "手表当前正在处理截图任务，请稍后重试"
-        "bridge_busy" -> "手表桥接通道正忙，请稍后重试"
-        "timeout" -> "等待手表执行结果超时"
-        "no_ack" -> "手表未响应执行请求，请检查连接状态"
-        "send_failed" -> "命令发送失败，请稍后重试"
-        else -> "执行失败：$reason"
-    }
-
-    private fun buildRemoteTerminalOutput(
-        command: String,
-        result: RemoteExecResult,
-    ): String {
-        return buildString {
-            append("> ").append(command).append("\n\n")
-            if (result.stdout.isNotBlank()) {
-                append(result.stdout)
-            }
-            if (result.stderr.isNotBlank()) {
-                if (result.stdout.isNotBlank()) {
-                    append("\n")
-                }
-                append("[stderr]\n")
-                append(result.stderr)
-            }
-            if (result.stdout.isBlank() && result.stderr.isBlank()) {
-                append("命令已执行，但没有返回输出。")
-            }
-            if (result.exitCode != null) {
-                append("\n\n[exitcode] ").append(result.exitCode)
-            }
-            if (result.timedOut) {
-                append("\n\n[timeout] 等待结果超时")
-            }
-        }
-    }
-
-    private companion object {
-        const val REMOTE_TERMINAL_PREFS = "remote_terminal_prefs"
-        const val REMOTE_TERMINAL_HISTORY_KEY = "history"
-        const val REMOTE_TERMINAL_FAVORITES_KEY = "favorites"
-        const val REMOTE_TERMINAL_HISTORY_LIMIT = 5
     }
 }

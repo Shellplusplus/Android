@@ -14,7 +14,6 @@
     <string name="onboarding_proxy_retest">重新测速</string>
     <string name="onboarding_proxy_testing">正在测速…</string>
     <string name="onboarding_proxy_test_failed">当前没有测速成功的代理源，你仍然可以手动继续。</string>
-    <string name="onboarding_proxy_custom_option">自定义</string>
     <string name="onboarding_proxy_custom_hint">自定义代理前缀，例如 https://example.com/</string>
     <string name="onboarding_proxy_custom_label">自定义代理</string>
     <string name="onboarding_proxy_latency">%1$d ms</string>

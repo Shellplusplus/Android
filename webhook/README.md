@@ -1,87 +1,77 @@
 # Shell++ QQ Webhook
 
-这个目录提供一个很轻量的中转服务：
+这个服务用于接收 GitHub Actions 的 HTTP POST，把提交/构建信息格式化后转发给 NapCat 的 OneBot HTTP API，最终发送到 QQ 群。
 
-`GitHub Actions -> webhook -> NapCat OneBot HTTP API -> QQ 群`
+## 环境变量
 
-它的职责很单一：
+| 变量 | 必填 | 说明 |
+| --- | --- | --- |
+| `QQ_GROUP_ID` | 是 | 要发送消息的 QQ 群号 |
+| `NAPCAT_URL` | 是 | NapCat HTTP 地址，例如 `http://127.0.0.1:3000` |
+| `WEBHOOK_TOKEN` | 建议 | GitHub Actions 调用本服务时使用的共享密钥 |
+| `NAPCAT_ACCESS_TOKEN` | 否 | NapCat 配置了 access token 时填写 |
+| `WEBHOOK_ADDR` | 否 | 服务监听地址，默认 `:8080` |
+| `HTTP_TIMEOUT_SECONDS` | 否 | 调 NapCat 的超时时间，默认 `10` |
 
-- 接收 GitHub Actions 发来的 HTTP POST
-- 校验共享 token
-- 把构建结果格式化成一条群消息
-- 调用 NapCat 的 `send_group_msg`
-
-如果你现在准备“从 0 开始重新配置 QQ 机器人”，建议严格按下面的顺序来，不要一上来就先配 GitHub。
-
-## 0. 先确认整体架构
-
-这个仓库里的“QQ 机器人”不是在 Android App 里直接登录 QQ。
-
-实际链路是：
-
-1. 你先在一台能稳定运行的机器上部署 NapCat
-2. 开启 NapCat 的 OneBot 11 HTTP API
-3. 再部署本目录下的 Go webhook 服务
-4. 最后把 GitHub Actions 的通知发到这个 webhook
-
-换句话说，真正和 QQ 连接的是 NapCat，本仓库只负责“转发通知”。
-
-## 1. 准备条件
-
-你至少需要：
-
-- 一台能运行 NapCat 的机器
-- 一个已经登录好的 QQ 账号
-- 要接收通知的 QQ 群号
-- 一台能运行本 Go 服务的 Linux 服务器，或直接和 NapCat 放在同一台机器上
-- 一个能从 GitHub 访问到的 HTTPS 域名或反向代理入口
-
-## 2. 配好 NapCat
-
-你需要在 NapCat 里确认两件事：
-
-- OneBot 11 HTTP API 已开启
-- 你知道它的监听地址，例如 `http://127.0.0.1:3000`
-
-如果你给 NapCat 配了 access token，后面把它填到 `NAPCAT_ACCESS_TOKEN`。
-
-建议：
-
-- NapCat 只监听 `127.0.0.1`
-- webhook 服务也只监听 `127.0.0.1`
-- 对外只暴露 Nginx / 宝塔反向代理出来的 HTTPS 地址
-
-## 3. 部署 webhook 服务
-
-### 方式 A：Debian / Ubuntu + systemd
-
-在服务器上进入 `webhook/` 目录：
+## 本地运行
 
 ```bash
-cd /path/to/shell-plus-plus-android/webhook
+cd webhook
+go run .
 ```
 
-执行部署脚本：
+## Docker 运行
 
 ```bash
-chmod +x deploy-debian.sh
-sudo ./deploy-debian.sh
+docker build -t shell-plus-plus-webhook ./webhook
+docker run -d --name shell-plus-plus-webhook \
+  -p 8080:8080 \
+  -e QQ_GROUP_ID=123456789 \
+  -e NAPCAT_URL=http://host.docker.internal:3000 \
+  -e WEBHOOK_TOKEN=replace-with-a-long-random-token \
+  shell-plus-plus-webhook
 ```
 
-脚本会自动：
+如果 NapCat 和本服务在同一台 Linux 主机上并且都跑在 Docker 中，建议把两者放到同一个 Docker network，然后把 `NAPCAT_URL` 写成 NapCat 容器名对应的地址。
 
-- 编译 `shell-plus-plus-webhook`
-- 创建 `/opt/shell-plus-plus-webhook/`
-- 把 `.env.example` 复制成 `/opt/shell-plus-plus-webhook/.env`
-- 安装 systemd 服务
+## Debian 13 + 宝塔 + NapCat 部署
 
-然后编辑环境变量：
+这种环境最省心的方式是：
+
+- Go webhook 直接作为原生 Linux 进程运行
+- NapCat 保持你现在的安装方式不变
+- 宝塔站点/Nginx 只做 HTTPS 反向代理
+- webhook 和 NapCat 都只监听 `127.0.0.1`
+
+### 1. 编译 Linux 二进制
+
+如果你在 Windows 本地编译：
 
 ```bash
-sudo nano /opt/shell-plus-plus-webhook/.env
+cd webhook
+set GOOS=linux
+set GOARCH=amd64
+go build -trimpath -ldflags="-s -w" -o shell-plus-plus-webhook .
 ```
 
-示例：
+如果你直接在 Debian 服务器上编译：
+
+```bash
+cd /www/wwwroot/shell-plus-plus-android/webhook
+go build -trimpath -ldflags="-s -w" -o shell-plus-plus-webhook .
+```
+
+### 2. 建议目录
+
+```bash
+/opt/shell-plus-plus-webhook/
+  shell-plus-plus-webhook
+  .env
+```
+
+### 3. 环境变量文件
+
+`/opt/shell-plus-plus-webhook/.env`
 
 ```env
 WEBHOOK_ADDR=127.0.0.1:18080
@@ -92,200 +82,95 @@ NAPCAT_ACCESS_TOKEN=
 HTTP_TIMEOUT_SECONDS=10
 ```
 
-改完重启：
+也可以直接从仓库里的 [`.env.example`](C:/Users/DefateStar/Desktop/1/shell-plus-plus-android/webhook/.env.example) 复制。
+
+说明：
+
+- `WEBHOOK_ADDR` 建议只监听本机，不直接暴露公网
+- `NAPCAT_URL` 建议填本机地址，避免额外网络链路
+- 如果你的 NapCat HTTP 端口不是 `3000`，这里改成实际端口
+
+### 4. systemd 托管
+
+把 [shell-plus-plus-webhook.service.example](/C:/Users/DefateStar/Desktop/1/shell-plus-plus-android/webhook/shell-plus-plus-webhook.service.example) 放到服务器上的 `/etc/systemd/system/shell-plus-plus-webhook.service`，再执行：
 
 ```bash
-sudo systemctl restart shell-plus-plus-webhook
+sudo systemctl daemon-reload
+sudo systemctl enable --now shell-plus-plus-webhook
 sudo systemctl status shell-plus-plus-webhook
 ```
 
-### 方式 B：Docker
-
-构建镜像：
+如果你已经把 `webhook/` 目录传到 Debian 服务器，也可以直接运行仓库里的 `deploy-debian.sh`：
 
 ```bash
-docker build -t shell-plus-plus-webhook ./webhook
+cd /path/to/webhook
+chmod +x deploy-debian.sh
+sudo ./deploy-debian.sh
 ```
 
-运行容器：
+### 5. 宝塔反向代理
 
-```bash
-docker run -d --name shell-plus-plus-webhook \
-  -p 8080:8080 \
-  -e QQ_GROUP_ID=123456789 \
-  -e NAPCAT_URL=http://host.docker.internal:3000 \
-  -e WEBHOOK_TOKEN=replace-with-a-long-random-token \
-  shell-plus-plus-webhook
-```
+在宝塔中新建一个站点，例如 `qqhook.your-domain.com`，然后给这个站点配反向代理：
 
-如果 NapCat 也跑在 Docker 里，优先把两个容器放到同一个 Docker network，再把 `NAPCAT_URL` 写成容器内可访问地址。
+- 目标 URL：`http://127.0.0.1:18080`
+- 需要转发的路径：`/`
+- 建议开启 HTTPS
 
-## 4. 先做本机联调
-
-在接 GitHub 之前，先确认本地链路已经通了。
-
-### 4.1 健康检查
-
-如果你用的是上面的 systemd 示例配置：
-
-```bash
-curl http://127.0.0.1:18080/healthz
-```
-
-预期返回：
-
-```text
-ok
-```
-
-### 4.2 手动发一条测试通知
-
-仓库里已经附带了测试 payload：
-
-- [test-payload.json](/C:/Users/DefateStar/Desktop/1/shell-plus-plus-android/webhook/test-payload.json)
-
-Windows PowerShell：
-
-```powershell
-.\send-test.ps1 -WebhookUrl "https://your-domain/github/actions" -WebhookToken "replace-with-a-long-random-token"
-```
-
-Linux / macOS：
-
-```bash
-./send-test.sh "https://your-domain/github/actions" "replace-with-a-long-random-token"
-```
-
-如果你只是本机测试，可以把 URL 换成：
-
-```text
-http://127.0.0.1:18080/github/actions
-```
-
-如果这一步成功，你应该已经能在 QQ 群里收到一条“Shell++ 仓库更新”消息。
-
-## 5. 配反向代理
-
-推荐把 webhook 只监听在本机，例如：
-
-```text
-127.0.0.1:18080
-```
-
-然后用宝塔 / Nginx 暴露一个 HTTPS 域名，例如：
+外部实际访问地址就是：
 
 ```text
 https://qqhook.your-domain.com/github/actions
 ```
 
-反向代理目标指向：
+### 6. GitHub Secrets
 
-```text
-http://127.0.0.1:18080
-```
+仓库里配置：
 
-## 6. 配 GitHub Secrets
+- `QQ_WEBHOOK_URL=https://qqhook.your-domain.com/github/actions`
+- `QQ_WEBHOOK_TOKEN=replace-with-a-long-random-token`
 
-仓库设置位置：
+### 7. 联调顺序
 
-`Settings -> Secrets and variables -> Actions`
+建议按这个顺序排查：
 
-需要新增：
+1. 先确认 NapCat 本机 HTTP API 可用
+2. 再确认 webhook 的 `GET /healthz` 可访问
+3. 然后用 `curl` 手动调用 `/github/actions`
+4. 最后再推一个 commit 让 GitHub Actions 真正触发
 
-- `QQ_WEBHOOK_URL`
-- `QQ_WEBHOOK_TOKEN`
-
-示例：
-
-```text
-QQ_WEBHOOK_URL=https://qqhook.your-domain.com/github/actions
-QQ_WEBHOOK_TOKEN=replace-with-a-long-random-token
-```
-
-这里的 `QQ_WEBHOOK_TOKEN` 必须和服务端 `.env` 里的 `WEBHOOK_TOKEN` 一致。
-
-## 7. 当前工作流如何接入
-
-本仓库的 GitHub Actions 已经接好了调用逻辑，文件是：
-
-- [build.yml](/C:/Users/DefateStar/Desktop/1/shell-plus-plus-android/.github/workflows/build.yml)
-
-工作流在 push 到 `android` 分支时会：
-
-- 构建 APK
-- 创建 release
-- 在最后一步调用 webhook 发送 QQ 通知
-
-也就是说，只要 NapCat、webhook 和 GitHub Secrets 都配对了，推一次 commit 就会自动发群消息。
-
-## 8. 排查顺序
-
-建议按这个顺序排查，不要跳着看：
-
-1. NapCat 本机 HTTP API 是否可用
-2. `GET /healthz` 是否正常
-3. 手动测试 webhook 是否能发消息
-4. GitHub Secrets 是否填对
-5. 最后再看 GitHub Actions 实际运行日志
-
-## 9. 常用排查命令
-
-健康检查：
+### 8. 常用排查命令
 
 ```bash
 curl http://127.0.0.1:18080/healthz
-```
-
-查看 systemd 状态：
-
-```bash
 sudo systemctl status shell-plus-plus-webhook
-```
-
-查看最近日志：
-
-```bash
 sudo journalctl -u shell-plus-plus-webhook -n 100 --no-pager
-```
-
-查看 webhook 端口：
-
-```bash
 ss -ltnp | grep 18080
-```
-
-查看 NapCat 端口：
-
-```bash
 ss -ltnp | grep 3000
 ```
 
-## 10. 环境变量说明
+## GitHub Secrets
 
-| 变量 | 必填 | 说明 |
-| --- | --- | --- |
-| `QQ_GROUP_ID` | 是 | 目标 QQ 群号 |
-| `NAPCAT_URL` | 是 | NapCat HTTP 地址，例如 `http://127.0.0.1:3000` |
-| `WEBHOOK_TOKEN` | 建议 | GitHub 调用 webhook 时带的共享 token |
-| `NAPCAT_ACCESS_TOKEN` | 否 | 如果 NapCat 配了 access token，就在这里填写 |
-| `WEBHOOK_ADDR` | 否 | webhook 监听地址，默认 `:8080` |
-| `HTTP_TIMEOUT_SECONDS` | 否 | webhook 请求 NapCat 的超时时间，默认 `10` 秒 |
+在仓库的 `Settings -> Secrets and variables -> Actions` 添加：
 
-## 11. 重新配置时最容易踩的坑
+- `QQ_WEBHOOK_URL`：本服务公网地址，例如 `https://example.com/github/actions`
+- `QQ_WEBHOOK_TOKEN`：与服务端 `WEBHOOK_TOKEN` 相同
 
-- 没先验证 NapCat，直接去看 GitHub Actions
-- `QQ_GROUP_ID` 填错成 QQ 号而不是群号
-- `WEBHOOK_TOKEN` 两边不一致
-- NapCat 监听在容器里，但 `NAPCAT_URL` 还写的是宿主机回环地址
-- webhook 和 NapCat 都暴露公网，增加了不必要的风险
+## 手动测试
 
-## 12. 最小重配清单
-
-如果你只是想“重新从 0 拉起来”，最少做这 6 件事：
-
-1. 让 NapCat 登录目标 QQ 账号
-2. 打开 NapCat 的 OneBot HTTP API
-3. 部署本目录下的 webhook 服务
-4. 把 `.env` 中的 `QQ_GROUP_ID`、`NAPCAT_URL`、`WEBHOOK_TOKEN` 填好
-5. 用测试脚本先手动打一条消息到群里
-6. 再配置 GitHub Secrets 并推一次 commit 验证
+```bash
+curl -X POST http://127.0.0.1:8080/github/actions \
+  -H "Content-Type: application/json" \
+  -H "X-Webhook-Token: replace-with-a-long-random-token" \
+  -d '{
+    "repository": "owner/shell-plus-plus-android",
+    "branch": "android",
+    "sha": "0123456789abcdef",
+    "actor": "DefateStar",
+    "workflow": "Build & Release APK",
+    "run_number": "1",
+    "run_url": "https://github.com/owner/repo/actions/runs/1",
+    "commit_message": "test notify",
+    "commit_author": "DefateStar",
+    "status": "success"
+  }'
+```

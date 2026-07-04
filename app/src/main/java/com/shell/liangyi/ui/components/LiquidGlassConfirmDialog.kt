@@ -30,7 +30,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -54,11 +53,6 @@ fun LiquidGlassConfirmDialog(
     onConfirm: () -> Unit,
     onExitFinished: () -> Unit,
     backdrop: Backdrop? = null,
-    confirmProgressFraction: Float? = null,
-    confirmProgressTrackColor: Color? = null,
-    confirmProgressFillColor: Color? = null,
-    confirmProgressTextColor: Color? = null,
-    confirmProgressTextShadow: Shadow? = null,
 ) {
     val isLightTheme = !isSystemInDarkTheme()
     val contentColor = if (isLightTheme) Color.Black else Color.White
@@ -222,11 +216,6 @@ fun LiquidGlassConfirmDialog(
                     containerColor = accentColor,
                     borderColor = Color.Transparent,
                     contentColor = Color.White,
-                    progressFraction = confirmProgressFraction,
-                    progressTrackColor = confirmProgressTrackColor,
-                    progressFillColor = confirmProgressFillColor,
-                    progressTextColor = confirmProgressTextColor,
-                    progressTextShadow = confirmProgressTextShadow,
                     modifier = Modifier.weight(1f),
                     enabled = visible,
                     onClick = onConfirm,
@@ -242,28 +231,18 @@ private fun ConfirmDialogActionButton(
     containerColor: Color,
     borderColor: Color,
     contentColor: Color,
-    progressFraction: Float? = null,
-    progressTrackColor: Color? = null,
-    progressFillColor: Color? = null,
-    progressTextColor: Color? = null,
-    progressTextShadow: Shadow? = null,
     modifier: Modifier = Modifier,
     enabled: Boolean,
     onClick: () -> Unit,
 ) {
-    val shape = RoundedCornerShape(999.dp)
-    val animatedProgressFraction = progressFraction?.coerceIn(0f, 1f) ?: 0f
-    val activeContainerColor = progressTrackColor ?: containerColor
-    val activeTextColor = progressTextColor ?: contentColor
-
-    Box(
+    Row(
         modifier = modifier
-            .clip(shape)
-            .background(activeContainerColor)
+            .clip(RoundedCornerShape(999.dp))
+            .background(containerColor)
             .border(
                 width = 1.dp,
                 color = borderColor,
-                shape = shape,
+                shape = RoundedCornerShape(999.dp),
             )
             .clickable(
                 enabled = enabled,
@@ -271,25 +250,16 @@ private fun ConfirmDialogActionButton(
                 indication = null,
                 onClick = onClick,
             )
-            .height(48.dp),
-        contentAlignment = Alignment.Center,
+            .height(48.dp)
+            .padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (progressFraction != null && animatedProgressFraction > 0f) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .fillMaxWidth(animatedProgressFraction)
-                    .height(48.dp)
-                    .clip(shape)
-                    .background(progressFillColor ?: containerColor),
-            )
-        }
         BasicText(
             text = text,
             style = TextStyle(
-                color = activeTextColor,
+                color = contentColor,
                 fontSize = 16.sp,
-                shadow = progressTextShadow,
             ),
         )
     }

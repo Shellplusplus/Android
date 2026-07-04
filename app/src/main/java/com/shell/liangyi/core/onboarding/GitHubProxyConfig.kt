@@ -27,11 +27,6 @@ object GitHubProxySources {
         title = "ghproxy",
         basePrefix = "https://gh-proxy.com/",
     )
-    val ghproxyCxkpro = GitHubProxySource(
-        id = "ghproxy.cxkpro.top",
-        title = "ghproxy.cxkpro.top",
-        basePrefix = "https://ghproxy.cxkpro.top/",
-    )
     val gitwarp = GitHubProxySource(
         id = "gitwarp",
         title = "gitwarp",
@@ -49,7 +44,7 @@ object GitHubProxySources {
         builtIn = false,
     )
 
-    val builtInSources = listOf(ghfast, ghproxy, ghproxyCxkpro, gitwarp, mirrorProxy)
+    val builtInSources = listOf(ghfast, ghproxy, gitwarp, mirrorProxy)
     val allSources = builtInSources + custom
 
     fun findById(id: String?): GitHubProxySource {

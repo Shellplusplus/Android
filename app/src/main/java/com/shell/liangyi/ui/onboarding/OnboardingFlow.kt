@@ -370,7 +370,7 @@ private fun ProxySelectionPage(
             }
 
             ProxySourceCard(
-                title = stringResource(R.string.onboarding_proxy_custom_option),
+                title = GitHubProxySources.custom.title,
                 selected = selectedSourceId == GitHubProxySources.custom.id,
                 isFastest = false,
                 result = null,
