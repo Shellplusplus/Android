@@ -875,8 +875,8 @@ class ScreenshotReceiver(
             clearTransferState(shotId, keepCompletedFile = true)
             return 0
         }
-        val resumeIndex = (record.lastChunkNum - 4).coerceAtLeast(0)
-        Log.d(TAG, "resolveResumeStartIndex: shotId=$shotId lastChunk=${record.lastChunkNum} → resumeIndex=$resumeIndex (back 4)")
+        val resumeIndex = (record.lastChunkNum - 2).coerceAtLeast(0)
+        Log.d(TAG, "resolveResumeStartIndex: shotId=$shotId lastChunk=${record.lastChunkNum} → resumeIndex=$resumeIndex (back 2)")
         if (record.totalChunks > 0 && resumeIndex >= record.totalChunks) {
             Log.d(TAG, "resolveResumeStartIndex: shotId=$shotId → 0 (resumeIndex=$resumeIndex >= totalChunks=${record.totalChunks})")
             return 0
