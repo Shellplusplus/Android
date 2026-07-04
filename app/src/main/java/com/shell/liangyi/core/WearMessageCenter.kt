@@ -91,9 +91,9 @@ class WearMessageCenter private constructor(private val context: Context) {
         private const val TAG = "WearMessageCenter"
         private const val CHUNK_SIZE = 8192
         private const val WEAR_APP_ENTRY_URI = "/pages/index"
-        private const val HANDSHAKE_TIMEOUT_MS = 3000L
+        private const val HANDSHAKE_TIMEOUT_MS = 2000L
         private const val HEARTBEAT_INTERVAL_MS = 5000L
-        private const val HEARTBEAT_TIMEOUT_MS = 12000L
+        private const val HEARTBEAT_TIMEOUT_MS = 10000L
         private const val RECONNECT_DELAY_MS = 5000L
 
         @Volatile
