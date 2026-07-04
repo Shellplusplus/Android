@@ -57,16 +57,18 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 fun AboutScreen(
     showBackButton: Boolean = true,
     bottomContentPadding: Dp = 0.dp,
+    previewMode: Boolean = false,
 ) {
     val scrollBehavior = MiuixScrollBehavior()
     val shellColors = ShellTheme.colors
     val colors = MiuixTheme.colorScheme
     val title = stringResource(R.string.about)
+    val effectiveShowBackButton = showBackButton && !previewMode
 
     Scaffold(
         modifier = Modifier.background(shellColors.pageBackground),
         topBar = {
-            if (showBackButton) {
+            if (effectiveShowBackButton) {
                 SmallTopAppBar(
                     title = title,
                     color = shellColors.pageBackground,

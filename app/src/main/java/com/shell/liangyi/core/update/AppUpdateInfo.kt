@@ -16,6 +16,15 @@ data class UpdatePrompt(
     val mandatory: Boolean,
 )
 
+data class UpdateDownloadUiState(
+    val isVisible: Boolean = false,
+    val versionLabel: String = "",
+    val statusText: String = "",
+    val detailText: String = "",
+    val progress: Float? = null,
+    val isIndeterminate: Boolean = true,
+)
+
 sealed interface UpdateCheckResult {
     data class UpdateAvailable(val prompt: UpdatePrompt) : UpdateCheckResult
     data object UpToDate : UpdateCheckResult

@@ -1,17 +1,27 @@
 package com.shell.liangyi.ui
 
 import android.content.Context
+import android.text.format.Formatter
 import androidx.lifecycle.ViewModel
 import com.shell.liangyi.R
 import com.shell.liangyi.core.ScreenshotReceiver
 import com.shell.liangyi.core.WearMessageCenter
+import com.shell.liangyi.core.onboarding.GitHubProxyBenchmarkUiState
+import com.shell.liangyi.core.onboarding.GitHubProxyBenchmarker
+import com.shell.liangyi.core.onboarding.GitHubProxySelection
+import com.shell.liangyi.core.onboarding.GitHubProxySources
+import com.shell.liangyi.core.onboarding.OnboardingState
+import com.shell.liangyi.core.onboarding.OnboardingStateStore
+import com.shell.liangyi.core.update.InAppUpdateDownloader
 import com.shell.liangyi.core.update.OptionalUpdatePreferenceState
 import com.shell.liangyi.core.update.UpdateCheckResult
 import com.shell.liangyi.core.update.UpdateChecker
+import com.shell.liangyi.core.update.UpdateDownloadUiState
 import com.shell.liangyi.core.update.UpdatePrompt
 import com.shell.liangyi.model.Screenshot
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,6 +36,9 @@ import java.util.Locale
 class ShellViewModel : ViewModel() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var githubProxyManualSelection = false
+    private var updateDownloadJob: Job? = null
+    private var activeDownloadPrompt: UpdatePrompt? = null
 
     lateinit var wearMessageCenter: WearMessageCenter
         private set
@@ -33,11 +46,24 @@ class ShellViewModel : ViewModel() {
     lateinit var screenshotReceiver: ScreenshotReceiver
         private set
 
+    lateinit var onboardingStateStore: OnboardingStateStore
+        private set
+
     private var appCtx: Context? = null
     private var autoUpdateChecked = false
 
+    private val _showOnboarding = MutableStateFlow(false)
+    val showOnboarding = _showOnboarding.asStateFlow()
+    private val _selectedGitHubProxySourceId = MutableStateFlow(GitHubProxySources.ghfast.id)
+    val selectedGitHubProxySourceId = _selectedGitHubProxySourceId.asStateFlow()
+    private val _customGitHubProxyBaseUrl = MutableStateFlow("")
+    val customGitHubProxyBaseUrl = _customGitHubProxyBaseUrl.asStateFlow()
+    private val _gitHubProxyBenchmarkState = MutableStateFlow(GitHubProxyBenchmarkUiState())
+    val gitHubProxyBenchmarkState = _gitHubProxyBenchmarkState.asStateFlow()
     private val _updatePrompt = MutableStateFlow<UpdatePrompt?>(null)
     val updatePrompt = _updatePrompt.asStateFlow()
+    private val _updateDownloadState = MutableStateFlow(UpdateDownloadUiState())
+    val updateDownloadState = _updateDownloadState.asStateFlow()
     private val _skipOptionalUpdatePrompts = MutableStateFlow(false)
     val skipOptionalUpdatePrompts = _skipOptionalUpdatePrompts.asStateFlow()
     private val _skipOptionalUpdateAvailable = MutableStateFlow(false)
@@ -51,9 +77,13 @@ class ShellViewModel : ViewModel() {
 
     private val _updateMessages = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val updateMessages = _updateMessages.asSharedFlow()
+    private val _installUpdateRequests = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val installUpdateRequests = _installUpdateRequests.asSharedFlow()
 
     fun initialize(context: Context) {
         appCtx = context
+        onboardingStateStore = OnboardingStateStore.from(context)
+        applyOnboardingState(onboardingStateStore.readState())
         applyOptionalUpdatePreferenceState(
             context,
             UpdateChecker.readOptionalUpdatePreferenceState(context),
@@ -131,6 +161,64 @@ class ShellViewModel : ViewModel() {
     }
 
     fun clearAll() = screenshotReceiver.clearAll()
+
+    fun restartOnboarding() {
+        applyOnboardingState(onboardingStateStore.readState())
+        _showOnboarding.value = true
+    }
+
+    fun completeOnboarding() {
+        val benchmarkResult = _gitHubProxyBenchmarkState.value.results.firstOrNull {
+            it.sourceId == _selectedGitHubProxySourceId.value && it.success
+        }
+        onboardingStateStore.saveProxySelection(
+            selection = currentGitHubProxySelection(),
+            benchmarkMs = benchmarkResult?.latencyMs,
+            benchmarkAt = _gitHubProxyBenchmarkState.value.lastRunAt,
+        )
+        onboardingStateStore.setOnboardingCompleted(true)
+        _showOnboarding.value = false
+    }
+
+    fun selectGitHubProxy(sourceId: String, fromUser: Boolean = true) {
+        _selectedGitHubProxySourceId.value = GitHubProxySources.findById(sourceId).id
+        if (fromUser) {
+            githubProxyManualSelection = true
+        }
+    }
+
+    fun updateCustomGitHubProxyBaseUrl(value: String, fromUser: Boolean = true) {
+        _customGitHubProxyBaseUrl.value = value
+        if (fromUser) {
+            githubProxyManualSelection = true
+        }
+    }
+
+    fun runGitHubProxyBenchmark(resetManualSelection: Boolean = false) {
+        if (_gitHubProxyBenchmarkState.value.isRunning) return
+        if (resetManualSelection) {
+            githubProxyManualSelection = false
+        }
+        _gitHubProxyBenchmarkState.value = _gitHubProxyBenchmarkState.value.copy(
+            isRunning = true,
+        )
+        scope.launch {
+            val results = withContext(Dispatchers.IO) {
+                GitHubProxyBenchmarker.benchmarkBuiltInSources()
+            }
+            val fastestSourceId = GitHubProxyBenchmarker.fastestAvailableSourceId(results)
+            val lastRunAt = System.currentTimeMillis()
+            _gitHubProxyBenchmarkState.value = GitHubProxyBenchmarkUiState(
+                isRunning = false,
+                results = results,
+                fastestSourceId = fastestSourceId,
+                lastRunAt = lastRunAt,
+            )
+            if ((!githubProxyManualSelection || resetManualSelection) && fastestSourceId != null) {
+                _selectedGitHubProxySourceId.value = fastestSourceId
+            }
+        }
+    }
 
     fun setSkipOptionalUpdatePrompts(skip: Boolean) {
         val context = appCtx ?: return
@@ -218,6 +306,93 @@ class ShellViewModel : ViewModel() {
         _updatePrompt.value = null
     }
 
+    fun startUpdateDownload(prompt: UpdatePrompt) {
+        val context = appCtx ?: return
+        if (updateDownloadJob?.isActive == true) return
+
+        activeDownloadPrompt = prompt
+        _updatePrompt.value = null
+        _updateDownloadState.value = UpdateDownloadUiState(
+            isVisible = true,
+            versionLabel = buildUpdateVersionLabel(context, prompt),
+            statusText = context.getString(R.string.update_preparing_download),
+            detailText = "",
+            progress = null,
+            isIndeterminate = true,
+        )
+
+        updateDownloadJob = scope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    InAppUpdateDownloader.downloadApk(
+                        context = context,
+                        url = prompt.info.downloadUrl,
+                        versionName = prompt.info.latestVersion,
+                    ) { downloadedBytes, totalBytes ->
+                        _updateDownloadState.value = buildDownloadState(
+                            context = context,
+                            prompt = prompt,
+                            downloadedBytes = downloadedBytes,
+                            totalBytes = totalBytes,
+                        )
+                    }
+                }
+            }.onSuccess { apkFile ->
+                _updateDownloadState.value = UpdateDownloadUiState(
+                    isVisible = true,
+                    versionLabel = buildUpdateVersionLabel(context, prompt),
+                    statusText = context.getString(R.string.update_installing_status),
+                    detailText = apkFile.name,
+                    progress = 1f,
+                    isIndeterminate = false,
+                )
+                _installUpdateRequests.emit(apkFile.absolutePath)
+            }.onFailure { throwable ->
+                _updateDownloadState.value = UpdateDownloadUiState()
+                activeDownloadPrompt?.let { _updatePrompt.value = it }
+                _updateMessages.tryEmit(
+                    context.getString(
+                        R.string.update_download_failed,
+                        throwable.message ?: context.getString(R.string.update_download_failed_default),
+                    ),
+                )
+            }
+        }
+    }
+
+    fun onUpdateInstallerLaunched() {
+        _updateDownloadState.value = UpdateDownloadUiState()
+        activeDownloadPrompt = null
+    }
+
+    fun onUpdateInstallerLaunchFailed(message: String) {
+        val context = appCtx ?: return
+        _updateDownloadState.value = UpdateDownloadUiState()
+        activeDownloadPrompt?.let { _updatePrompt.value = it }
+        _updateMessages.tryEmit(
+            context.getString(R.string.update_install_launch_failed, message),
+        )
+    }
+
+    private fun applyOnboardingState(state: OnboardingState) {
+        _showOnboarding.value = !state.completed
+        _selectedGitHubProxySourceId.value = GitHubProxySources.findById(
+            state.proxySelection.sourceId,
+        ).id
+        _customGitHubProxyBaseUrl.value = state.proxySelection.customBaseUrl
+        _gitHubProxyBenchmarkState.value = GitHubProxyBenchmarkUiState(
+            lastRunAt = state.lastBenchmarkAt,
+        )
+        githubProxyManualSelection = false
+    }
+
+    private fun currentGitHubProxySelection(): GitHubProxySelection {
+        return GitHubProxySelection(
+            sourceId = _selectedGitHubProxySourceId.value,
+            customBaseUrl = _customGitHubProxyBaseUrl.value,
+        )
+    }
+
     private fun applyOptionalUpdatePreferenceState(
         context: Context,
         state: OptionalUpdatePreferenceState,
@@ -237,8 +412,55 @@ class ShellViewModel : ViewModel() {
         }
     }
 
+    private fun buildDownloadState(
+        context: Context,
+        prompt: UpdatePrompt,
+        downloadedBytes: Long,
+        totalBytes: Long?,
+    ): UpdateDownloadUiState {
+        val progress = totalBytes
+            ?.takeIf { it > 0L }
+            ?.let { downloadedBytes.toFloat() / it.toFloat() }
+            ?.coerceIn(0f, 1f)
+        val downloadedText = Formatter.formatShortFileSize(context, downloadedBytes)
+        val detailText = if (totalBytes != null) {
+            context.getString(
+                R.string.update_download_progress,
+                ((progress ?: 0f) * 100).toInt().coerceIn(0, 100),
+                downloadedText,
+                Formatter.formatShortFileSize(context, totalBytes),
+            )
+        } else {
+            context.getString(
+                R.string.update_download_progress_unknown,
+                downloadedText,
+            )
+        }
+
+        return UpdateDownloadUiState(
+            isVisible = true,
+            versionLabel = buildUpdateVersionLabel(context, prompt),
+            statusText = context.getString(R.string.update_downloading_status),
+            detailText = detailText,
+            progress = progress,
+            isIndeterminate = totalBytes == null,
+        )
+    }
+
+    private fun buildUpdateVersionLabel(
+        context: Context,
+        prompt: UpdatePrompt,
+    ): String {
+        return context.getString(
+            R.string.update_download_version,
+            prompt.info.latestVersion,
+            prompt.info.latestVersionCode.toString(),
+        )
+    }
+
     override fun onCleared() {
         super.onCleared()
+        updateDownloadJob?.cancel()
         wearMessageCenter.destroy()
     }
 }

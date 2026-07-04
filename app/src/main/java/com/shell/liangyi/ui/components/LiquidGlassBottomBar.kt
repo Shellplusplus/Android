@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.defaultMinSize
@@ -62,12 +61,6 @@ import androidx.compose.ui.util.lerp
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
-import kotlin.math.PI
-import kotlin.math.abs
-import kotlin.math.cos
-import kotlin.math.sign
-import kotlin.math.sin
-import kotlin.math.sqrt
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.blur.Backdrop
@@ -81,9 +74,20 @@ import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.blur.sensor.rememberDeviceTilt
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import kotlin.math.PI
+import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.sign
+import kotlin.math.sin
+import kotlin.math.sqrt
 
 internal val LocalLiquidBottomTabScale =
     staticCompositionLocalOf { { 1f } }
+
+private val BarOuterHeight = 60.dp
+private val BarInnerHeight = 52.dp
+private val BarInset = 3.dp
+private val BarMinTabWidth = 72.dp
 
 private val indicatorSpecularHighlight = Highlight(
     width = 1.dp,
@@ -313,7 +317,7 @@ fun LiquidGlassBottomBar(
             modifier = Modifier
                 .onGloballyPositioned { coordinates ->
                     totalWidthPx = coordinates.size.width.toFloat()
-                    val contentWidthPx = totalWidthPx - with(density) { 8.dp.toPx() }
+                    val contentWidthPx = totalWidthPx - with(density) { (BarInset * 2).toPx() }
                     tabWidthPx = (contentWidthPx / items.size).coerceAtLeast(0f)
                 }
                 .graphicsLayer {
@@ -358,8 +362,8 @@ fun LiquidGlassBottomBar(
                 )
                 .then(interactiveHighlight.modifier)
                 .fillMaxWidth()
-                .height(64.dp)
-                .padding(4.dp),
+                .height(BarOuterHeight)
+                .padding(BarInset),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             items.forEachIndexed { index, item ->
@@ -398,8 +402,8 @@ fun LiquidGlassBottomBar(
                     )
                     .then(interactiveHighlight.modifier)
                     .fillMaxWidth()
-                    .height(56.dp)
-                    .padding(horizontal = 4.dp)
+                    .height(BarInnerHeight)
+                    .padding(horizontal = BarInset)
                     .graphicsLayer(colorFilter = ColorFilter.tint(accentColor)),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -416,7 +420,7 @@ fun LiquidGlassBottomBar(
             val tabWidthDp = with(density) { tabWidthPx.toDp() }
             Box(
                 modifier = Modifier
-                    .padding(horizontal = 4.dp)
+                    .padding(horizontal = BarInset)
                     .graphicsLayer {
                         val progressOffset = dampedDragAnimation.value * tabWidthPx
                         translationX = if (isLtr) {
@@ -469,7 +473,7 @@ fun LiquidGlassBottomBar(
                             alpha = dampedDragAnimation.pressProgress,
                         )
                     }
-                    .height(56.dp)
+                    .height(BarInnerHeight)
                     .width(tabWidthDp),
             )
         }
@@ -510,8 +514,8 @@ private fun LiquidGlassBottomBarFallback(
                     .background(containerColor, glassShape)
                     .clip(glassShape)
                     .fillMaxWidth()
-                    .height(64.dp)
-                    .padding(4.dp),
+                    .height(BarOuterHeight)
+                    .padding(BarInset),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 items.forEachIndexed { index, item ->
@@ -526,13 +530,13 @@ private fun LiquidGlassBottomBarFallback(
 
             Box(
                 modifier = Modifier
-                    .padding(horizontal = 4.dp)
+                    .padding(horizontal = BarInset)
                     .graphicsLayer {
                         translationX = animatedIndex * tabWidthPx
                     }
                     .clip(indicatorShape)
                     .background(accentColor.copy(alpha = 0.14f), indicatorShape)
-                    .height(56.dp)
+                    .height(BarInnerHeight)
                     .width(tabWidth),
             )
         }
@@ -549,7 +553,7 @@ private fun RowScope.LiquidGlassBottomBarItem(
 
     Column(
         modifier = Modifier
-            .defaultMinSize(minWidth = 76.dp)
+            .defaultMinSize(minWidth = BarMinTabWidth)
             .clip(CircleShape)
             .clickable(
                 interactionSource = null,
@@ -604,7 +608,7 @@ private fun RowScope.LiquidGlassBottomBarItem(
 
     Column(
         modifier = Modifier
-            .defaultMinSize(minWidth = 76.dp)
+            .defaultMinSize(minWidth = BarMinTabWidth)
             .clip(CircleShape)
             .clickable(
                 interactionSource = null,

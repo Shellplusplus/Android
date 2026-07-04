@@ -2,15 +2,18 @@ package com.shell.liangyi.core.update
 
 import android.content.Context
 import androidx.core.content.pm.PackageInfoCompat
+import com.shell.liangyi.BuildConfig
 import com.shell.liangyi.R
+import com.shell.liangyi.core.onboarding.GitHubUrlResolver
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.Locale
 
 object UpdateChecker {
-    private const val UPDATE_URL = "https://shellupdate.rth1.xyz/api.php"
+    private const val UPDATE_URL = "https://api.github.com/repos/DefateStar/public-shellpp/releases/latest"
     private const val PREFS_NAME = "shell_update_state"
     private const val KEY_SKIP_OPTIONAL_PROMPTS = "skip_optional_prompts"
     private const val KEY_OPTIONAL_PROMPT_COUNT_VERSION_CODE = "optional_prompt_count_version_code"
@@ -98,13 +101,16 @@ object UpdateChecker {
         }
 
         return UpdatePrompt(
-            info = AppUpdateInfo(
+            info = applyConfiguredProxy(
+                context,
+                AppUpdateInfo(
                 latestVersion = prefs.getString(KEY_LATEST_VERSION, "").orEmpty(),
                 latestVersionCode = latestVersionCode,
                 downloadUrl = downloadUrl,
                 changelog = prefs.getString(KEY_CHANGELOG, "").orEmpty(),
                 minSupportedVersionCode = minSupportedVersionCode,
                 releaseDate = prefs.getString(KEY_RELEASE_DATE, "").orEmpty(),
+                ),
             ),
             currentVersionName = currentVersion.name,
             currentVersionCode = currentVersion.code,
@@ -119,22 +125,32 @@ object UpdateChecker {
                 connectTimeout = 15000
                 readTimeout = 15000
                 setRequestProperty("Accept", "application/json")
+                setRequestProperty("User-Agent", "ShellPlusPlus-Android")
+                setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
             }
 
-            val body = connection.inputStream.use { input ->
+            val responseCode = connection.responseCode
+            val responseStream = if (responseCode in 200..299) {
+                connection.inputStream
+            } else {
+                connection.errorStream ?: connection.inputStream
+            }
+            val body = responseStream.use { input ->
                 BufferedReader(InputStreamReader(input)).readText()
             }
             connection.disconnect()
+            if (responseCode !in 200..299) {
+                throw IllegalStateException("GitHub API $responseCode: ${body.take(200)}")
+            }
 
-            val json = JSONObject(body)
-            val info = AppUpdateInfo(
-                latestVersion = json.optString("latest_version", ""),
-                latestVersionCode = json.optLong("latest_version_code", 0L),
-                downloadUrl = json.optString("download_url", ""),
-                changelog = json.optString("changelog", ""),
-                minSupportedVersionCode = json.optLong("min_supported_version_code", 0L),
-                releaseDate = json.optString("release_date", ""),
+            val preferredAssetName = GitHubReleaseParser.preferredAssetNameForFlavor(
+                BuildConfig.FLAVOR.lowercase(Locale.ROOT)
             )
+            val info = GitHubReleaseParser.parseRelease(
+                json = JSONObject(body),
+                preferredAssetName = preferredAssetName,
+            )
+            val resolvedInfo = applyConfiguredProxy(context, info)
 
             val currentVersion = readCurrentVersion(context)
             val mandatory = currentVersion.code < info.minSupportedVersionCode
@@ -159,7 +175,7 @@ object UpdateChecker {
             if (mandatory || info.latestVersionCode > currentVersion.code) {
                 UpdateCheckResult.UpdateAvailable(
                     UpdatePrompt(
-                        info = info,
+                        info = resolvedInfo,
                         currentVersionName = currentVersion.name,
                         currentVersionCode = currentVersion.code,
                         mandatory = mandatory,
@@ -256,6 +272,18 @@ object UpdateChecker {
         return CurrentVersion(
             name = packageInfo.versionName ?: "",
             code = PackageInfoCompat.getLongVersionCode(packageInfo),
+        )
+    }
+
+    private fun applyConfiguredProxy(
+        context: Context,
+        info: AppUpdateInfo,
+    ): AppUpdateInfo {
+        return info.copy(
+            downloadUrl = GitHubUrlResolver.resolveConfiguredDownloadUrl(
+                context = context,
+                originalUrl = info.downloadUrl,
+            ),
         )
     }
 

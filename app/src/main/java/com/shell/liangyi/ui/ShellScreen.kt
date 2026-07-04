@@ -1,10 +1,19 @@
 package com.shell.liangyi.ui
 
-import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -42,6 +51,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.shell.liangyi.R
+import com.shell.liangyi.core.update.UpdateInstaller
 import com.shell.liangyi.feature.AgentEntryPointProvider
 import com.shell.liangyi.ui.about.AboutScreen
 import com.shell.liangyi.ui.bluetooth.BluetoothScreen
@@ -50,10 +60,12 @@ import com.shell.liangyi.ui.components.LiquidGlassConfirmDialog
 import com.shell.liangyi.ui.components.LiquidGlassInfoDialog
 import com.shell.liangyi.ui.components.LiquidGlassTabItem
 import com.shell.liangyi.ui.components.LiquidGlassUpdateDialog
+import com.shell.liangyi.ui.components.LiquidGlassUpdateProgressDialog
 import com.shell.liangyi.ui.components.ShellBackScaffold
 import com.shell.liangyi.ui.components.rememberShellBlurBackdrop
 import com.shell.liangyi.ui.fetch.FetchScreen
 import com.shell.liangyi.ui.index.IndexScreen
+import com.shell.liangyi.ui.onboarding.OnboardingFlow
 import com.shell.liangyi.ui.screenshot.ScreenshotDetailScreen
 import com.shell.liangyi.ui.screenshot.ScreenshotTimelineScreen
 import com.shell.liangyi.ui.settings.SettingsScreen
@@ -106,7 +118,9 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
         (configuration.screenWidthDp * density.density).toInt()
     }
     val rootBackdrop = rememberShellBlurBackdrop(enableBlur = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S_V2)
+    val showOnboarding by shellViewModel.showOnboarding.collectAsState()
     val updatePrompt by shellViewModel.updatePrompt.collectAsState()
+    val updateDownloadState by shellViewModel.updateDownloadState.collectAsState()
     val skipOptionalUpdateInfoDialogVisible by shellViewModel.skipOptionalUpdateInfoDialogVisible.collectAsState()
     val deleteScreenshotConfirmShotId by shellViewModel.deleteScreenshotConfirmShotId.collectAsState()
     var displayedUpdatePrompt by remember { mutableStateOf(updatePrompt) }
@@ -118,13 +132,29 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
     var displayedDeleteScreenshotShotId by remember { mutableStateOf(deleteScreenshotConfirmShotId) }
     var deleteConfirmDialogVisible by remember { mutableStateOf(deleteScreenshotConfirmShotId != null) }
 
-    LaunchedEffect(Unit) {
-        shellViewModel.checkForUpdates(manual = false)
+    LaunchedEffect(showOnboarding) {
+        if (!showOnboarding) {
+            shellViewModel.checkForUpdates(manual = false)
+        }
     }
 
     LaunchedEffect(Unit) {
         shellViewModel.updateMessages.collect { message ->
             android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        shellViewModel.installUpdateRequests.collect { apkFilePath ->
+            runCatching {
+                UpdateInstaller.launchInstaller(context, apkFilePath)
+            }.onSuccess {
+                shellViewModel.onUpdateInstallerLaunched()
+            }.onFailure { throwable ->
+                shellViewModel.onUpdateInstallerLaunchFailed(
+                    throwable.message ?: context.getString(R.string.update_install_launch_failed_default),
+                )
+            }
         }
     }
 
@@ -156,67 +186,116 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        NavHost(
-            navController = navController,
-            startDestination = Routes.MAIN,
-            modifier = if (rootBackdrop != null) {
-                Modifier
-                    .fillMaxSize()
-                    .layerBackdrop(rootBackdrop)
-            } else {
-                Modifier.fillMaxSize()
-            },
-            enterTransition = { AnimTools.enterTransition(windowWidth) },
-            exitTransition = { AnimTools.exitTransition(windowWidth) },
-            popEnterTransition = { AnimTools.popEnterTransition(windowWidth) },
-            popExitTransition = { AnimTools.popExitTransition(windowWidth) },
-        ) {
-            composable(Routes.MAIN) {
-                MainPagerScreen(
-                    navController = navController,
-                    shellViewModel = shellViewModel,
-                )
-            }
-            composable(Routes.BLUETOOTH) {
-                BluetoothScreen(
-                    navController = navController,
-                    shellViewModel = shellViewModel,
-                )
-            }
-            composable(Routes.FETCH) {
-                FetchScreen(
-                    navController = navController,
-                    shellViewModel = shellViewModel,
-                )
-            }
-            composable(Routes.SCREENSHOT_TIMELINE) {
-                ScreenshotTimelineScreen(
-                    navController = navController,
-                    shellViewModel = shellViewModel,
-                )
-            }
-            composable(Routes.TERMINAL) {
-                if (AgentEntryPointProvider.entryPoint.isEnabled) {
-                    AgentEntryPointProvider.entryPoint.Screen(navController, shellViewModel)
+        AnimatedContent(
+            targetState = showOnboarding,
+            transitionSpec = {
+                val easing = CubicBezierEasing(0.2f, 0.85f, 0.2f, 1f)
+                if (targetState) {
+                    (fadeIn(
+                        animationSpec = tween(280, easing = easing),
+                        initialAlpha = 0.75f,
+                    ) + scaleIn(
+                        animationSpec = tween(280, easing = easing),
+                        initialScale = 0.985f,
+                    )) togetherWith
+                        (fadeOut(
+                            animationSpec = tween(220, easing = easing),
+                            targetAlpha = 0.92f,
+                        ) + slideOutVertically(
+                            animationSpec = tween(220, easing = easing),
+                            targetOffsetY = { it / 24 },
+                        ))
                 } else {
-                    PlaceholderScreen(
-                        title = stringResource(R.string.remote_terminal),
-                        subtitle = stringResource(R.string.remote_terminal_developing),
-                        navController = navController
-                    )
-                }
-            }
-            composable(Routes.LOGS) {
-                SettingsScreen(navController, shellViewModel)
-            }
-            composable(Routes.SCREENSHOT_DETAIL) { backStackEntry ->
-                val rawShotId = backStackEntry.arguments?.getString("shotId") ?: "0"
-                val shotId = Uri.decode(rawShotId)
-                ScreenshotDetailScreen(
-                    shotId = shotId,
-                    navController = navController,
-                    shellViewModel = shellViewModel,
+                    (fadeIn(
+                        animationSpec = tween(360, easing = easing),
+                        initialAlpha = 0.68f,
+                    ) + slideInVertically(
+                        animationSpec = tween(360, easing = easing),
+                        initialOffsetY = { it / 18 },
+                    ) + scaleIn(
+                        animationSpec = tween(360, easing = easing),
+                        initialScale = 0.992f,
+                    )) togetherWith
+                        (fadeOut(
+                            animationSpec = tween(240, easing = easing),
+                            targetAlpha = 0.86f,
+                        ) + scaleOut(
+                            animationSpec = tween(240, easing = easing),
+                            targetScale = 1.008f,
+                        ))
+                }.using(
+                    SizeTransform(clip = false),
                 )
+            },
+            label = "onboarding_to_home_transition",
+            modifier = Modifier.fillMaxSize(),
+        ) { onboardingVisible ->
+            if (onboardingVisible) {
+                OnboardingFlow(shellViewModel = shellViewModel)
+            } else {
+                NavHost(
+                    navController = navController,
+                    startDestination = Routes.MAIN,
+                    modifier = if (rootBackdrop != null) {
+                        Modifier
+                            .fillMaxSize()
+                            .layerBackdrop(rootBackdrop)
+                    } else {
+                        Modifier.fillMaxSize()
+                    },
+                    enterTransition = { AnimTools.enterTransition(windowWidth) },
+                    exitTransition = { AnimTools.exitTransition(windowWidth) },
+                    popEnterTransition = { AnimTools.popEnterTransition(windowWidth) },
+                    popExitTransition = { AnimTools.popExitTransition(windowWidth) },
+                ) {
+                    composable(Routes.MAIN) {
+                        MainPagerScreen(
+                            navController = navController,
+                            shellViewModel = shellViewModel,
+                        )
+                    }
+                    composable(Routes.BLUETOOTH) {
+                        BluetoothScreen(
+                            navController = navController,
+                            shellViewModel = shellViewModel,
+                        )
+                    }
+                    composable(Routes.FETCH) {
+                        FetchScreen(
+                            navController = navController,
+                            shellViewModel = shellViewModel,
+                        )
+                    }
+                    composable(Routes.SCREENSHOT_TIMELINE) {
+                        ScreenshotTimelineScreen(
+                            navController = navController,
+                            shellViewModel = shellViewModel,
+                        )
+                    }
+                    composable(Routes.TERMINAL) {
+                        if (AgentEntryPointProvider.entryPoint.isEnabled) {
+                            AgentEntryPointProvider.entryPoint.Screen(navController, shellViewModel)
+                        } else {
+                            PlaceholderScreen(
+                                title = stringResource(R.string.remote_terminal),
+                                subtitle = stringResource(R.string.remote_terminal_developing),
+                                navController = navController
+                            )
+                        }
+                    }
+                    composable(Routes.LOGS) {
+                        SettingsScreen(navController, shellViewModel)
+                    }
+                    composable(Routes.SCREENSHOT_DETAIL) { backStackEntry ->
+                        val rawShotId = backStackEntry.arguments?.getString("shotId") ?: "0"
+                        val shotId = Uri.decode(rawShotId)
+                        ScreenshotDetailScreen(
+                            shotId = shotId,
+                            navController = navController,
+                            shellViewModel = shellViewModel,
+                        )
+                    }
+                }
             }
         }
 
@@ -226,14 +305,7 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
                 visible = updateDialogVisible,
                 onDismissRequest = { shellViewModel.dismissUpdatePrompt() },
                 onConfirm = {
-                    context.startActivity(
-                        Intent(Intent.ACTION_VIEW, Uri.parse(prompt.info.downloadUrl)).apply {
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        }
-                    )
-                    if (!prompt.mandatory) {
-                        shellViewModel.dismissUpdatePrompt()
-                    }
+                    shellViewModel.startUpdateDownload(prompt)
                 },
                 onExitFinished = {
                     if (!updateDialogVisible) {
@@ -243,6 +315,11 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
                 backdrop = rootBackdrop,
             )
         }
+
+        LiquidGlassUpdateProgressDialog(
+            state = updateDownloadState,
+            backdrop = rootBackdrop,
+        )
 
         if (showMountedSkipOptionalInfoDialog) {
             LiquidGlassInfoDialog(
@@ -330,6 +407,7 @@ private fun MainPagerScreen(
                 1 -> SettingsTabScreen(
                     shellViewModel = shellViewModel,
                     bottomContentPadding = rootBottomPadding,
+                    onRestartOnboarding = { shellViewModel.restartOnboarding() },
                 )
                 2 -> AboutScreen(
                     showBackButton = false,
