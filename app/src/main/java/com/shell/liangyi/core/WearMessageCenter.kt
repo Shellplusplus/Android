@@ -843,8 +843,8 @@ class WearMessageCenter private constructor(private val context: Context) {
     fun requestScreenshotData(
         shotId: String,
         startIndex: Int = 0,
-        chunkSize: Int = 2560,
-        throttleMs: Int = 8,
+        chunkSize: Int = 6144,
+        throttleMs: Int = 4,
         gcEvery: Int = 8
     ) {
         val payload = JSONObject().apply {
