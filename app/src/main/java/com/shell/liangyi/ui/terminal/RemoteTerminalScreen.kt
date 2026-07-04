@@ -1,10 +1,14 @@
 package com.shell.liangyi.ui.terminal
 
+import android.os.Build
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
 import androidx.annotation.StringRes
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -37,13 +41,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -58,14 +68,19 @@ import com.shell.liangyi.R
 import com.shell.liangyi.core.ConnectionState
 import com.shell.liangyi.ui.ShellViewModel
 import com.shell.liangyi.ui.components.ShellBackScaffold
+import com.shell.liangyi.ui.components.LiquidGlassConfirmDialog
+import com.shell.liangyi.ui.components.rememberShellBlurBackdrop
 import com.shell.liangyi.ui.theme.ShellTheme
+import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardColors
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
+import kotlin.math.ceil
 
 @Composable
 fun RemoteTerminalScreen(
@@ -73,14 +88,79 @@ fun RemoteTerminalScreen(
     shellViewModel: ShellViewModel,
 ) {
     val context = LocalContext.current
+    val dangerPrefs = remember(context) {
+        context.getSharedPreferences(REMOTE_TERMINAL_DANGER_PREFS, Context.MODE_PRIVATE)
+    }
     val uiState by shellViewModel.remoteTerminalUiState.collectAsState()
     val connectionState by shellViewModel.connectionState.collectAsState(initial = ConnectionState.DISCONNECTED)
     val scrollBehavior = MiuixScrollBehavior()
+    val dialogBackdrop = rememberShellBlurBackdrop(enableBlur = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S_V2)
+    var pendingDangerousCommand by remember { mutableStateOf<String?>(null) }
+    var showMountedDangerDialog by remember { mutableStateOf(false) }
+    var dangerDialogVisible by remember { mutableStateOf(false) }
+    var dangerConfirmDurationSeconds by remember {
+        mutableIntStateOf(DANGEROUS_COMMAND_FIRST_CONFIRM_SECONDS)
+    }
+    val dangerProgress = remember { Animatable(0f) }
+    val dangerConfirmReady = dangerProgress.value >= 1f
+    val dangerCountdown = if (dangerConfirmReady) {
+        0
+    } else {
+        ceil((1f - dangerProgress.value) * dangerConfirmDurationSeconds).toInt()
+            .coerceIn(1, dangerConfirmDurationSeconds)
+    }
+
+    fun dismissDangerDialog() {
+        dangerDialogVisible = false
+    }
+
+    fun triggerSendCommand() {
+        val command = uiState.input.trim()
+        val validationError = RemoteTerminalGuard.validate(command)
+        when {
+            validationError != null -> shellViewModel.sendRemoteTerminalCommand()
+            RemoteTerminalGuard.isDangerous(command) -> {
+                val hasShownDangerPrompt = dangerPrefs.getBoolean(
+                    REMOTE_TERMINAL_DANGER_PROMPT_SHOWN_KEY,
+                    false,
+                )
+                dangerConfirmDurationSeconds = if (hasShownDangerPrompt) {
+                    DANGEROUS_COMMAND_REPEAT_CONFIRM_SECONDS
+                } else {
+                    DANGEROUS_COMMAND_FIRST_CONFIRM_SECONDS
+                }
+                if (!hasShownDangerPrompt) {
+                    dangerPrefs.edit()
+                        .putBoolean(REMOTE_TERMINAL_DANGER_PROMPT_SHOWN_KEY, true)
+                        .apply()
+                }
+                pendingDangerousCommand = command
+                showMountedDangerDialog = true
+                dangerDialogVisible = true
+            }
+            else -> shellViewModel.sendRemoteTerminalCommand()
+        }
+    }
 
     LaunchedEffect(Unit) {
         shellViewModel.remoteTerminalMessages.collect { message ->
             Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
         }
+    }
+
+    LaunchedEffect(dangerDialogVisible, pendingDangerousCommand) {
+        if (!dangerDialogVisible || pendingDangerousCommand == null) {
+            dangerProgress.snapTo(0f)
+            return@LaunchedEffect
+        }
+        dangerProgress.snapTo(0f)
+        dangerProgress.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(
+                durationMillis = dangerConfirmDurationSeconds * 1000,
+                easing = LinearEasing,
+            ),
+        )
     }
 
     ShellBackScaffold(
@@ -93,6 +173,13 @@ fun RemoteTerminalScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .then(
+                    if (dialogBackdrop != null) {
+                        Modifier.layerBackdrop(dialogBackdrop)
+                    } else {
+                        Modifier
+                    }
+                )
                 .nestedScroll(scrollBehavior.nestedScrollConnection)
                 .padding(horizontal = 12.dp),
             verticalArrangement = Arrangement.spacedBy(0.dp),
@@ -128,7 +215,7 @@ fun RemoteTerminalScreen(
                         icon = Icons.AutoMirrored.Rounded.Send,
                         enabled = !uiState.isRunning,
                         filled = true,
-                        onClick = shellViewModel::sendRemoteTerminalCommand,
+                        onClick = ::triggerSendCommand,
                     )
                 }
             }
@@ -148,7 +235,7 @@ fun RemoteTerminalScreen(
                 InputCard(
                     uiState = uiState,
                     onInputChange = shellViewModel::updateRemoteTerminalInput,
-                    onSend = shellViewModel::sendRemoteTerminalCommand,
+                    onSend = ::triggerSendCommand,
                 )
             }
             if (uiState.hasResult) {
@@ -271,6 +358,52 @@ fun RemoteTerminalScreen(
                 Spacer(modifier = Modifier.height(20.dp))
             }
         }
+    }
+
+    if (showMountedDangerDialog) {
+        LiquidGlassConfirmDialog(
+            title = "危险操作提示",
+            message = "您正在执行危险操作，我们无法确认该操作是否会对设备造成不可逆伤害。开发者不会对您的操作负责，请三思而后行。",
+            confirmText = if (dangerCountdown > 0) {
+                "${dangerCountdown}s"
+            } else {
+                "继续执行"
+            },
+            dismissText = "取消",
+            visible = dangerDialogVisible,
+            onDismissRequest = ::dismissDangerDialog,
+            onConfirm = {
+                if (!dangerConfirmReady) {
+                    return@LiquidGlassConfirmDialog
+                }
+                dismissDangerDialog()
+                shellViewModel.sendRemoteTerminalCommand()
+            },
+            onExitFinished = {
+                if (!dangerDialogVisible) {
+                    showMountedDangerDialog = false
+                    pendingDangerousCommand = null
+                }
+            },
+            backdrop = dialogBackdrop,
+            confirmProgressFraction = if (!dangerConfirmReady) {
+                dangerProgress.value
+            } else {
+                null
+            },
+            confirmProgressTrackColor = if (!dangerConfirmReady) Color.White else null,
+            confirmProgressFillColor = if (!dangerConfirmReady) Color(0xFF0088FF) else null,
+            confirmProgressTextColor = if (!dangerConfirmReady) Color.White else null,
+            confirmProgressTextShadow = if (!dangerConfirmReady) {
+                Shadow(
+                    color = Color(0x55000000),
+                    offset = Offset(0f, 1.5f),
+                    blurRadius = 6f,
+                )
+            } else {
+                null
+            },
+        )
     }
 }
 
@@ -534,14 +667,6 @@ private fun InputCard(
                 text = "支持点击下方模板命令快速回填，再根据需要微调后发送。",
                 fontSize = 12.sp,
                 color = colors.onSurfaceVariantSummary,
-            )
-            ActionButton(
-                modifier = Modifier.fillMaxWidth(),
-                text = if (uiState.isRunning) "等待手表返回中..." else "发送这条命令",
-                icon = Icons.AutoMirrored.Rounded.Send,
-                enabled = !uiState.isRunning,
-                filled = true,
-                onClick = onSend,
             )
         }
     }
@@ -942,6 +1067,11 @@ private fun copyText(context: Context, text: String) {
     clipboard.setPrimaryClip(ClipData.newPlainText("Shell++ Terminal Output", text))
     Toast.makeText(context, "输出已复制", Toast.LENGTH_SHORT).show()
 }
+
+private const val DANGEROUS_COMMAND_FIRST_CONFIRM_SECONDS = 10
+private const val DANGEROUS_COMMAND_REPEAT_CONFIRM_SECONDS = 3
+private const val REMOTE_TERMINAL_DANGER_PREFS = "remote_terminal_danger_prefs"
+private const val REMOTE_TERMINAL_DANGER_PROMPT_SHOWN_KEY = "danger_prompt_shown"
 
 @StringRes
 private fun ConnectionState.labelRes(): Int = when (this) {

@@ -98,6 +98,12 @@ object RemoteTerminalGuard {
         ". ",
     )
 
+    private val dangerousPrefixes = RemoteTerminalCatalog.categories
+        .flatMap { category -> category.commands }
+        .filter { command -> command.dangerous }
+        .map { command -> command.command.substringBefore(' ').lowercase() }
+        .distinct()
+
     fun validate(command: String): RemoteTerminalValidationError? {
         val trimmed = command.trim()
         if (trimmed.isEmpty()) {
@@ -124,6 +130,16 @@ object RemoteTerminalGuard {
         }
 
         return null
+    }
+
+    fun isDangerous(command: String): Boolean {
+        val trimmed = command.trim().lowercase()
+        if (trimmed.isBlank()) {
+            return false
+        }
+        return dangerousPrefixes.any { prefix ->
+            trimmed == prefix || trimmed.startsWith("$prefix ")
+        }
     }
 }
 
