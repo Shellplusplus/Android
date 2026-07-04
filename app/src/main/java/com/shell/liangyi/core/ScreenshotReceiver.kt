@@ -1134,7 +1134,7 @@ class ScreenshotReceiver(
             session.receivedBytes = session.tempFile.length()
             session.pendingAckCount++
             markTransferActivity()
-            if (session.lastChunkNum == session.total - 1 || session.lastChunkNum - session.lastStateFlushChunkNum >= 4) {
+            if (session.lastChunkNum == session.total - 1 || session.lastChunkNum - session.lastStateFlushChunkNum >= 8) {
                 session.outputStream.flush()
                 writeTransferRecord(
                     TransferRecord(
