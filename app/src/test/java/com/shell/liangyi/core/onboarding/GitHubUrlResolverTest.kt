@@ -21,11 +21,24 @@ class GitHubUrlResolverTest {
     @Test
     fun resolveDownloadUrlLeavesNonGitHubUrlUntouched() {
         val resolved = GitHubUrlResolver.resolveDownloadUrl(
-            selection = GitHubProxySelection(sourceId = GitHubProxySources.ghproxy.id),
+            selection = GitHubProxySelection(sourceId = GitHubProxySources.ghproxyCxkpro.id),
             originalUrl = "https://example.com/app.apk",
         )
 
         assertEquals("https://example.com/app.apk", resolved)
+    }
+
+    @Test
+    fun resolveDownloadUrlPrefixesCxkproBuiltInProxyForGitHubResources() {
+        val resolved = GitHubUrlResolver.resolveDownloadUrl(
+            selection = GitHubProxySelection(sourceId = GitHubProxySources.ghproxyCxkpro.id),
+            originalUrl = "https://raw.githubusercontent.com/org/repo/main/file.txt",
+        )
+
+        assertEquals(
+            "https://ghproxy.cxkpro.top/https://raw.githubusercontent.com/org/repo/main/file.txt",
+            resolved,
+        )
     }
 
     @Test

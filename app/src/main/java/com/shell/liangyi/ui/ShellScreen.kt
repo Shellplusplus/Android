@@ -70,6 +70,7 @@ import com.shell.liangyi.ui.screenshot.ScreenshotDetailScreen
 import com.shell.liangyi.ui.screenshot.ScreenshotTimelineScreen
 import com.shell.liangyi.ui.settings.SettingsScreen
 import com.shell.liangyi.ui.settings.SettingsTabScreen
+import com.shell.liangyi.ui.terminal.RemoteTerminalScreen
 import com.shell.liangyi.ui.theme.ShellTheme
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Card
@@ -276,10 +277,9 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
                         if (AgentEntryPointProvider.entryPoint.isEnabled) {
                             AgentEntryPointProvider.entryPoint.Screen(navController, shellViewModel)
                         } else {
-                            PlaceholderScreen(
-                                title = stringResource(R.string.remote_terminal),
-                                subtitle = stringResource(R.string.remote_terminal_developing),
-                                navController = navController
+                            RemoteTerminalScreen(
+                                navController = navController,
+                                shellViewModel = shellViewModel,
                             )
                         }
                     }
