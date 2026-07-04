@@ -1152,7 +1152,7 @@ class ScreenshotReceiver(
                 session.lastStateFlushChunkNum = session.lastChunkNum
             }
             val now = System.currentTimeMillis()
-            if (index == session.total - 1 || now - session.lastUiUpdateAtMs >= 200L) {
+            if (index == session.total - 1 || now - session.lastUiUpdateAtMs >= 150L) {
                 session.lastUiUpdateAtMs = now
                 updateChunkProgressText(
                     session.receivedCount,
