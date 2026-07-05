@@ -27,7 +27,9 @@ jobs:
         uses: gradle/actions/setup-gradle@v3
 
       - name: Decode keystore
-        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > sign/Android.jks
+        run: |
+          mkdir -p sign
+          printf '%s' "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > sign/Android.jks
 
       - name: Create local.properties
         run: |
