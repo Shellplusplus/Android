@@ -67,6 +67,9 @@ import com.shell.liangyi.ui.fetch.FetchScreen
 import com.shell.liangyi.ui.glassport.rememberCatalogDialogBackdrop
 import com.shell.liangyi.ui.index.IndexScreen
 import com.shell.liangyi.ui.onboarding.OnboardingFlow
+import com.shell.liangyi.ui.remote.RemoteAppManagerScreen
+import com.shell.liangyi.ui.remote.RemoteCacheCleanScreen
+import com.shell.liangyi.ui.remote.RemoteFileViewerScreen
 import com.shell.liangyi.ui.screenshot.ScreenshotDetailScreen
 import com.shell.liangyi.ui.screenshot.ScreenshotTimelineScreen
 import com.shell.liangyi.ui.settings.SettingsScreen
@@ -86,6 +89,9 @@ object Routes {
     const val MAIN = "main"
     const val BLUETOOTH = "bluetooth"
     const val FETCH = "fetch"
+    const val FILE_VIEWER = "file_viewer"
+    const val CACHE_CLEAN = "cache_clean"
+    const val APP_MANAGER = "app_manager"
     const val TERMINAL = "terminal"
     const val LOGS = "logs"
     const val SCREENSHOT_TIMELINE = "screenshot_timeline"
@@ -145,6 +151,12 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
 
     LaunchedEffect(Unit) {
         shellViewModel.updateMessages.collect { message ->
+            android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        shellViewModel.remoteToolMessages.collect { message ->
             android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show()
         }
     }
@@ -285,6 +297,24 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
                     }
                     composable(Routes.FETCH) {
                         FetchScreen(
+                            navController = navController,
+                            shellViewModel = shellViewModel,
+                        )
+                    }
+                    composable(Routes.FILE_VIEWER) {
+                        RemoteFileViewerScreen(
+                            navController = navController,
+                            shellViewModel = shellViewModel,
+                        )
+                    }
+                    composable(Routes.CACHE_CLEAN) {
+                        RemoteCacheCleanScreen(
+                            navController = navController,
+                            shellViewModel = shellViewModel,
+                        )
+                    }
+                    composable(Routes.APP_MANAGER) {
+                        RemoteAppManagerScreen(
                             navController = navController,
                             shellViewModel = shellViewModel,
                         )

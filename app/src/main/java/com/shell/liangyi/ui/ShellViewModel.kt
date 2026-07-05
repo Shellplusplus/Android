@@ -4,6 +4,10 @@ import android.content.Context
 import android.text.format.Formatter
 import androidx.lifecycle.ViewModel
 import com.shell.liangyi.R
+import com.shell.liangyi.core.RemoteAppManagerState
+import com.shell.liangyi.core.RemoteCacheCleanState
+import com.shell.liangyi.core.RemoteFileViewerState
+import com.shell.liangyi.core.RemoteToolController
 import com.shell.liangyi.core.ScreenshotReceiver
 import com.shell.liangyi.core.WearMessageCenter
 import com.shell.liangyi.core.onboarding.GitHubProxyBenchmarkUiState
@@ -44,6 +48,9 @@ class ShellViewModel : ViewModel() {
         private set
 
     lateinit var screenshotReceiver: ScreenshotReceiver
+        private set
+
+    lateinit var remoteToolController: RemoteToolController
         private set
 
     lateinit var onboardingStateStore: OnboardingStateStore
@@ -91,6 +98,7 @@ class ShellViewModel : ViewModel() {
         wearMessageCenter = WearMessageCenter.getInstance(context)
         wearMessageCenter.initialize()
         screenshotReceiver = ScreenshotReceiver(context, scope)
+        remoteToolController = RemoteToolController(context, scope, wearMessageCenter)
     }
 
     val connectionState: SharedFlow<com.shell.liangyi.core.ConnectionState>
@@ -124,6 +132,18 @@ class ShellViewModel : ViewModel() {
 
     val httpServerPort: StateFlow<Int>
         get() = screenshotReceiver.httpServerPort
+
+    val remoteFileViewerState: StateFlow<RemoteFileViewerState>
+        get() = remoteToolController.fileViewerState
+
+    val remoteCacheCleanState: StateFlow<RemoteCacheCleanState>
+        get() = remoteToolController.cacheCleanState
+
+    val remoteAppManagerState: StateFlow<RemoteAppManagerState>
+        get() = remoteToolController.appManagerState
+
+    val remoteToolMessages: SharedFlow<String>
+        get() = remoteToolController.messages
 
     fun requestFromWatch() = screenshotReceiver.requestFromWatch()
     fun ensureConnection() = wearMessageCenter.ensureConnection()
@@ -161,6 +181,24 @@ class ShellViewModel : ViewModel() {
     }
 
     fun clearAll() = screenshotReceiver.clearAll()
+    fun refreshRemoteFileViewerRoot() = remoteToolController.refreshFileViewerRoot()
+    fun listRemoteFilePath(path: String) = remoteToolController.listFilePath(path)
+    fun openRemoteFileInfo(path: String) = remoteToolController.openFileInfo(path)
+    fun openRemoteFileText() = remoteToolController.openFileText()
+    fun openRemoteFileHex(offset: Int) = remoteToolController.openFileHex(offset)
+    fun openRemoteFileImage() = remoteToolController.openFileImage()
+    fun showRemoteFileList() = remoteToolController.showFileList()
+    fun showRemoteFileInfo() = remoteToolController.showFileInfo()
+    fun refreshRemoteCacheStatus() = remoteToolController.refreshCacheStatus()
+    fun clearRemoteCache() = remoteToolController.clearCache()
+    fun refreshRemoteApps() = remoteToolController.refreshApps()
+    fun toggleRemoteAppSelection(packageName: String) = remoteToolController.toggleAppSelection(packageName)
+    fun toggleAllRemoteApps() = remoteToolController.toggleAllApps()
+    fun hideSelectedRemoteApps() = remoteToolController.hideSelectedApps()
+    fun showSelectedRemoteApps() = remoteToolController.showSelectedApps()
+    fun hideAllRemoteApps() = remoteToolController.hideAllApps()
+    fun showAllRemoteApps() = remoteToolController.showAllApps()
+    fun deleteSelectedRemoteApps() = remoteToolController.deleteSelectedApps()
 
     fun restartOnboarding() {
         applyOnboardingState(onboardingStateStore.readState())
@@ -461,6 +499,9 @@ class ShellViewModel : ViewModel() {
     override fun onCleared() {
         super.onCleared()
         updateDownloadJob?.cancel()
+        if (::remoteToolController.isInitialized) {
+            remoteToolController.destroy()
+        }
         wearMessageCenter.destroy()
     }
 }

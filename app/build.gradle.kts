@@ -17,10 +17,19 @@ val localSigningKeystore = rootDir.resolve("sign/Android.jks")
 val localStorePassword = localProps.getProperty("shell.storePassword") ?: ""
 val localKeyAlias = localProps.getProperty("shell.keyAlias") ?: "key"
 val localKeyPassword = localProps.getProperty("shell.keyPassword") ?: ""
-val hasLocalSigningConfig = localSigningKeystore.exists()
-    && localStorePassword.isNotBlank()
+val hasSigningCredentials = localStorePassword.isNotBlank()
     && localKeyAlias.isNotBlank()
     && localKeyPassword.isNotBlank()
+
+if (hasSigningCredentials && !localSigningKeystore.exists()) {
+    logger.warn(
+        "Signing credentials are configured in local.properties, but sign/Android.jks is missing. " +
+            "Gradle will fall back to the default debug keystore for local builds. " +
+            "If you need Xiaomi Wear permissions or stable interconnect identity, restore the original keystore."
+    )
+}
+
+val hasLocalSigningConfig = localSigningKeystore.exists() && hasSigningCredentials
 
 android {
     namespace = "com.shell.liangyi"

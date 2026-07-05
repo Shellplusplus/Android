@@ -28,9 +28,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.Article
+import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.Bluetooth
 import androidx.compose.material.icons.rounded.CheckCircleOutline
+import androidx.compose.material.icons.rounded.CleaningServices
 import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.runtime.Composable
@@ -429,6 +432,24 @@ private fun ActionList(navController: NavHostController) {
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        ActionCard(
+            title = stringResource(R.string.action_file_viewer_title),
+            summary = stringResource(R.string.action_file_viewer_summary),
+            icon = Icons.Rounded.Folder,
+            onClick = { navController.navigate(Routes.FILE_VIEWER) },
+        )
+        ActionCard(
+            title = stringResource(R.string.action_cache_clean_title),
+            summary = stringResource(R.string.action_cache_clean_summary),
+            icon = Icons.Rounded.CleaningServices,
+            onClick = { navController.navigate(Routes.CACHE_CLEAN) },
+        )
+        ActionCard(
+            title = stringResource(R.string.action_app_manager_title),
+            summary = stringResource(R.string.action_app_manager_summary),
+            icon = Icons.Rounded.Apps,
+            onClick = { navController.navigate(Routes.APP_MANAGER) },
+        )
         ActionCard(
             title = stringResource(R.string.action_bluetooth_sync_title),
             summary = stringResource(R.string.action_bluetooth_sync_summary),

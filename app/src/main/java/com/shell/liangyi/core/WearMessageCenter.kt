@@ -59,6 +59,14 @@ object MessageType {
     const val SCREENSHOT_BULK_FINISH = "screenshotBulkFinish"
     const val SCREENSHOT_BULK_ABORT = "screenshotBulkAbort"
 
+    const val REMOTE_TOOL_REQUEST = "remoteToolRequest"
+    const val REMOTE_TOOL_RESULT = "remoteToolResult"
+    const val REMOTE_TOOL_BINARY_START = "remoteToolBinaryStart"
+    const val REMOTE_TOOL_BINARY_CHUNK = "remoteToolBinaryChunk"
+    const val REMOTE_TOOL_BINARY_FINISH = "remoteToolBinaryFinish"
+    const val REMOTE_TOOL_BINARY_ABORT = "remoteToolBinaryAbort"
+    const val REMOTE_TOOL_BINARY_ACK = "remoteToolBinaryAck"
+
     // 连接保活
     const val HEARTBEAT = "heartbeat"
     const val HEARTBEAT_ACK = "heartbeatAck"
@@ -509,7 +517,9 @@ class WearMessageCenter private constructor(private val context: Context) {
             type != MessageType.HEARTBEAT &&
             type != MessageType.HEARTBEAT_ACK &&
             type != MessageType.SCREENSHOT_BULK_DATA &&
-            type != MessageType.SCREENSHOT_CHUNK_PART
+            type != MessageType.SCREENSHOT_CHUNK_PART &&
+            type != MessageType.REMOTE_TOOL_BINARY_CHUNK &&
+            type != MessageType.REMOTE_TOOL_BINARY_ACK
     }
 
     private fun shouldLogRawTraffic(message: String): Boolean {
@@ -920,6 +930,29 @@ class WearMessageCenter private constructor(private val context: Context) {
                 "windowSize=${windowSize.coerceAtLeast(1)} ackEvery=${ackEvery.coerceAtLeast(1)}"
         )
         send(MessageType.REQUEST_SCREENSHOT_BULK, payload)
+    }
+
+    fun sendRemoteToolBinaryAck(requestId: String, phase: String, ok: Boolean, index: Int = -1) {
+        val payload = JSONObject().apply {
+            put("requestId", requestId)
+            put("phase", phase)
+            put("ok", ok)
+            if (index >= 0) {
+                put("index", index)
+            }
+        }
+        send(MessageType.REMOTE_TOOL_BINARY_ACK, payload)
+    }
+
+    fun sendRemoteToolBinaryAbort(requestId: String, code: String, detail: String = "") {
+        val payload = JSONObject().apply {
+            put("requestId", requestId)
+            put("code", code)
+            if (detail.isNotBlank()) {
+                put("detail", detail)
+            }
+        }
+        send(MessageType.REMOTE_TOOL_BINARY_ABORT, payload)
     }
 
     fun destroy() {
