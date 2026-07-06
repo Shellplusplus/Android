@@ -34,6 +34,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.TextFieldColors
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -715,22 +716,11 @@ private fun ComposerBar(
                 )
             }
         },
-        colors = OutlinedTextFieldDefaults.colors(
+        colors = agentOutlinedFieldColors(
+            containerColor = shellColors.cardBackground,
             focusedBorderColor = shellColors.primaryAction.copy(alpha = 0.32f),
             unfocusedBorderColor = colors.outline.copy(alpha = 0.14f),
             disabledBorderColor = colors.outline.copy(alpha = 0.10f),
-            focusedContainerColor = Color.White,
-            unfocusedContainerColor = Color.White,
-            disabledContainerColor = Color.White,
-            focusedTextColor = colors.onSurface,
-            unfocusedTextColor = colors.onSurface,
-            disabledTextColor = colors.onSurface,
-            focusedPlaceholderColor = colors.onSurfaceVariantSummary,
-            unfocusedPlaceholderColor = colors.onSurfaceVariantSummary,
-            disabledPlaceholderColor = colors.onSurfaceVariantSummary,
-            focusedTrailingIconColor = shellColors.primaryAction,
-            unfocusedTrailingIconColor = colors.onSurfaceVariantSummary,
-            disabledTrailingIconColor = colors.onSurfaceVariantSummary,
         ),
     )
 }
@@ -1020,20 +1010,45 @@ private fun AgentOutlinedField(
         singleLine = singleLine,
         visualTransformation = if (isPassword) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
         shape = RoundedCornerShape(18.dp),
-        colors = OutlinedTextFieldDefaults.colors(
+        colors = agentOutlinedFieldColors(
+            containerColor = shellColors.pageBackground,
             focusedBorderColor = shellColors.primaryAction,
             unfocusedBorderColor = colors.outline.copy(alpha = 0.28f),
             disabledBorderColor = colors.outline.copy(alpha = 0.18f),
-            focusedContainerColor = shellColors.pageBackground,
-            unfocusedContainerColor = shellColors.pageBackground,
-            focusedTextColor = colors.onSurface,
-            unfocusedTextColor = colors.onSurface,
-            focusedLabelColor = shellColors.primaryAction,
-            unfocusedLabelColor = colors.onSurfaceVariantSummary,
-            focusedPlaceholderColor = colors.onSurfaceVariantSummary,
-            unfocusedPlaceholderColor = colors.onSurfaceVariantSummary,
         ),
         modifier = Modifier.fillMaxWidth(),
+    )
+}
+
+@Composable
+private fun agentOutlinedFieldColors(
+    containerColor: Color,
+    focusedBorderColor: Color,
+    unfocusedBorderColor: Color,
+    disabledBorderColor: Color,
+): TextFieldColors {
+    val colors = MiuixTheme.colorScheme
+    val shellColors = ShellTheme.colors
+    return OutlinedTextFieldDefaults.colors(
+        focusedBorderColor = focusedBorderColor,
+        unfocusedBorderColor = unfocusedBorderColor,
+        disabledBorderColor = disabledBorderColor,
+        focusedContainerColor = containerColor,
+        unfocusedContainerColor = containerColor,
+        disabledContainerColor = containerColor,
+        focusedTextColor = colors.onSurface,
+        unfocusedTextColor = colors.onSurface,
+        disabledTextColor = colors.onSurface,
+        cursorColor = shellColors.primaryAction,
+        focusedLabelColor = shellColors.primaryAction,
+        unfocusedLabelColor = colors.onSurfaceVariantSummary,
+        disabledLabelColor = colors.onSurfaceVariantSummary,
+        focusedPlaceholderColor = colors.onSurfaceVariantSummary,
+        unfocusedPlaceholderColor = colors.onSurfaceVariantSummary,
+        disabledPlaceholderColor = colors.onSurfaceVariantSummary,
+        focusedTrailingIconColor = shellColors.primaryAction,
+        unfocusedTrailingIconColor = colors.onSurfaceVariantSummary,
+        disabledTrailingIconColor = colors.onSurfaceVariantSummary,
     )
 }
 
