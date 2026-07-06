@@ -212,77 +212,81 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        AnimatedContent(
-            targetState = showOnboarding,
-            transitionSpec = {
-                val easing = CubicBezierEasing(0.2f, 0.85f, 0.2f, 1f)
-                if (targetState) {
-                    (fadeIn(
-                        animationSpec = tween(280, easing = easing),
-                        initialAlpha = 0.75f,
-                    ) + scaleIn(
-                        animationSpec = tween(280, easing = easing),
-                        initialScale = 0.985f,
-                    )) togetherWith
-                        (fadeOut(
-                            animationSpec = tween(220, easing = easing),
-                            targetAlpha = 0.92f,
-                        ) + slideOutVertically(
-                            animationSpec = tween(220, easing = easing),
-                            targetOffsetY = { it / 24 },
-                        ))
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .then(
+                    if (catalogDialogBackdrop != null) {
+                        Modifier.catalogLayerBackdrop(catalogDialogBackdrop)
+                    } else {
+                        Modifier
+                    },
+                ),
+        ) {
+            AnimatedContent(
+                targetState = showOnboarding,
+                transitionSpec = {
+                    val easing = CubicBezierEasing(0.2f, 0.85f, 0.2f, 1f)
+                    if (targetState) {
+                        (fadeIn(
+                            animationSpec = tween(280, easing = easing),
+                            initialAlpha = 0.75f,
+                        ) + scaleIn(
+                            animationSpec = tween(280, easing = easing),
+                            initialScale = 0.985f,
+                        )) togetherWith
+                            (fadeOut(
+                                animationSpec = tween(220, easing = easing),
+                                targetAlpha = 0.92f,
+                            ) + slideOutVertically(
+                                animationSpec = tween(220, easing = easing),
+                                targetOffsetY = { it / 24 },
+                            ))
+                    } else {
+                        (fadeIn(
+                            animationSpec = tween(360, easing = easing),
+                            initialAlpha = 0.68f,
+                        ) + slideInVertically(
+                            animationSpec = tween(360, easing = easing),
+                            initialOffsetY = { it / 18 },
+                        ) + scaleIn(
+                            animationSpec = tween(360, easing = easing),
+                            initialScale = 0.992f,
+                        )) togetherWith
+                            (fadeOut(
+                                animationSpec = tween(240, easing = easing),
+                                targetAlpha = 0.86f,
+                            ) + scaleOut(
+                                animationSpec = tween(240, easing = easing),
+                                targetScale = 1.008f,
+                            ))
+                    }.using(
+                        SizeTransform(clip = false),
+                    )
+                },
+                label = "onboarding_to_home_transition",
+                modifier = Modifier.fillMaxSize(),
+            ) { onboardingVisible ->
+                if (onboardingVisible) {
+                    OnboardingFlow(shellViewModel = shellViewModel)
                 } else {
-                    (fadeIn(
-                        animationSpec = tween(360, easing = easing),
-                        initialAlpha = 0.68f,
-                    ) + slideInVertically(
-                        animationSpec = tween(360, easing = easing),
-                        initialOffsetY = { it / 18 },
-                    ) + scaleIn(
-                        animationSpec = tween(360, easing = easing),
-                        initialScale = 0.992f,
-                    )) togetherWith
-                        (fadeOut(
-                            animationSpec = tween(240, easing = easing),
-                            targetAlpha = 0.86f,
-                        ) + scaleOut(
-                            animationSpec = tween(240, easing = easing),
-                            targetScale = 1.008f,
-                        ))
-                }.using(
-                    SizeTransform(clip = false),
-                )
-            },
-            label = "onboarding_to_home_transition",
-            modifier = Modifier.fillMaxSize(),
-        ) { onboardingVisible ->
-            if (onboardingVisible) {
-                OnboardingFlow(shellViewModel = shellViewModel)
-            } else {
-                NavHost(
-                    navController = navController,
-                    startDestination = Routes.MAIN,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .then(
-                            if (rootBackdrop != null) {
-                                Modifier.layerBackdrop(rootBackdrop)
-                            } else {
-                                Modifier
-                            },
-                        )
-                        .then(
-                            if (catalogDialogBackdrop != null) {
-                                Modifier.catalogLayerBackdrop(catalogDialogBackdrop)
-                            } else {
-                                Modifier
-                            },
-                        ),
-                    enterTransition = { AnimTools.enterTransition(windowWidth) },
-                    exitTransition = { AnimTools.exitTransition(windowWidth) },
-                    popEnterTransition = { AnimTools.popEnterTransition(windowWidth) },
-                    popExitTransition = { AnimTools.popExitTransition(windowWidth) },
-                ) {
+                    NavHost(
+                        navController = navController,
+                        startDestination = Routes.MAIN,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .then(
+                                if (rootBackdrop != null) {
+                                    Modifier.layerBackdrop(rootBackdrop)
+                                } else {
+                                    Modifier
+                                },
+                            ),
+                        enterTransition = { AnimTools.enterTransition(windowWidth) },
+                        exitTransition = { AnimTools.exitTransition(windowWidth) },
+                        popEnterTransition = { AnimTools.popEnterTransition(windowWidth) },
+                        popExitTransition = { AnimTools.popExitTransition(windowWidth) },
+                    ) {
                     composable(Routes.MAIN) {
                         MainPagerScreen(
                             navController = navController,
@@ -347,6 +351,7 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
                             navController = navController,
                             shellViewModel = shellViewModel,
                         )
+                    }
                     }
                 }
             }

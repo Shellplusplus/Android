@@ -57,6 +57,7 @@ import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
@@ -64,6 +65,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.shell.liangyi.R
@@ -92,6 +94,8 @@ private val FloatingPagePillWidth = 69.dp
 private val FloatingSummaryVerticalPadding = 13.dp
 private val FloatingSummaryLineHeight = 18.sp
 private val FloatingSharedControlHeight = 44.dp
+private val FloatingSummaryMinWidth = 168.dp
+private val FloatingSummaryMaxWidth = 360.dp
 
 @Composable
 fun OnboardingFlow(
@@ -522,6 +526,7 @@ private fun FloatingOnboardingBar(
 ) {
     val shellColors = ShellTheme.colors
     val colors = MiuixTheme.colorScheme
+    val configuration = LocalConfiguration.current
     val density = LocalDensity.current
     val textMeasurer = rememberTextMeasurer()
     val summaryTextStyle = remember(shellColors.secondaryText) {
@@ -531,7 +536,18 @@ private fun FloatingOnboardingBar(
             color = shellColors.secondaryText,
         )
     }
-    val summaryPillWidth = remember(summary, density, textMeasurer, summaryTextStyle) {
+    val summaryPillMaxWidth = remember(configuration.screenWidthDp) {
+        (configuration.screenWidthDp.dp - 36.dp)
+            .coerceAtLeast(FloatingSummaryMinWidth)
+            .coerceAtMost(FloatingSummaryMaxWidth)
+    }
+    val summaryPillWidth = remember(
+        summary,
+        density,
+        textMeasurer,
+        summaryTextStyle,
+        summaryPillMaxWidth,
+    ) {
         with(density) {
             (
                 textMeasurer.measure(
@@ -539,7 +555,7 @@ private fun FloatingOnboardingBar(
                     style = summaryTextStyle,
                     maxLines = 1,
                 ).size.width.toDp() + 36.dp
-            ).coerceAtMost(320.dp)
+            ).coerceIn(FloatingSummaryMinWidth, summaryPillMaxWidth)
         }
     }
 
@@ -610,6 +626,7 @@ private fun FloatingOnboardingBar(
                     fontSize = 13.sp,
                     lineHeight = FloatingSummaryLineHeight,
                     maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                     textAlign = TextAlign.End,
                     color = shellColors.secondaryText,
                 )

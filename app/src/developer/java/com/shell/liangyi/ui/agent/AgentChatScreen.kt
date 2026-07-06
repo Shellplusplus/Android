@@ -136,7 +136,14 @@ fun AgentChatScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
             if (messages.isEmpty() && !isSending) {
-                EmptyConversationCard(modifier = Modifier.weight(1f))
+                EmptyConversationCard(
+                    modifier = Modifier.weight(1f),
+                    onSuggestionClick = { suggestion ->
+                        if (!isSending) {
+                            viewModel.sendUserMessage(suggestion)
+                        }
+                    },
+                )
             } else {
                 LazyColumn(
                     state = listState,
@@ -322,7 +329,10 @@ private fun ErrorBanner(
 }
 
 @Composable
-private fun EmptyConversationCard(modifier: Modifier = Modifier) {
+private fun EmptyConversationCard(
+    modifier: Modifier = Modifier,
+    onSuggestionClick: (String) -> Unit,
+) {
     val colors = MiuixTheme.colorScheme
     val shellColors = ShellTheme.colors
     Card(
@@ -352,20 +362,34 @@ private fun EmptyConversationCard(modifier: Modifier = Modifier) {
                 color = colors.onSurfaceVariantSummary,
             )
             Spacer(modifier = Modifier.height(18.dp))
-            SuggestionChip(text = "帮我检查最近一次同步失败的原因")
+            SuggestionChip(
+                text = "帮我检查最近一次同步失败的原因",
+                onClick = { onSuggestionClick("帮我检查最近一次同步失败的原因") },
+            )
             Spacer(modifier = Modifier.height(8.dp))
-            SuggestionChip(text = "生成一个查看存储空间的命令")
+            SuggestionChip(
+                text = "生成一个查看存储空间的命令",
+                onClick = { onSuggestionClick("生成一个查看存储空间的命令") },
+            )
             Spacer(modifier = Modifier.height(8.dp))
-            SuggestionChip(text = "整理蓝牙连接排查步骤")
+            SuggestionChip(
+                text = "整理蓝牙连接排查步骤",
+                onClick = { onSuggestionClick("整理蓝牙连接排查步骤") },
+            )
         }
     }
 }
 
 @Composable
-private fun SuggestionChip(text: String) {
+private fun SuggestionChip(
+    text: String,
+    onClick: () -> Unit,
+) {
     val colors = MiuixTheme.colorScheme
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
         colors = CardColors(
             color = ShellTheme.colors.pageBackground,
             contentColor = colors.onSurface,
