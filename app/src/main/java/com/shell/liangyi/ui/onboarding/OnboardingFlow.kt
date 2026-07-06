@@ -606,6 +606,7 @@ private fun FloatingOnboardingBar(
             }
         }
 
+
         Card(
             modifier = Modifier
                 .width(summaryPillWidth),
