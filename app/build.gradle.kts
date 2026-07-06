@@ -80,6 +80,13 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            optimization {
+                baselineProfile {
+                    // Work around AGP/profgen failures while compiling inherited
+                    // library baseline profiles during release packaging.
+                    ignoreFromAllExternalDependencies = true
+                }
+            }
             if (hasLocalSigningConfig) {
                 signingConfig = signingConfigs.getByName("localShellSign")
             }
