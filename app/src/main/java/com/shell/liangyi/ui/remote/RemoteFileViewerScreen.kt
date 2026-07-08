@@ -1,5 +1,6 @@
 package com.shell.liangyi.ui.remote
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,22 +13,32 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.rounded.Article
+import androidx.compose.material.icons.automirrored.rounded.InsertDriveFile
+import androidx.compose.material.icons.automirrored.rounded.Subject
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Image
-import androidx.compose.material.icons.rounded.InsertDriveFile
-import androidx.compose.material.icons.rounded.Subject
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -35,8 +46,10 @@ import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.shell.liangyi.R
+import com.shell.liangyi.core.ConnectionState
 import com.shell.liangyi.core.RemoteFileItem
 import com.shell.liangyi.core.RemoteFileViewMode
+import com.shell.liangyi.core.RemoteFileViewerState
 import com.shell.liangyi.ui.ShellViewModel
 import com.shell.liangyi.ui.components.ShellBackScaffold
 import com.shell.liangyi.ui.theme.ShellTheme
@@ -55,6 +68,7 @@ fun RemoteFileViewerScreen(
     shellViewModel: ShellViewModel,
 ) {
     val state by shellViewModel.remoteFileViewerState.collectAsState()
+    val connectionState by shellViewModel.connectionState.collectAsState(initial = ConnectionState.DISCONNECTED)
     val scrollBehavior = MiuixScrollBehavior()
     val fileTooLarge = state.selectedSizeBytes > 3L * 1024L * 1024L
 
@@ -87,28 +101,56 @@ fun RemoteFileViewerScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item { Spacer(modifier = Modifier.height(12.dp)) }
+            item {
+                FileHeroCard(
+                    state = state,
+                    connectionState = connectionState,
+                )
+            }
+            item {
+                FilePrimaryActions(
+                    state = state,
+                    onRefresh = {
+                        when (state.viewMode) {
+                            RemoteFileViewMode.LIST -> shellViewModel.listRemoteFilePath(state.currentPath)
+                            RemoteFileViewMode.INFO -> shellViewModel.openRemoteFileInfo(state.selectedPath)
+                            RemoteFileViewMode.TEXT -> shellViewModel.openRemoteFileText()
+                            RemoteFileViewMode.HEX -> shellViewModel.openRemoteFileHex(state.hexOffset)
+                            RemoteFileViewMode.IMAGE -> shellViewModel.openRemoteFileImage()
+                        }
+                    },
+                    onSecondary = {
+                        when (state.viewMode) {
+                            RemoteFileViewMode.LIST -> shellViewModel.listRemoteFilePath(parentPath(state.currentPath))
+                            RemoteFileViewMode.INFO -> shellViewModel.showRemoteFileList()
+                            RemoteFileViewMode.TEXT,
+                            RemoteFileViewMode.HEX,
+                            RemoteFileViewMode.IMAGE -> shellViewModel.showRemoteFileInfo()
+                        }
+                    },
+                )
+            }
+            item {
+                FileSectionHeader(
+                    title = sectionTitle(state.viewMode),
+                    summary = sectionSummary(state = state, isLoading = state.isLoading),
+                )
+            }
+
             when (state.viewMode) {
                 RemoteFileViewMode.LIST -> {
                     item {
-                        RemoteHeadlineCard(
+                        PathCard(
                             title = stringResource(R.string.remote_file_current_path),
                             summary = state.currentPath,
                             icon = Icons.Rounded.Folder,
                             highlight = true,
-                            onClick = { shellViewModel.refreshRemoteFileViewerRoot() },
-                        )
-                    }
-                    item {
-                        RemoteHeadlineCard(
-                            title = stringResource(R.string.remote_file_parent),
-                            summary = parentPath(state.currentPath),
-                            icon = Icons.Rounded.Folder,
-                            onClick = { shellViewModel.listRemoteFilePath(parentPath(state.currentPath)) },
+                            onClick = { shellViewModel.listRemoteFilePath(state.currentPath) },
                         )
                     }
                     if (state.items.isEmpty()) {
                         item {
-                            RemoteEmptyCard(
+                            FileEmptyCard(
                                 title = stringResource(R.string.remote_file_empty),
                                 summary = if (state.isLoading) {
                                     stringResource(R.string.remote_file_loading)
@@ -121,9 +163,7 @@ fun RemoteFileViewerScreen(
                         items(state.items.size) { index ->
                             val item = state.items[index]
                             RemoteListCard(
-                                title = item.name,
-                                summary = buildFileSummary(item),
-                                icon = if (item.isDir) Icons.Rounded.Folder else Icons.Rounded.InsertDriveFile,
+                                item = item,
                                 onClick = {
                                     if (item.isDir) {
                                         shellViewModel.listRemoteFilePath(item.path)
@@ -138,17 +178,17 @@ fun RemoteFileViewerScreen(
 
                 RemoteFileViewMode.INFO -> {
                     item {
-                        RemoteHeadlineCard(
+                        PathCard(
                             title = state.selectedName.ifBlank { state.selectedPath },
-                            summary = "${stringResource(R.string.remote_file_file_size)}: ${state.selectedSize}",
-                            icon = Icons.Rounded.InsertDriveFile,
+                            summary = buildSelectedSummary(state),
+                            icon = Icons.AutoMirrored.Rounded.InsertDriveFile,
                             highlight = true,
-                            onClick = { shellViewModel.showRemoteFileList() },
+                            onClick = shellViewModel::showRemoteFileList,
                         )
                     }
                     if (fileTooLarge) {
                         item {
-                            RemoteEmptyCard(
+                            FileEmptyCard(
                                 title = stringResource(R.string.remote_file_too_large),
                                 summary = stringResource(R.string.remote_file_too_large_desc),
                             )
@@ -158,7 +198,7 @@ fun RemoteFileViewerScreen(
                             RemoteActionCard(
                                 title = stringResource(R.string.remote_file_open_text),
                                 summary = stringResource(R.string.remote_file_open_text_desc),
-                                icon = Icons.Rounded.Subject,
+                                icon = Icons.AutoMirrored.Rounded.Subject,
                                 onClick = shellViewModel::openRemoteFileText,
                             )
                         }
@@ -166,7 +206,7 @@ fun RemoteFileViewerScreen(
                             RemoteActionCard(
                                 title = stringResource(R.string.remote_file_open_hex),
                                 summary = stringResource(R.string.remote_file_open_hex_desc),
-                                icon = Icons.Rounded.InsertDriveFile,
+                                icon = Icons.AutoMirrored.Rounded.Article,
                                 onClick = { shellViewModel.openRemoteFileHex(0) },
                             )
                         }
@@ -184,13 +224,14 @@ fun RemoteFileViewerScreen(
                 RemoteFileViewMode.TEXT,
                 RemoteFileViewMode.HEX -> {
                     item {
-                        RemoteHeadlineCard(
-                            title = when (state.viewMode) {
-                                RemoteFileViewMode.HEX -> stringResource(R.string.remote_file_open_hex)
-                                else -> stringResource(R.string.remote_file_open_text)
+                        PathCard(
+                            title = state.selectedName.ifBlank { state.selectedPath },
+                            summary = state.selectedPath,
+                            icon = if (state.viewMode == RemoteFileViewMode.HEX) {
+                                Icons.AutoMirrored.Rounded.Article
+                            } else {
+                                Icons.AutoMirrored.Rounded.Subject
                             },
-                            summary = stringResource(R.string.remote_file_close_viewer),
-                            icon = Icons.Rounded.Subject,
                             highlight = true,
                             onClick = shellViewModel::showRemoteFileInfo,
                         )
@@ -202,6 +243,7 @@ fun RemoteFileViewerScreen(
                             } else {
                                 state.viewerText
                             },
+                            monospace = state.viewMode == RemoteFileViewMode.HEX,
                         )
                     }
                     if (state.viewMode == RemoteFileViewMode.HEX) {
@@ -209,8 +251,12 @@ fun RemoteFileViewerScreen(
                             RemoteDualActionRow(
                                 leftTitle = stringResource(R.string.remote_file_previous_page),
                                 rightTitle = stringResource(R.string.remote_file_next_page),
-                                onLeft = { shellViewModel.openRemoteFileHex((state.hexOffset - 128).coerceAtLeast(0)) },
-                                onRight = { shellViewModel.openRemoteFileHex(state.hexOffset + 128) },
+                                onLeft = {
+                                    shellViewModel.openRemoteFileHex((state.hexOffset - 128).coerceAtLeast(0))
+                                },
+                                onRight = {
+                                    shellViewModel.openRemoteFileHex(state.hexOffset + 128)
+                                },
                             )
                         }
                     }
@@ -218,9 +264,9 @@ fun RemoteFileViewerScreen(
 
                 RemoteFileViewMode.IMAGE -> {
                     item {
-                        RemoteHeadlineCard(
-                            title = stringResource(R.string.remote_file_open_image),
-                            summary = stringResource(R.string.remote_file_close_viewer),
+                        PathCard(
+                            title = state.selectedName.ifBlank { state.selectedPath },
+                            summary = state.selectedPath,
                             icon = Icons.Rounded.Image,
                             highlight = true,
                             onClick = shellViewModel::showRemoteFileInfo,
@@ -234,9 +280,10 @@ fun RemoteFileViewerScreen(
                     }
                 }
             }
+
             if (state.viewerErrorMessage.isNotBlank()) {
                 item {
-                    RemoteEmptyCard(
+                    FileEmptyCard(
                         title = stringResource(R.string.remote_tool_request_failed),
                         summary = state.viewerErrorMessage,
                     )
@@ -248,10 +295,161 @@ fun RemoteFileViewerScreen(
 }
 
 @Composable
-private fun RemoteHeadlineCard(
+private fun FileHeroCard(
+    state: RemoteFileViewerState,
+    connectionState: ConnectionState,
+) {
+    val colors = MiuixTheme.colorScheme
+    val shellColors = ShellTheme.colors
+    val hasError = state.viewerErrorMessage.isNotBlank()
+    val accent = when {
+        hasError -> shellColors.danger
+        state.isLoading -> shellColors.warning
+        connectionState == ConnectionState.CONNECTED -> shellColors.success
+        else -> shellColors.primaryAction
+    }
+    val title = when {
+        hasError -> stringResource(R.string.remote_file_status_error)
+        state.isLoading -> stringResource(R.string.remote_file_status_loading)
+        else -> modeLabel(state.viewMode)
+    }
+    val summary = when {
+        hasError -> state.viewerErrorMessage
+        state.viewMode == RemoteFileViewMode.LIST -> state.currentPath
+        state.selectedPath.isNotBlank() -> state.selectedPath
+        else -> stringResource(R.string.action_file_viewer_summary)
+    }
+    val secondMetric = when (state.viewMode) {
+        RemoteFileViewMode.LIST -> state.items.size.toString()
+        else -> state.selectedSize.ifBlank { "-" }
+    }
+    val secondMetricLabel = when (state.viewMode) {
+        RemoteFileViewMode.LIST -> stringResource(R.string.remote_file_entries)
+        else -> stringResource(R.string.remote_file_file_size)
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardColors(
+            color = shellColors.cardBackground,
+            contentColor = colors.onSurface,
+        ),
+        cornerRadius = 22.dp,
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    brush = Brush.linearGradient(
+                        colors = listOf(
+                            accent.copy(alpha = 0.18f),
+                            accent.copy(alpha = 0.05f),
+                            shellColors.cardBackground,
+                        ),
+                    ),
+                )
+                .padding(18.dp),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        StatusPill(
+                            text = stringResource(connectionState.labelRes()),
+                            dotColor = accent,
+                        )
+                        Text(
+                            text = title,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = colors.onSurface,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = summary,
+                            fontSize = 13.sp,
+                            color = colors.onSurfaceVariantSummary,
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .padding(start = 12.dp)
+                            .size(56.dp)
+                            .clip(CircleShape)
+                            .background(accent.copy(alpha = 0.14f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = heroIcon(state.viewMode),
+                            contentDescription = null,
+                            modifier = Modifier.size(28.dp),
+                            tint = accent,
+                        )
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    MetricChip(
+                        modifier = Modifier.weight(1f),
+                        label = stringResource(R.string.connection_status),
+                        value = stringResource(connectionState.labelRes()),
+                    )
+                    MetricChip(
+                        modifier = Modifier.weight(1f),
+                        label = secondMetricLabel,
+                        value = secondMetric,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FilePrimaryActions(
+    state: RemoteFileViewerState,
+    onRefresh: () -> Unit,
+    onSecondary: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        ActionButton(
+            modifier = Modifier.weight(1f),
+            text = actionPrimaryLabel(state.viewMode),
+            icon = Icons.Rounded.Refresh,
+            enabled = !state.isLoading,
+            filled = false,
+            onClick = onRefresh,
+        )
+        ActionButton(
+            modifier = Modifier.weight(1f),
+            text = actionSecondaryLabel(state.viewMode),
+            icon = Icons.Rounded.Folder,
+            enabled = !state.isLoading,
+            filled = true,
+            onClick = onSecondary,
+        )
+    }
+}
+
+@Composable
+private fun PathCard(
     title: String,
     summary: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     highlight: Boolean = false,
     onClick: () -> Unit,
 ) {
@@ -300,24 +498,123 @@ private fun RemoteHeadlineCard(
 
 @Composable
 private fun RemoteListCard(
-    title: String,
-    summary: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    item: RemoteFileItem,
     onClick: () -> Unit,
 ) {
     val colors = MiuixTheme.colorScheme
+    val shellColors = ShellTheme.colors
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardColors(color = ShellTheme.colors.cardBackground, contentColor = colors.onSurface),
+        colors = CardColors(color = shellColors.cardBackground, contentColor = colors.onSurface),
         cornerRadius = 18.dp,
         onClick = onClick,
         showIndication = true,
         pressFeedbackType = PressFeedbackType.Sink,
     ) {
-        Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
-            Column(modifier = Modifier.align(Alignment.CenterStart).padding(end = 30.dp)) {
-                RowTitle(icon = icon, title = title)
-                Spacer(modifier = Modifier.height(4.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(
+                        if (item.isDir) {
+                            shellColors.primaryAction.copy(alpha = 0.14f)
+                        } else {
+                            colors.surface.copy(alpha = 0.82f)
+                        },
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = if (item.isDir) Icons.Rounded.Folder else Icons.AutoMirrored.Rounded.InsertDriveFile,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = if (item.isDir) shellColors.primaryAction else colors.onSurface,
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = item.name,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(modifier = Modifier.height(3.dp))
+                Text(
+                    text = buildFileSummary(item),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = colors.onSurfaceVariantSummary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = colors.outline,
+            )
+        }
+    }
+}
+
+@Composable
+private fun RemoteActionCard(
+    title: String,
+    summary: String,
+    icon: ImageVector,
+    onClick: () -> Unit,
+) {
+    val colors = MiuixTheme.colorScheme
+    val shellColors = ShellTheme.colors
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardColors(color = shellColors.cardBackground, contentColor = colors.onSurface),
+        cornerRadius = 18.dp,
+        onClick = onClick,
+        showIndication = true,
+        pressFeedbackType = PressFeedbackType.Sink,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(shellColors.primaryAction.copy(alpha = 0.14f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = shellColors.primaryAction,
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(modifier = Modifier.height(3.dp))
                 Text(
                     text = summary,
                     fontSize = 12.sp,
@@ -330,7 +627,7 @@ private fun RemoteListCard(
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = null,
-                modifier = Modifier.align(Alignment.CenterEnd).size(20.dp),
+                modifier = Modifier.size(20.dp),
                 tint = colors.outline,
             )
         }
@@ -338,22 +635,15 @@ private fun RemoteListCard(
 }
 
 @Composable
-private fun RemoteActionCard(
-    title: String,
-    summary: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    onClick: () -> Unit,
+private fun RemoteTextContentCard(
+    text: String,
+    monospace: Boolean,
 ) {
-    RemoteListCard(title = title, summary = summary, icon = icon, onClick = onClick)
-}
-
-@Composable
-private fun RemoteTextContentCard(text: String) {
     val colors = MiuixTheme.colorScheme
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardColors(color = ShellTheme.colors.cardBackground, contentColor = colors.onSurface),
-        cornerRadius = 18.dp,
+        cornerRadius = 22.dp,
     ) {
         Text(
             text = text.ifBlank { " " },
@@ -362,6 +652,7 @@ private fun RemoteTextContentCard(text: String) {
                 .padding(16.dp),
             fontSize = 13.sp,
             lineHeight = 20.sp,
+            fontFamily = if (monospace) FontFamily.Monospace else null,
             color = colors.onSurface,
         )
     }
@@ -376,7 +667,7 @@ private fun RemoteImageCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardColors(color = ShellTheme.colors.cardBackground, contentColor = colors.onSurface),
-        cornerRadius = 18.dp,
+        cornerRadius = 22.dp,
     ) {
         Box(
             modifier = Modifier
@@ -390,6 +681,7 @@ private fun RemoteImageCard(
                     text = stringResource(R.string.remote_file_loading),
                     fontSize = 14.sp,
                     color = colors.onSurfaceVariantSummary,
+                    textAlign = TextAlign.Center,
                 )
             } else {
                 AsyncImage(
@@ -413,53 +705,31 @@ private fun RemoteDualActionRow(
     onLeft: () -> Unit,
     onRight: () -> Unit,
 ) {
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        RemoteSmallActionCard(
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        ActionButton(
             modifier = Modifier.weight(1f),
-            title = leftTitle,
+            text = leftTitle,
+            icon = Icons.AutoMirrored.Rounded.Article,
+            enabled = true,
+            filled = false,
             onClick = onLeft,
         )
-        RemoteSmallActionCard(
+        ActionButton(
             modifier = Modifier.weight(1f),
-            title = rightTitle,
+            text = rightTitle,
+            icon = Icons.AutoMirrored.Rounded.Article,
+            enabled = true,
+            filled = true,
             onClick = onRight,
         )
     }
 }
 
 @Composable
-private fun RemoteSmallActionCard(
-    modifier: Modifier = Modifier,
-    title: String,
-    onClick: () -> Unit,
-) {
-    val colors = MiuixTheme.colorScheme
-    Card(
-        modifier = modifier,
-        colors = CardColors(color = ShellTheme.colors.cardBackground, contentColor = colors.onSurface),
-        cornerRadius = 16.dp,
-        onClick = onClick,
-        showIndication = true,
-        pressFeedbackType = PressFeedbackType.Sink,
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 14.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = title,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = colors.onSurface,
-            )
-        }
-    }
-}
-
-@Composable
-private fun RemoteEmptyCard(title: String, summary: String) {
+private fun FileEmptyCard(title: String, summary: String) {
     val colors = MiuixTheme.colorScheme
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -485,28 +755,241 @@ private fun RemoteEmptyCard(title: String, summary: String) {
 }
 
 @Composable
-private fun RowTitle(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    title: String,
+private fun StatusPill(
+    text: String,
+    dotColor: Color,
 ) {
     val colors = MiuixTheme.colorScheme
-    androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            modifier = Modifier.size(20.dp),
-            tint = colors.onSurface,
-        )
-        Spacer(modifier = Modifier.width(12.dp))
+    Card(
+        colors = CardColors(
+            color = colors.surface.copy(alpha = 0.78f),
+            contentColor = colors.onSurface,
+        ),
+        cornerRadius = 999.dp,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(dotColor),
+            )
+            Text(
+                text = text,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                color = colors.onSurface,
+            )
+        }
+    }
+}
+
+@Composable
+private fun MetricChip(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+) {
+    val colors = MiuixTheme.colorScheme
+    Card(
+        modifier = modifier,
+        colors = CardColors(
+            color = colors.surface.copy(alpha = 0.74f),
+            contentColor = colors.onSurface,
+        ),
+        cornerRadius = 18.dp,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text = label,
+                fontSize = 12.sp,
+                color = colors.onSurfaceVariantSummary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = value,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = colors.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ActionButton(
+    text: String,
+    icon: ImageVector,
+    enabled: Boolean,
+    filled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = MiuixTheme.colorScheme
+    val shellColors = ShellTheme.colors
+    val containerColor = when {
+        !enabled && filled -> shellColors.disabledAction
+        filled -> shellColors.primaryAction
+        else -> colors.surfaceContainer
+    }
+    val contentColor = if (filled) Color.White else colors.onSurface
+
+    Card(
+        modifier = modifier.height(56.dp),
+        colors = CardColors(
+            color = containerColor,
+            contentColor = contentColor,
+        ),
+        cornerRadius = 18.dp,
+        onClick = if (enabled) onClick else ({}),
+        showIndication = enabled,
+        pressFeedbackType = PressFeedbackType.Sink,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = contentColor.copy(alpha = if (enabled) 1f else 0.72f),
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = text,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = contentColor.copy(alpha = if (enabled) 1f else 0.72f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
+private fun FileSectionHeader(
+    title: String,
+    summary: String,
+) {
+    val shellColors = ShellTheme.colors
+    val colors = MiuixTheme.colorScheme
+    Column(
+        modifier = Modifier.padding(horizontal = 2.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
         Text(
             text = title,
-            fontSize = 16.sp,
+            fontSize = 18.sp,
             fontWeight = FontWeight.SemiBold,
             color = colors.onSurface,
-            maxLines = 1,
+        )
+        Text(
+            text = summary,
+            fontSize = 12.sp,
+            color = shellColors.secondaryText,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
     }
+}
+
+@Composable
+private fun sectionTitle(viewMode: RemoteFileViewMode): String {
+    return when (viewMode) {
+        RemoteFileViewMode.LIST -> stringResource(R.string.remote_file_section_entries)
+        RemoteFileViewMode.INFO -> stringResource(R.string.remote_file_section_actions)
+        RemoteFileViewMode.TEXT,
+        RemoteFileViewMode.HEX,
+        RemoteFileViewMode.IMAGE -> stringResource(R.string.remote_file_section_preview)
+    }
+}
+
+@Composable
+private fun sectionSummary(
+    state: RemoteFileViewerState,
+    isLoading: Boolean,
+): String {
+    return when (state.viewMode) {
+        RemoteFileViewMode.LIST -> {
+            if (isLoading) {
+                stringResource(R.string.remote_file_loading)
+            } else {
+                stringResource(R.string.remote_file_entries_count, state.items.size)
+            }
+        }
+
+        RemoteFileViewMode.INFO -> state.selectedPath
+        RemoteFileViewMode.TEXT,
+        RemoteFileViewMode.HEX,
+        RemoteFileViewMode.IMAGE -> state.selectedPath
+    }
+}
+
+@Composable
+private fun modeLabel(viewMode: RemoteFileViewMode): String {
+    return when (viewMode) {
+        RemoteFileViewMode.LIST -> stringResource(R.string.remote_file_mode_list)
+        RemoteFileViewMode.INFO -> stringResource(R.string.remote_file_mode_info)
+        RemoteFileViewMode.TEXT -> stringResource(R.string.remote_file_open_text)
+        RemoteFileViewMode.HEX -> stringResource(R.string.remote_file_open_hex)
+        RemoteFileViewMode.IMAGE -> stringResource(R.string.remote_file_open_image)
+    }
+}
+
+@Composable
+private fun actionPrimaryLabel(viewMode: RemoteFileViewMode): String {
+    return when (viewMode) {
+        RemoteFileViewMode.LIST -> stringResource(R.string.remote_file_refresh)
+        RemoteFileViewMode.INFO,
+        RemoteFileViewMode.TEXT,
+        RemoteFileViewMode.HEX,
+        RemoteFileViewMode.IMAGE -> stringResource(R.string.remote_file_reload)
+    }
+}
+
+@Composable
+private fun actionSecondaryLabel(viewMode: RemoteFileViewMode): String {
+    return when (viewMode) {
+        RemoteFileViewMode.LIST -> stringResource(R.string.remote_file_parent)
+        RemoteFileViewMode.INFO -> stringResource(R.string.remote_file_back_to_list)
+        RemoteFileViewMode.TEXT,
+        RemoteFileViewMode.HEX,
+        RemoteFileViewMode.IMAGE -> stringResource(R.string.remote_file_close_viewer)
+    }
+}
+
+@Composable
+private fun heroIcon(viewMode: RemoteFileViewMode): ImageVector {
+    return when (viewMode) {
+        RemoteFileViewMode.LIST -> Icons.Rounded.Folder
+        RemoteFileViewMode.INFO -> Icons.AutoMirrored.Rounded.InsertDriveFile
+        RemoteFileViewMode.TEXT -> Icons.AutoMirrored.Rounded.Subject
+        RemoteFileViewMode.HEX -> Icons.AutoMirrored.Rounded.Article
+        RemoteFileViewMode.IMAGE -> Icons.Rounded.Image
+    }
+}
+
+@Composable
+private fun buildSelectedSummary(state: RemoteFileViewerState): String {
+    val sizePart = stringResource(R.string.remote_file_file_size) + ": " + state.selectedSize
+    return if (state.selectedPath.isBlank()) sizePart else "$sizePart\n${state.selectedPath}"
 }
 
 private fun buildFileSummary(item: RemoteFileItem): String {
@@ -522,4 +1005,11 @@ private fun parentPath(path: String): String {
     val trimmed = if (path.endsWith("/") && path.length > 1) path.dropLast(1) else path
     val index = trimmed.lastIndexOf('/')
     return if (index <= 0) "/" else trimmed.substring(0, index)
+}
+
+private fun ConnectionState.labelRes(): Int = when (this) {
+    ConnectionState.DISCONNECTED -> R.string.disconnected
+    ConnectionState.CONNECTING -> R.string.connection_state_connecting
+    ConnectionState.CONNECTED -> R.string.connected
+    ConnectionState.ERROR -> R.string.connection_state_error
 }
