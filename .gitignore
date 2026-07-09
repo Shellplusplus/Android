@@ -18,6 +18,9 @@ captures/
 **/.DS_Store
 .SynologyWorkingDirectory
 
+# Local instructions
+AGENTS.md
+
 # Build outputs
 app/developer/release/
 

@@ -130,24 +130,9 @@ fun RemoteFileViewerScreen(
                     },
                 )
             }
-            item {
-                FileSectionHeader(
-                    title = sectionTitle(state.viewMode),
-                    summary = sectionSummary(state = state, isLoading = state.isLoading),
-                )
-            }
 
             when (state.viewMode) {
                 RemoteFileViewMode.LIST -> {
-                    item {
-                        PathCard(
-                            title = stringResource(R.string.remote_file_current_path),
-                            summary = state.currentPath,
-                            icon = Icons.Rounded.Folder,
-                            highlight = true,
-                            onClick = { shellViewModel.listRemoteFilePath(state.currentPath) },
-                        )
-                    }
                     if (state.items.isEmpty()) {
                         item {
                             FileEmptyCard(
@@ -177,15 +162,6 @@ fun RemoteFileViewerScreen(
                 }
 
                 RemoteFileViewMode.INFO -> {
-                    item {
-                        PathCard(
-                            title = state.selectedName.ifBlank { state.selectedPath },
-                            summary = buildSelectedSummary(state),
-                            icon = Icons.AutoMirrored.Rounded.InsertDriveFile,
-                            highlight = true,
-                            onClick = shellViewModel::showRemoteFileList,
-                        )
-                    }
                     if (fileTooLarge) {
                         item {
                             FileEmptyCard(
@@ -224,19 +200,6 @@ fun RemoteFileViewerScreen(
                 RemoteFileViewMode.TEXT,
                 RemoteFileViewMode.HEX -> {
                     item {
-                        PathCard(
-                            title = state.selectedName.ifBlank { state.selectedPath },
-                            summary = state.selectedPath,
-                            icon = if (state.viewMode == RemoteFileViewMode.HEX) {
-                                Icons.AutoMirrored.Rounded.Article
-                            } else {
-                                Icons.AutoMirrored.Rounded.Subject
-                            },
-                            highlight = true,
-                            onClick = shellViewModel::showRemoteFileInfo,
-                        )
-                    }
-                    item {
                         RemoteTextContentCard(
                             text = if (state.isLoading) {
                                 stringResource(R.string.remote_file_loading)
@@ -263,15 +226,6 @@ fun RemoteFileViewerScreen(
                 }
 
                 RemoteFileViewMode.IMAGE -> {
-                    item {
-                        PathCard(
-                            title = state.selectedName.ifBlank { state.selectedPath },
-                            summary = state.selectedPath,
-                            icon = Icons.Rounded.Image,
-                            highlight = true,
-                            onClick = shellViewModel::showRemoteFileInfo,
-                        )
-                    }
                     item {
                         RemoteImageCard(
                             imagePath = state.viewerImagePath,
@@ -301,32 +255,18 @@ private fun FileHeroCard(
 ) {
     val colors = MiuixTheme.colorScheme
     val shellColors = ShellTheme.colors
-    val hasError = state.viewerErrorMessage.isNotBlank()
     val accent = when {
-        hasError -> shellColors.danger
+        state.viewerErrorMessage.isNotBlank() -> shellColors.danger
         state.isLoading -> shellColors.warning
         connectionState == ConnectionState.CONNECTED -> shellColors.success
         else -> shellColors.primaryAction
     }
     val title = when {
-        hasError -> stringResource(R.string.remote_file_status_error)
-        state.isLoading -> stringResource(R.string.remote_file_status_loading)
+        state.viewMode == RemoteFileViewMode.LIST -> modeLabel(state.viewMode)
+        state.selectedName.isNotBlank() -> state.selectedName
         else -> modeLabel(state.viewMode)
     }
-    val summary = when {
-        hasError -> state.viewerErrorMessage
-        state.viewMode == RemoteFileViewMode.LIST -> state.currentPath
-        state.selectedPath.isNotBlank() -> state.selectedPath
-        else -> stringResource(R.string.action_file_viewer_summary)
-    }
-    val secondMetric = when (state.viewMode) {
-        RemoteFileViewMode.LIST -> state.items.size.toString()
-        else -> state.selectedSize.ifBlank { "-" }
-    }
-    val secondMetricLabel = when (state.viewMode) {
-        RemoteFileViewMode.LIST -> stringResource(R.string.remote_file_entries)
-        else -> stringResource(R.string.remote_file_file_size)
-    }
+    val summary = currentDisplayPath(state)
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -342,7 +282,7 @@ private fun FileHeroCard(
                 .background(
                     brush = Brush.linearGradient(
                         colors = listOf(
-                            accent.copy(alpha = 0.18f),
+                            accent.copy(alpha = 0.16f),
                             accent.copy(alpha = 0.05f),
                             shellColors.cardBackground,
                         ),
@@ -350,7 +290,9 @@ private fun FileHeroCard(
                 )
                 .padding(18.dp),
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.Top,
@@ -360,12 +302,12 @@ private fun FileHeroCard(
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         StatusPill(
-                            text = stringResource(connectionState.labelRes()),
+                            text = heroStatusLabel(state, connectionState),
                             dotColor = accent,
                         )
                         Text(
                             text = title,
-                            fontSize = 22.sp,
+                            fontSize = 21.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = colors.onSurface,
                             maxLines = 2,
@@ -375,27 +317,26 @@ private fun FileHeroCard(
                             text = summary,
                             fontSize = 13.sp,
                             color = colors.onSurfaceVariantSummary,
-                            maxLines = 3,
+                            maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
                     Box(
                         modifier = Modifier
                             .padding(start = 12.dp)
-                            .size(56.dp)
+                            .size(50.dp)
                             .clip(CircleShape)
                             .background(accent.copy(alpha = 0.14f)),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
-                            imageVector = heroIcon(state.viewMode),
+                            imageVector = modeIcon(state.viewMode),
                             contentDescription = null,
-                            modifier = Modifier.size(28.dp),
+                            modifier = Modifier.size(24.dp),
                             tint = accent,
                         )
                     }
                 }
-
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -407,12 +348,80 @@ private fun FileHeroCard(
                     )
                     MetricChip(
                         modifier = Modifier.weight(1f),
-                        label = secondMetricLabel,
-                        value = secondMetric,
+                        label = heroMetricLabel(state),
+                        value = heroMetricValue(state),
                     )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun MetricChip(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+) {
+    val colors = MiuixTheme.colorScheme
+    Card(
+        modifier = modifier,
+        colors = CardColors(
+            color = colors.surface.copy(alpha = 0.78f),
+            contentColor = colors.onSurface,
+        ),
+        cornerRadius = 18.dp,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 11.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+            Text(
+                text = label,
+                fontSize = 11.sp,
+                color = colors.onSurfaceVariantSummary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = value,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = colors.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
+private fun heroStatusLabel(
+    state: RemoteFileViewerState,
+    connectionState: ConnectionState,
+): String {
+    return when {
+        state.viewerErrorMessage.isNotBlank() -> stringResource(R.string.remote_file_status_error)
+        state.isLoading -> stringResource(R.string.remote_file_status_loading)
+        else -> stringResource(connectionState.labelRes())
+    }
+}
+
+@Composable
+private fun heroMetricLabel(state: RemoteFileViewerState): String {
+    return when (state.viewMode) {
+        RemoteFileViewMode.LIST -> stringResource(R.string.remote_file_entries)
+        else -> stringResource(R.string.remote_file_file_size)
+    }
+}
+
+@Composable
+private fun heroMetricValue(state: RemoteFileViewerState): String {
+    return when (state.viewMode) {
+        RemoteFileViewMode.LIST -> state.items.size.toString()
+        else -> state.selectedSize.ifBlank { "-" }
     }
 }
 
@@ -446,57 +455,6 @@ private fun FilePrimaryActions(
 }
 
 @Composable
-private fun PathCard(
-    title: String,
-    summary: String,
-    icon: ImageVector,
-    highlight: Boolean = false,
-    onClick: () -> Unit,
-) {
-    val colors = MiuixTheme.colorScheme
-    val cardColor = if (highlight) {
-        ShellTheme.colors.success.copy(alpha = 0.15f)
-    } else {
-        ShellTheme.colors.cardBackground
-    }
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardColors(color = cardColor, contentColor = colors.onSurface),
-        cornerRadius = 18.dp,
-        onClick = onClick,
-        showIndication = true,
-        pressFeedbackType = PressFeedbackType.Tilt,
-    ) {
-        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                modifier = Modifier.size(22.dp),
-                tint = colors.onSurface,
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = title,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = colors.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = summary,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
-                color = colors.onSurfaceVariantSummary,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
-}
-
-@Composable
 private fun RemoteListCard(
     item: RemoteFileItem,
     onClick: () -> Unit,
@@ -514,12 +472,12 @@ private fun RemoteListCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
                 modifier = Modifier
-                    .size(40.dp)
+                    .size(38.dp)
                     .clip(RoundedCornerShape(14.dp))
                     .background(
                         if (item.isDir) {
@@ -533,34 +491,36 @@ private fun RemoteListCard(
                 Icon(
                     imageVector = if (item.isDir) Icons.Rounded.Folder else Icons.AutoMirrored.Rounded.InsertDriveFile,
                     contentDescription = null,
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(18.dp),
                     tint = if (item.isDir) shellColors.primaryAction else colors.onSurface,
                 )
             }
             Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
                 Text(
                     text = item.name,
-                    fontSize = 16.sp,
+                    fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = colors.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Spacer(modifier = Modifier.height(3.dp))
                 Text(
                     text = buildFileSummary(item),
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Medium,
                     color = colors.onSurfaceVariantSummary,
-                    maxLines = 2,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = null,
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(18.dp),
                 tint = colors.outline,
             )
         }
@@ -789,46 +749,6 @@ private fun StatusPill(
 }
 
 @Composable
-private fun MetricChip(
-    label: String,
-    value: String,
-    modifier: Modifier = Modifier,
-) {
-    val colors = MiuixTheme.colorScheme
-    Card(
-        modifier = modifier,
-        colors = CardColors(
-            color = colors.surface.copy(alpha = 0.74f),
-            contentColor = colors.onSurface,
-        ),
-        cornerRadius = 18.dp,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Text(
-                text = label,
-                fontSize = 12.sp,
-                color = colors.onSurfaceVariantSummary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = value,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = colors.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
-}
-
-@Composable
 private fun ActionButton(
     text: String,
     icon: ImageVector,
@@ -884,65 +804,6 @@ private fun ActionButton(
 }
 
 @Composable
-private fun FileSectionHeader(
-    title: String,
-    summary: String,
-) {
-    val shellColors = ShellTheme.colors
-    val colors = MiuixTheme.colorScheme
-    Column(
-        modifier = Modifier.padding(horizontal = 2.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Text(
-            text = title,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = colors.onSurface,
-        )
-        Text(
-            text = summary,
-            fontSize = 12.sp,
-            color = shellColors.secondaryText,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-@Composable
-private fun sectionTitle(viewMode: RemoteFileViewMode): String {
-    return when (viewMode) {
-        RemoteFileViewMode.LIST -> stringResource(R.string.remote_file_section_entries)
-        RemoteFileViewMode.INFO -> stringResource(R.string.remote_file_section_actions)
-        RemoteFileViewMode.TEXT,
-        RemoteFileViewMode.HEX,
-        RemoteFileViewMode.IMAGE -> stringResource(R.string.remote_file_section_preview)
-    }
-}
-
-@Composable
-private fun sectionSummary(
-    state: RemoteFileViewerState,
-    isLoading: Boolean,
-): String {
-    return when (state.viewMode) {
-        RemoteFileViewMode.LIST -> {
-            if (isLoading) {
-                stringResource(R.string.remote_file_loading)
-            } else {
-                stringResource(R.string.remote_file_entries_count, state.items.size)
-            }
-        }
-
-        RemoteFileViewMode.INFO -> state.selectedPath
-        RemoteFileViewMode.TEXT,
-        RemoteFileViewMode.HEX,
-        RemoteFileViewMode.IMAGE -> state.selectedPath
-    }
-}
-
-@Composable
 private fun modeLabel(viewMode: RemoteFileViewMode): String {
     return when (viewMode) {
         RemoteFileViewMode.LIST -> stringResource(R.string.remote_file_mode_list)
@@ -976,7 +837,7 @@ private fun actionSecondaryLabel(viewMode: RemoteFileViewMode): String {
 }
 
 @Composable
-private fun heroIcon(viewMode: RemoteFileViewMode): ImageVector {
+private fun modeIcon(viewMode: RemoteFileViewMode): ImageVector {
     return when (viewMode) {
         RemoteFileViewMode.LIST -> Icons.Rounded.Folder
         RemoteFileViewMode.INFO -> Icons.AutoMirrored.Rounded.InsertDriveFile
@@ -987,16 +848,32 @@ private fun heroIcon(viewMode: RemoteFileViewMode): ImageVector {
 }
 
 @Composable
-private fun buildSelectedSummary(state: RemoteFileViewerState): String {
-    val sizePart = stringResource(R.string.remote_file_file_size) + ": " + state.selectedSize
-    return if (state.selectedPath.isBlank()) sizePart else "$sizePart\n${state.selectedPath}"
+private fun statusSummaryText(state: RemoteFileViewerState): String {
+    return when {
+        state.viewerErrorMessage.isNotBlank() -> state.viewerErrorMessage
+        state.isLoading -> stringResource(R.string.remote_file_loading)
+        state.viewMode == RemoteFileViewMode.LIST -> stringResource(R.string.remote_file_entries_count, state.items.size)
+        state.selectedSize.isNotBlank() -> {
+            stringResource(R.string.remote_file_file_size) + ": " + state.selectedSize
+        }
+        else -> stringResource(R.string.action_file_viewer_summary)
+    }
 }
 
+private fun currentDisplayPath(state: RemoteFileViewerState): String {
+    return when {
+        state.viewMode == RemoteFileViewMode.LIST -> state.currentPath
+        state.selectedPath.isNotBlank() -> state.selectedPath
+        else -> state.currentPath
+    }
+}
+
+@Composable
 private fun buildFileSummary(item: RemoteFileItem): String {
     return if (item.isDir) {
-        item.path
+        stringResource(R.string.remote_file_folder_label)
     } else {
-        "${item.size} · ${item.path}"
+        item.size.ifBlank { stringResource(R.string.remote_file_file_label) }
     }
 }
 

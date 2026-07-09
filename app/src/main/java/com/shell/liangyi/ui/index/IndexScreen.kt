@@ -175,6 +175,12 @@ private data class HomeActions(
     val onOpenTimeline: () -> Unit,
 )
 
+private data class HomeActionItem(
+    val title: String,
+    val icon: ImageVector,
+    val onClick: () -> Unit,
+)
+
 @Composable
 private fun TopBar(
     onOpenLogs: () -> Unit,
@@ -428,59 +434,71 @@ private fun CounterCard(
 
 @Composable
 private fun ActionList(navController: NavHostController) {
+    val actions = listOf(
+        HomeActionItem(
+            stringResource(R.string.action_bluetooth_sync_title),
+            Icons.Rounded.Bluetooth,
+        ) { navController.navigate(Routes.BLUETOOTH) },
+        HomeActionItem(
+            stringResource(R.string.action_lan_sync_title),
+            Icons.Rounded.Wifi,
+        ) { navController.navigate(Routes.FETCH) },
+        HomeActionItem(
+            stringResource(R.string.action_file_viewer_title),
+            Icons.Rounded.Folder,
+        ) { navController.navigate(Routes.FILE_VIEWER) },
+        HomeActionItem(
+            stringResource(R.string.action_cache_clean_title),
+            Icons.Rounded.CleaningServices,
+        ) { navController.navigate(Routes.CACHE_CLEAN) },
+        HomeActionItem(
+            stringResource(R.string.action_app_manager_title),
+            Icons.Rounded.Apps,
+        ) { navController.navigate(Routes.APP_MANAGER) },
+        HomeActionItem(
+            stringResource(R.string.action_remote_terminal_title),
+            Icons.Rounded.Terminal,
+        ) { navController.navigate(Routes.TERMINAL) },
+    )
+
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        ActionCard(
-            title = stringResource(R.string.action_file_viewer_title),
-            summary = stringResource(R.string.action_file_viewer_summary),
-            icon = Icons.Rounded.Folder,
-            onClick = { navController.navigate(Routes.FILE_VIEWER) },
-        )
-        ActionCard(
-            title = stringResource(R.string.action_cache_clean_title),
-            summary = stringResource(R.string.action_cache_clean_summary),
-            icon = Icons.Rounded.CleaningServices,
-            onClick = { navController.navigate(Routes.CACHE_CLEAN) },
-        )
-        ActionCard(
-            title = stringResource(R.string.action_app_manager_title),
-            summary = stringResource(R.string.action_app_manager_summary),
-            icon = Icons.Rounded.Apps,
-            onClick = { navController.navigate(Routes.APP_MANAGER) },
-        )
-        ActionCard(
-            title = stringResource(R.string.action_bluetooth_sync_title),
-            summary = stringResource(R.string.action_bluetooth_sync_summary),
-            icon = Icons.Rounded.Bluetooth,
-            onClick = { navController.navigate(Routes.BLUETOOTH) },
-        )
-        ActionCard(
-            title = stringResource(R.string.action_lan_sync_title),
-            summary = stringResource(R.string.action_lan_sync_summary),
-            icon = Icons.Rounded.Wifi,
-            onClick = { navController.navigate(Routes.FETCH) },
-        )
-        ActionCard(
-            title = stringResource(R.string.action_remote_terminal_title),
-            summary = stringResource(R.string.action_remote_terminal_summary),
-            icon = Icons.Rounded.Terminal,
-            onClick = { navController.navigate(Routes.TERMINAL) },
-        )
+        actions.chunked(2).forEach { rowItems ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.Top,
+            ) {
+                rowItems.forEach { item ->
+                    ActionCard(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(82.dp),
+                        title = item.title,
+                        icon = item.icon,
+                        onClick = item.onClick,
+                    )
+                }
+                if (rowItems.size == 1) {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+            }
+        }
     }
 }
 
 @Composable
 private fun ActionCard(
+    modifier: Modifier = Modifier,
     title: String,
-    summary: String,
     icon: ImageVector,
     onClick: () -> Unit,
 ) {
     val colors = MiuixTheme.colorScheme
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier,
         colors = CardColors(
             color = ShellTheme.colors.cardBackground,
             contentColor = colors.onSurface,
@@ -493,40 +511,30 @@ private fun ActionCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                modifier = Modifier.size(26.dp),
+                modifier = Modifier.size(24.dp),
                 tint = colors.onSurface,
             )
-            Spacer(Modifier.width(14.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = colors.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    text = summary,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = colors.onSurfaceVariantSummary,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
+            Spacer(Modifier.width(12.dp))
+            Text(
+                modifier = Modifier.weight(1f),
+                text = title,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = colors.onSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = null,
-                modifier = Modifier.size(20.dp),
-                tint = colors.outline,
+                modifier = Modifier.size(18.dp),
+                tint = colors.onSurfaceVariantSummary,
             )
         }
     }

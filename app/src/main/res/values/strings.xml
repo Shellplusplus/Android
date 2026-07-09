@@ -205,6 +205,8 @@
     <string name="remote_file_open_image_desc">拉取图片到手机临时缓存</string>
     <string name="remote_file_close_viewer">返回文件信息</string>
     <string name="remote_file_file_size">文件大小</string>
+    <string name="remote_file_folder_label">文件夹</string>
+    <string name="remote_file_file_label">文件</string>
     <string name="remote_file_previous_page">上一页</string>
     <string name="remote_file_next_page">下一页</string>
     <string name="remote_file_loading">加载中…</string>
