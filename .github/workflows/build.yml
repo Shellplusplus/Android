@@ -2,14 +2,14 @@ name: Build & Release APK
 
 on:
   push:
-    branches: [ android ]
+    branches: [ main, android ]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
 
     steps:
       - name: Checkout code
@@ -75,11 +75,44 @@ jobs:
         # Keep this for runner-side path debugging when artifact layouts change.
         run: find app/build/outputs/apk -type f | sort
 
-      - name: Create public download release
+      - name: Resolve release target
+        id: release_target
+        env:
+          PUBLIC_RELEASE_REPOSITORY: ${{ vars.PUBLIC_RELEASE_REPOSITORY }}
+        run: |
+          if [ -n "$PUBLIC_RELEASE_REPOSITORY" ]; then
+            echo "repository=$PUBLIC_RELEASE_REPOSITORY" >> $GITHUB_OUTPUT
+            echo "external_repo=true" >> $GITHUB_OUTPUT
+          else
+            echo "repository=${GITHUB_REPOSITORY}" >> $GITHUB_OUTPUT
+            echo "external_repo=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create release in current repository
+        if: steps.release_target.outputs.external_repo == 'false'
         uses: softprops/action-gh-release@v2
         with:
-          # Publish APK artifacts to the public download repository.
-          repository: DefateStar/public-shellpp
+          tag_name: beta${{ github.run_number }}
+          name: "Shell++ beta${{ github.run_number }}"
+          body: |
+            ## Shell++ beta${{ github.run_number }}
+
+            ### 更新内容
+            ${{ steps.changelog.outputs.log }}
+
+            ### 安装说明
+            下载下方 APK 文件，直接安装即可。
+          files: app/build/outputs/apk/*/release/*.apk
+          fail_on_unmatched_files: true
+          draft: false
+          prerelease: false
+          make_latest: true
+
+      - name: Create release in external repository
+        if: steps.release_target.outputs.external_repo == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          repository: ${{ steps.release_target.outputs.repository }}
           token: ${{ secrets.PUBLIC_SHELLPP_TOKEN }}
           tag_name: beta${{ github.run_number }}
           name: "Shell++ beta${{ github.run_number }}"
