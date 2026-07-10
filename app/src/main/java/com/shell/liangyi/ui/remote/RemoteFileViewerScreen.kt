@@ -110,6 +110,10 @@ fun RemoteFileViewerScreen(
         mutableStateOf(defaultExpandedDemoPaths())
     }
     val displayState = if (demoMode) demoState else state
+    val hasRemoteState = state.isLoading ||
+        state.items.isNotEmpty() ||
+        state.selectedPath.isNotBlank() ||
+        state.currentPath != "/"
     val animatedContentState = remember(displayState) {
         RemoteViewerAnimatedState(displayState)
     }
@@ -121,7 +125,9 @@ fun RemoteFileViewerScreen(
             demoState = buildDemoListState(path = "/", packageName = context.packageName)
         } else {
             shellViewModel.showRemoteFileList()
-            shellViewModel.refreshRemoteFileViewerRoot()
+            if (!hasRemoteState) {
+                shellViewModel.refreshRemoteFileViewerRoot()
+            }
         }
     }
 

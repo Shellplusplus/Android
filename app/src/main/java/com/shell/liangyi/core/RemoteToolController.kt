@@ -18,10 +18,12 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
+import java.util.LinkedHashMap
 import java.util.Locale
 
 private const val REMOTE_TOOL_TAG = "RemoteToolController"
-private const val REMOTE_TOOL_TIMEOUT_MS = 12_000L
+private const val REMOTE_TOOL_TIMEOUT_MS = 25_000L
+private const val REMOTE_FILE_CACHE_LIMIT = 32
 
 enum class RemoteFileViewMode {
     LIST,
@@ -86,6 +88,7 @@ private data class ActiveRemoteRequest(
     val feature: String,
     val action: String,
     val expectsBinary: Boolean,
+    val targetPath: String = "",
 )
 
 private data class ActiveBinaryTransfer(
@@ -131,6 +134,7 @@ class RemoteToolController(
     private var timeoutJob: Job? = null
     private var collectorJob: Job? = null
     private var requestCounter = 0L
+    private val directoryListingCache = LinkedHashMap<String, List<RemoteFileItem>>(REMOTE_FILE_CACHE_LIMIT, 0.75f, true)
 
     init {
         collectorJob = scope.launch(Dispatchers.IO) {
@@ -146,18 +150,35 @@ class RemoteToolController(
         collectorJob?.cancel()
         collectorJob = null
         activeRequest = null
+        directoryListingCache.clear()
         clearBinaryTransfer()
     }
 
     fun refreshFileViewerRoot() {
         _fileViewerState.value = RemoteFileViewerState(currentPath = "/")
-        listFilePath("/")
+        listFilePath("/", forceRefresh = true)
     }
 
-    fun listFilePath(path: String) {
-        if (!startRequest(FEATURE_FILE_VIEWER, "list", expectsBinary = false)) return
+    fun listFilePath(path: String, forceRefresh: Boolean = false) {
+        val normalizedPath = normalizeRemotePath(path)
+        val cachedItems = if (forceRefresh) null else directoryListingCache[normalizedPath]
+        if (!startRequest(
+                feature = FEATURE_FILE_VIEWER,
+                action = "list",
+                expectsBinary = false,
+                targetPath = normalizedPath,
+            )
+        ) {
+            return
+        }
         _fileViewerState.value = _fileViewerState.value.copy(
             isLoading = true,
+            currentPath = normalizedPath,
+            items = cachedItems ?: if (_fileViewerState.value.currentPath == normalizedPath) {
+                _fileViewerState.value.items
+            } else {
+                emptyList()
+            },
             viewerErrorMessage = "",
             viewMode = RemoteFileViewMode.LIST,
         )
@@ -165,7 +186,7 @@ class RemoteToolController(
             feature = FEATURE_FILE_VIEWER,
             action = "list",
             payload = JSONObject().apply {
-                put("path", path.ifBlank { "/" })
+                put("path", normalizedPath)
             },
         )
     }
@@ -367,6 +388,15 @@ class RemoteToolController(
     }
 
     private fun startRequest(feature: String, action: String, expectsBinary: Boolean): Boolean {
+        return startRequest(feature, action, expectsBinary, "")
+    }
+
+    private fun startRequest(
+        feature: String,
+        action: String,
+        expectsBinary: Boolean,
+        targetPath: String,
+    ): Boolean {
         if (activeRequest != null) {
             emitMessage(context.getString(R.string.remote_tool_busy))
             return false
@@ -377,6 +407,7 @@ class RemoteToolController(
             feature = feature,
             action = action,
             expectsBinary = expectsBinary,
+            targetPath = targetPath,
         )
         return true
     }
@@ -429,9 +460,10 @@ class RemoteToolController(
     private fun handleFileViewerResult(request: ActiveRemoteRequest, json: JSONObject) {
         when (request.action) {
             "list" -> {
-                val path = json.optString("path", "/")
+                val path = normalizeRemotePath(json.optString("path", request.targetPath))
                 val itemsJson = json.optJSONArray("items")
                 val items = buildRemoteFileItems(itemsJson)
+                cacheDirectoryListing(path, items)
                 _fileViewerState.value = _fileViewerState.value.copy(
                     isLoading = false,
                     currentPath = path,
@@ -707,5 +739,19 @@ class RemoteToolController(
 
     private fun sanitizeFileName(value: String): String {
         return value.lowercase(Locale.ROOT).replace(Regex("[^a-z0-9._-]"), "_")
+    }
+
+    private fun cacheDirectoryListing(path: String, items: List<RemoteFileItem>) {
+        directoryListingCache[path] = items
+        while (directoryListingCache.size > REMOTE_FILE_CACHE_LIMIT) {
+            val eldestKey = directoryListingCache.entries.firstOrNull()?.key ?: break
+            directoryListingCache.remove(eldestKey)
+        }
+    }
+
+    private fun normalizeRemotePath(path: String): String {
+        if (path.isBlank()) return "/"
+        val trimmed = if (path.length > 1 && path.endsWith("/")) path.dropLast(1) else path
+        return if (trimmed.isBlank()) "/" else trimmed
     }
 }
