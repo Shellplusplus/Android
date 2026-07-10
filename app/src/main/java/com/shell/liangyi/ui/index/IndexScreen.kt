@@ -26,7 +26,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.background
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.Article
@@ -43,6 +45,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -477,7 +480,7 @@ private fun ActionList(navController: NavHostController) {
                     ActionCard(
                         modifier = Modifier
                             .weight(1f)
-                            .heightIn(min = 96.dp),
+                            .heightIn(min = 68.dp),
                         title = item.title,
                         icon = item.icon,
                         onClick = item.onClick,
@@ -499,7 +502,6 @@ private fun ActionCard(
     onClick: () -> Unit,
 ) {
     val colors = MiuixTheme.colorScheme
-    val shellColors = ShellTheme.colors
     Card(
         modifier = modifier,
         colors = CardColors(
@@ -511,58 +513,35 @@ private fun ActionCard(
         showIndication = true,
         pressFeedbackType = PressFeedbackType.Sink,
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .defaultMinSize(minHeight = 96.dp)
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.SpaceBetween,
+                .defaultMinSize(minHeight = 68.dp)
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(
-                    modifier = Modifier.size(36.dp)
-                ) {
-                    Card(
-                        modifier = Modifier.fillMaxSize(),
-                        colors = CardColors(
-                            color = colors.surface.copy(alpha = 0.82f),
-                            contentColor = colors.onSurface,
-                        ),
-                        cornerRadius = 12.dp,
-                    ) {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(
-                                imageVector = icon,
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp),
-                                tint = colors.onSurface,
-                            )
-                        }
-                    }
-                }
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                    tint = shellColors.secondaryText,
-                )
-            }
-            Spacer(Modifier.height(12.dp))
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+                tint = colors.onSurface,
+            )
+            Spacer(Modifier.width(12.dp))
             Text(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.weight(1f),
                 text = title,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = colors.onSurface,
-                maxLines = 2,
+                maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.width(8.dp))
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = colors.onSurfaceVariantSummary,
             )
         }
     }
