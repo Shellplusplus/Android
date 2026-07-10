@@ -13,18 +13,18 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: "17"
           distribution: "temurin"
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
+        uses: gradle/actions/setup-gradle@v5
 
       - name: Decode keystore
         run: |
@@ -64,7 +64,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: release-apks
           path: app/build/outputs/apk/*/release/*.apk
@@ -90,7 +90,7 @@ jobs:
 
       - name: Create release in current repository
         if: steps.release_target.outputs.external_repo == 'false'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: beta${{ github.run_number }}
           name: "Shell++ beta${{ github.run_number }}"
@@ -110,7 +110,7 @@ jobs:
 
       - name: Create release in external repository
         if: steps.release_target.outputs.external_repo == 'true'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           repository: ${{ steps.release_target.outputs.repository }}
           token: ${{ secrets.PUBLIC_SHELLPP_TOKEN }}
