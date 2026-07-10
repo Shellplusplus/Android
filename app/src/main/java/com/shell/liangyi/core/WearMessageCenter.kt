@@ -104,6 +104,8 @@ class WearMessageCenter private constructor(private val context: Context) {
     companion object {
         private const val TAG = "WearMessageCenter"
         private const val CHUNK_SIZE = 4096
+        private const val MAX_CHUNK_TOTAL = 1024
+        private const val MAX_CONCURRENT_CHUNKS = 16
         private const val WEAR_APP_ENTRY_URI = "/pages/index"
         private const val HANDSHAKE_TIMEOUT_MS = 3000L
         private const val HEARTBEAT_INTERVAL_MS = 5000L
@@ -787,8 +789,13 @@ class WearMessageCenter private constructor(private val context: Context) {
             val total = json.optInt("t", -1)
             val data = json.optString("d")
 
-            if (id.isEmpty() || index < 0 || total <= 0 || index >= total || data.isEmpty()) {
+            if (id.isEmpty() || index < 0 || total <= 0 || total > MAX_CHUNK_TOTAL || index >= total || data.isEmpty()) {
                 addLog("ERROR", "chunk", tr(R.string.invalid_chunk, id, index, total))
+                return
+            }
+
+            if (chunkBuffers.size >= MAX_CONCURRENT_CHUNKS && !chunkBuffers.containsKey(id)) {
+                addLog("ERROR", "chunk", "Too many concurrent chunk sessions, rejecting $id")
                 return
             }
 

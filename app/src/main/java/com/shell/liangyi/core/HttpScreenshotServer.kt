@@ -10,10 +10,14 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.net.Inet4Address
+import java.net.InetSocketAddress
 import java.net.NetworkInterface
 import java.net.ServerSocket
 import java.net.Socket
+import java.security.SecureRandom
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executors
+import java.util.concurrent.Semaphore
 
 /**
  * 轻量级 HTTP 服务器（ServerSocket + 最小 HTTP/1.1 解析），零外部依赖。
@@ -31,6 +35,9 @@ class HttpScreenshotServer(
         const val DEFAULT_PORT = 8765
         private const val MAX_LEGACY_BODY_BYTES = 10 * 1024 * 1024
         private const val MAX_CHUNK_BODY_BYTES = 512 * 1024
+        private const val MAX_CONCURRENT_WORKERS = 4
+        private const val MAX_CHUNK_SESSIONS = 16
+        private const val MAX_SHOT_ID_LENGTH = 128
     }
 
     data class TransferProgress(
@@ -57,11 +64,24 @@ class HttpScreenshotServer(
     private var serverThread: Thread? = null
     private var serverSocket: ServerSocket? = null
     private val chunkSessions = ConcurrentHashMap<String, ChunkSession>()
+    private val workerPool = Executors.newFixedThreadPool(MAX_CONCURRENT_WORKERS)
+    private val workerSemaphore = Semaphore(MAX_CONCURRENT_WORKERS, true)
+    private val authToken: String = generateAuthToken()
     var port: Int = DEFAULT_PORT
         private set
     @Volatile
     var isRunning: Boolean = false
         private set
+
+    fun getAuthToken(): String = authToken
+
+    private fun generateAuthToken(): String {
+        val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+        val random = SecureRandom()
+        return buildString(32) {
+            repeat(32) { append(chars[random.nextInt(chars.length)]) }
+        }
+    }
 
     private fun tr(@StringRes resId: Int, vararg args: Any): String = context.getString(resId, *args)
 
@@ -92,14 +112,28 @@ class HttpScreenshotServer(
         if (isRunning) return true
         return try {
             screenshotsDir.mkdirs()
-            serverSocket = ServerSocket(port)
+            val bindAddr = getWifiIp()?.let { InetSocketAddress(it, port) } ?: InetSocketAddress(port)
+            serverSocket = ServerSocket()
+            serverSocket!!.reuseAddress = true
+            serverSocket!!.bind(bindAddr)
             isRunning = true
             serverThread = Thread({
-                Log.i(TAG, "HTTP server listening on port $port")
+                Log.i(TAG, "HTTP server listening on $bindAddr")
                 while (isRunning) {
                     try {
                         val client = serverSocket?.accept() ?: continue
-                        Thread({ handleClient(client) }, "http-worker").start()
+                        if (!workerSemaphore.tryAcquire()) {
+                            Log.w(TAG, "Too many concurrent workers, rejecting connection")
+                            try { client.close() } catch (_: Exception) {}
+                            continue
+                        }
+                        workerPool.submit {
+                            try {
+                                handleClient(client)
+                            } finally {
+                                workerSemaphore.release()
+                            }
+                        }
                     } catch (e: Exception) {
                         if (isRunning) Log.w(TAG, "Accept error", e)
                     }
@@ -107,7 +141,7 @@ class HttpScreenshotServer(
             }, "http-server")
             serverThread!!.isDaemon = true
             serverThread!!.start()
-            Log.i(TAG, "HTTP server started on port $port, IP: ${getWifiIp() ?: "unknown"}")
+            Log.i(TAG, "HTTP server started on port $port, IP: ${getWifiIp() ?: "unknown"}, auth: ${authToken.take(4)}...")
             true
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start on port $port", e)
@@ -132,6 +166,7 @@ class HttpScreenshotServer(
             serverThread?.interrupt()
             serverThread = null
         } catch (_: Exception) {}
+        workerPool.shutdownNow()
         Log.i(TAG, "HTTP server stopped")
     }
 
@@ -158,6 +193,14 @@ class HttpScreenshotServer(
                     if (key == "content-length") {
                         contentLength = value.toIntOrNull() ?: 0
                     }
+                }
+            }
+
+            if (path != "/ping") {
+                val token = headers["x-auth-token"]
+                if (token.isNullOrBlank() || token != authToken) {
+                    respond(socket, 401, """{"ok":false,"error":"unauthorized"}""")
+                    return
                 }
             }
 
@@ -215,6 +258,14 @@ class HttpScreenshotServer(
         respond(socket, 200, json)
     }
 
+    private fun sanitizeShotId(raw: String): String? {
+        val trimmed = raw.trim()
+        if (trimmed.isBlank() || trimmed.length > MAX_SHOT_ID_LENGTH) return null
+        if (trimmed.contains('/') || trimmed.contains('\\') || trimmed.contains('\u0000')) return null
+        if (trimmed == "." || trimmed == "..") return null
+        return trimmed
+    }
+
     private fun handleScreenshotChunk(socket: Socket, input: java.io.InputStream, contentLength: Int) {
         try {
             val body = readBody(input, contentLength, MAX_CHUNK_BODY_BYTES)
@@ -223,14 +274,19 @@ class HttpScreenshotServer(
                 return
             }
             val json = JSONObject(String(body, Charsets.UTF_8))
-            val shotId = json.optString("shotId", "")
+            val shotId = sanitizeShotId(json.optString("shotId", ""))
             val timeText = json.optString("timeText", "")
             val totalBytes = json.optLong("totalBytes", 0L)
             val totalChunks = json.optInt("totalChunks", 0)
             val chunkIndex = json.optInt("chunkIndex", -1)
             val b64 = json.optString("data", "")
-            if (shotId.isBlank() || totalBytes <= 0 || totalChunks <= 0 || chunkIndex < 0 || b64.isBlank()) {
+            if (shotId == null || totalBytes <= 0 || totalChunks <= 0 || chunkIndex < 0 || b64.isBlank()) {
                 respond(socket, 400, """{"ok":false,"error":"Invalid chunk payload"}""")
+                return
+            }
+
+            if (chunkSessions.size >= MAX_CHUNK_SESSIONS && !chunkSessions.containsKey(shotId)) {
+                respond(socket, 429, """{"ok":false,"error":"Too many concurrent sessions"}""")
                 return
             }
 
@@ -302,10 +358,11 @@ class HttpScreenshotServer(
     }
 
     private fun handleScreenshot(socket: Socket, input: java.io.InputStream, headers: Map<String, String>, contentLength: Int) {
-        val shotId = headers["x-shot-id"]
+        val rawShotId = headers["x-shot-id"]
+        val shotId = sanitizeShotId(rawShotId ?: "")
         val timeText = headers["x-time-text"] ?: ""
-        if (shotId.isNullOrBlank()) {
-            respond(socket, 400, """{"ok":false,"error":"Missing X-Shot-Id header"}""")
+        if (shotId == null) {
+            respond(socket, 400, """{"ok":false,"error":"Invalid or missing X-Shot-Id header"}""")
             return
         }
         val body = readBody(input, contentLength, MAX_LEGACY_BODY_BYTES)
@@ -322,7 +379,8 @@ class HttpScreenshotServer(
 
             val jsonTry = try { JSONObject(bodyStr) } catch (_: Exception) { null }
             if (jsonTry != null && jsonTry.has("data")) {
-                finalShotId = jsonTry.optString("shotId", shotId)
+                val jsonShotId = sanitizeShotId(jsonTry.optString("shotId", shotId))
+                finalShotId = jsonShotId ?: shotId
                 finalTimeText = jsonTry.optString("timeText", timeText)
                 val b64 = jsonTry.optString("data", "")
                 if (b64.isEmpty()) {
