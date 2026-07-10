@@ -51,7 +51,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.shell.liangyi.R
-import com.shell.liangyi.core.ConnectionState
 import com.shell.liangyi.core.update.UpdateInstaller
 import com.shell.liangyi.feature.AgentEntryPointProvider
 import com.shell.liangyi.ui.about.AboutScreen
@@ -129,7 +128,6 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
     val rootBackdrop = rememberShellBlurBackdrop(enableBlur = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S_V2)
     val catalogDialogBackdrop = rememberCatalogDialogBackdrop()
     val showOnboarding by shellViewModel.showOnboarding.collectAsState()
-    val connectionState by shellViewModel.connectionState.collectAsState(initial = ConnectionState.DISCONNECTED)
     val updatePrompt by shellViewModel.updatePrompt.collectAsState()
     val updateDownloadState by shellViewModel.updateDownloadState.collectAsState()
     val skipOptionalUpdateInfoDialogVisible by shellViewModel.skipOptionalUpdateInfoDialogVisible.collectAsState()
@@ -148,12 +146,6 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
     LaunchedEffect(showOnboarding) {
         if (!showOnboarding) {
             shellViewModel.checkForUpdates(manual = false)
-        }
-    }
-
-    LaunchedEffect(showOnboarding, connectionState) {
-        if (!showOnboarding) {
-            shellViewModel.preloadAllPages()
         }
     }
 
