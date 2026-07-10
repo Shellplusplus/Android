@@ -5,48 +5,65 @@ import android.graphics.RectF
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.add
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.TextFieldColors
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
@@ -75,15 +92,19 @@ import com.shell.liangyi.core.onboarding.GitHubProxySources
 import com.shell.liangyi.core.onboarding.GitHubUrlResolver
 import com.shell.liangyi.ui.ShellViewModel
 import com.shell.liangyi.ui.about.AboutScreen
-import com.shell.liangyi.ui.components.ShellRootTabScaffold
 import com.shell.liangyi.ui.settings.SettingsTabScreen
 import com.shell.liangyi.ui.theme.ShellTheme
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardColors
+import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
+import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.absoluteValue
 import android.graphics.Paint as AndroidPaint
@@ -91,10 +112,10 @@ import android.graphics.Path as AndroidPath
 
 private const val OnboardingPageCount = 5
 private val FloatingPagePillWidth = 69.dp
+private val FloatingSummaryHorizontalPadding = 18.dp
 private val FloatingSummaryVerticalPadding = 13.dp
 private val FloatingSummaryLineHeight = 18.sp
 private val FloatingSharedControlHeight = 44.dp
-private val FloatingSummaryMinWidth = 168.dp
 private val FloatingSummaryMaxWidth = 360.dp
 
 @Composable
@@ -298,51 +319,52 @@ private fun ProxySelectionPage(
     onRetest: () -> Unit,
 ) {
     val shellColors = ShellTheme.colors
+    val selectedSource = remember(selectedSourceId) { GitHubProxySources.findById(selectedSourceId) }
+    val scrollBehavior = MiuixScrollBehavior()
+    val listState = rememberLazyListState()
+    val title = stringResource(R.string.onboarding_proxy_title)
 
-    ShellRootTabScaffold(title = stringResource(R.string.onboarding_proxy_title)) { innerPadding ->
-        Column(
+    Scaffold(
+        modifier = Modifier.background(shellColors.pageBackground),
+        topBar = {
+            TopAppBar(
+                color = shellColors.pageBackground,
+                title = title,
+                scrollBehavior = scrollBehavior,
+            )
+        },
+        popupHost = {},
+        containerColor = shellColors.pageBackground,
+        contentWindowInsets = WindowInsets.systemBars
+            .add(WindowInsets.displayCutout)
+            .only(WindowInsetsSides.Horizontal),
+    ) { innerPadding ->
+        LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 20.dp)
-                .verticalScroll(rememberScrollState()),
+                .scrollEndHaptic()
+                .overScrollVertical()
+                .nestedScroll(scrollBehavior.nestedScrollConnection)
+                .padding(horizontal = 12.dp),
+            contentPadding = PaddingValues(
+                start = 0.dp,
+                top = innerPadding.calculateTopPadding() + 12.dp,
+                end = 0.dp,
+                bottom = 160.dp,
+            ),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            overscrollEffect = null,
         ) {
-            Spacer(modifier = Modifier.height(14.dp))
-            Text(
-                text = stringResource(R.string.onboarding_proxy_subtitle),
-                fontSize = 13.sp,
-                lineHeight = 19.sp,
-                color = shellColors.secondaryText,
-            )
-            Spacer(modifier = Modifier.height(18.dp))
-
-            if (benchmarkState.isRunning) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp),
-                        strokeWidth = 2.dp,
-                    )
-                    Text(
-                        text = stringResource(R.string.onboarding_proxy_testing),
-                        fontSize = 13.sp,
-                        color = shellColors.secondaryText,
-                    )
-                }
-                Spacer(modifier = Modifier.height(14.dp))
-            } else if (benchmarkState.results.isNotEmpty() && benchmarkState.fastestSourceId == null) {
-                Text(
-                    text = stringResource(R.string.onboarding_proxy_test_failed),
-                    fontSize = 13.sp,
-                    lineHeight = 18.sp,
-                    color = shellColors.warning,
+            item {
+                ProxyBenchmarkStatusCard(
+                    selectedSourceTitle = selectedSource.title,
+                    benchmarkState = benchmarkState,
+                    onRetest = onRetest,
                 )
-                Spacer(modifier = Modifier.height(14.dp))
             }
-
-            GitHubProxySources.builtInSources.forEach { source ->
+            items(GitHubProxySources.builtInSources.size) { index ->
+                val source = GitHubProxySources.builtInSources[index]
                 val result = benchmarkState.results.firstOrNull { it.sourceId == source.id }
                 ProxySourceCard(
                     title = source.title,
@@ -351,53 +373,311 @@ private fun ProxySelectionPage(
                     result = result,
                     onClick = { onSelectSource(source.id) },
                 )
-                Spacer(modifier = Modifier.height(10.dp))
             }
-
-            ProxySourceCard(
-                title = GitHubProxySources.custom.title,
-                selected = selectedSourceId == GitHubProxySources.custom.id,
-                isFastest = false,
-                result = null,
-                onClick = { onSelectSource(GitHubProxySources.custom.id) },
-            )
-
+            item {
+                ProxySourceCard(
+                    title = GitHubProxySources.custom.title,
+                    selected = selectedSourceId == GitHubProxySources.custom.id,
+                    isFastest = false,
+                    result = null,
+                    onClick = { onSelectSource(GitHubProxySources.custom.id) },
+                )
+            }
             if (selectedSourceId == GitHubProxySources.custom.id) {
-                Spacer(modifier = Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = customBaseUrl,
-                    onValueChange = onCustomBaseUrlChange,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(20.dp),
-                    label = {
-                        androidx.compose.material3.Text(
-                            stringResource(R.string.onboarding_proxy_custom_label),
-                        )
-                    },
-                    placeholder = {
-                        androidx.compose.material3.Text(
-                            stringResource(R.string.onboarding_proxy_custom_hint),
-                        )
-                    },
-                    singleLine = true,
-                )
+                item {
+                    ProxyCustomUrlCard(
+                        customBaseUrl = customBaseUrl,
+                        onCustomBaseUrlChange = onCustomBaseUrlChange,
+                    )
+                }
             }
-
-            Spacer(modifier = Modifier.height(16.dp))
-            OutlinedButton(
-                onClick = onRetest,
-                border = BorderStroke(1.dp, shellColors.primaryAction),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(
-                    text = stringResource(R.string.onboarding_proxy_retest),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = shellColors.primaryAction,
-                )
-            }
-            Spacer(modifier = Modifier.height(160.dp))
         }
+    }
+}
+
+@Composable
+private fun ProxyBenchmarkStatusCard(
+    selectedSourceTitle: String,
+    benchmarkState: GitHubProxyBenchmarkUiState,
+    onRetest: () -> Unit,
+) {
+    val shellColors = ShellTheme.colors
+    val colors = MiuixTheme.colorScheme
+    val cardColor: Color
+    val accentColor: Color
+    val title: String
+    val summary: String
+    val showRetestButton: Boolean
+
+    when {
+        benchmarkState.isRunning -> {
+            cardColor = shellColors.primaryAction.copy(alpha = 0.12f)
+            accentColor = shellColors.primaryAction
+            title = stringResource(R.string.onboarding_proxy_testing)
+            summary = stringResource(R.string.onboarding_proxy_testing_summary)
+            showRetestButton = false
+        }
+        benchmarkState.results.isNotEmpty() && benchmarkState.fastestSourceId == null -> {
+            cardColor = shellColors.warning.copy(alpha = 0.14f)
+            accentColor = shellColors.warning
+            title = stringResource(R.string.onboarding_proxy_test_failed)
+            summary = stringResource(R.string.onboarding_proxy_test_failed_summary)
+            showRetestButton = true
+        }
+        benchmarkState.fastestSourceId != null -> {
+            cardColor = shellColors.success.copy(alpha = 0.14f)
+            accentColor = shellColors.success
+            title = stringResource(R.string.onboarding_proxy_recommended_title)
+            summary = stringResource(
+                R.string.onboarding_proxy_recommended_summary,
+                GitHubProxySources.findById(benchmarkState.fastestSourceId).title,
+            )
+            showRetestButton = true
+        }
+        else -> {
+            cardColor = shellColors.cardBackground
+            accentColor = colors.onSurface
+            title = stringResource(R.string.onboarding_proxy_current_title)
+            summary = selectedSourceTitle
+            showRetestButton = true
+        }
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardColors(
+            color = cardColor,
+            contentColor = colors.onSurface,
+        ),
+        cornerRadius = 18.dp,
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(end = if (showRetestButton) 46.dp else 0.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                if (benchmarkState.isRunning) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                        color = accentColor,
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .clip(CircleShape)
+                            .background(accentColor),
+                    )
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = title,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colors.onSurface,
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = summary,
+                        fontSize = 12.sp,
+                        lineHeight = 17.sp,
+                        color = shellColors.secondaryText,
+                    )
+                }
+            }
+            if (showRetestButton) {
+                ProxyInlineActionButton(
+                    enabled = !benchmarkState.isRunning,
+                    onClick = onRetest,
+                    modifier = Modifier.align(Alignment.BottomEnd),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun onboardingOutlinedFieldColors(): TextFieldColors {
+    val colors = MiuixTheme.colorScheme
+    val shellColors = ShellTheme.colors
+
+    return OutlinedTextFieldDefaults.colors(
+        focusedBorderColor = shellColors.primaryAction.copy(alpha = 0.7f),
+        unfocusedBorderColor = colors.outline.copy(alpha = 0.22f),
+        disabledBorderColor = colors.outline.copy(alpha = 0.12f),
+        focusedContainerColor = shellColors.pageBackground,
+        unfocusedContainerColor = shellColors.pageBackground,
+        disabledContainerColor = shellColors.pageBackground,
+        focusedTextColor = colors.onSurface,
+        unfocusedTextColor = colors.onSurface,
+        disabledTextColor = colors.onSurface,
+        cursorColor = shellColors.primaryAction,
+        focusedLabelColor = shellColors.primaryAction,
+        unfocusedLabelColor = shellColors.secondaryText,
+        disabledLabelColor = shellColors.secondaryText,
+        focusedPlaceholderColor = shellColors.secondaryText,
+        unfocusedPlaceholderColor = shellColors.secondaryText,
+        disabledPlaceholderColor = shellColors.secondaryText,
+    )
+}
+
+@Composable
+private fun ProxyCustomUrlCard(
+    customBaseUrl: String,
+    onCustomBaseUrlChange: (String) -> Unit,
+) {
+    val shellColors = ShellTheme.colors
+    val colors = MiuixTheme.colorScheme
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardColors(
+            color = shellColors.cardBackground,
+            contentColor = colors.onSurface,
+        ),
+        cornerRadius = 18.dp,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.onboarding_proxy_custom_label),
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = colors.onSurface,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = stringResource(R.string.onboarding_proxy_custom_hint),
+                fontSize = 12.sp,
+                lineHeight = 17.sp,
+                color = shellColors.secondaryText,
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            OutlinedTextField(
+                value = customBaseUrl,
+                onValueChange = onCustomBaseUrlChange,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                label = {
+                    androidx.compose.material3.Text(
+                        stringResource(R.string.onboarding_proxy_custom_label),
+                    )
+                },
+                placeholder = {
+                    androidx.compose.material3.Text(
+                        stringResource(R.string.onboarding_proxy_custom_hint),
+                    )
+                },
+                singleLine = true,
+                colors = onboardingOutlinedFieldColors(),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProxyInlineActionButton(
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val shellColors = ShellTheme.colors
+
+    Box(
+        modifier = modifier
+            .size(34.dp)
+            .clip(CircleShape)
+            .background(
+                if (enabled) {
+                    shellColors.primaryAction.copy(alpha = 0.16f)
+                } else {
+                    shellColors.disabledAction.copy(alpha = 0.26f)
+                },
+            )
+            .clickable(enabled = enabled, onClick = onClick)
+            .border(
+                width = 1.dp,
+                color = if (enabled) {
+                    shellColors.primaryAction.copy(alpha = 0.26f)
+                } else {
+                    Color.Transparent
+                },
+                shape = CircleShape,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.Refresh,
+            contentDescription = stringResource(R.string.onboarding_proxy_retest),
+            tint = if (enabled) {
+                shellColors.primaryAction
+            } else {
+                shellColors.secondaryText.copy(alpha = 0.78f)
+            },
+            modifier = Modifier.size(18.dp),
+        )
+    }
+}
+
+@Composable
+private fun ProxySelectionIndicator(selected: Boolean) {
+    val shellColors = ShellTheme.colors
+
+    Box(
+        modifier = Modifier
+            .size(24.dp)
+            .clip(CircleShape)
+            .border(
+                width = 1.5.dp,
+                color = if (selected) {
+                    shellColors.primaryAction
+                } else {
+                    shellColors.secondaryText.copy(alpha = 0.35f)
+                },
+                shape = CircleShape,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (selected) {
+            Box(
+                modifier = Modifier
+                    .size(10.dp)
+                    .clip(CircleShape)
+                    .background(shellColors.primaryAction),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProxyStatusBadge(
+    text: String,
+    background: Color,
+    foreground: Color,
+) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(background)
+            .padding(horizontal = 10.dp, vertical = 4.dp),
+    ) {
+        Text(
+            text = text,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = foreground,
+        )
     }
 }
 
@@ -411,9 +691,20 @@ private fun ProxySourceCard(
 ) {
     val shellColors = ShellTheme.colors
     val colors = MiuixTheme.colorScheme
+    val cardShape = RoundedCornerShape(18.dp)
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                width = 1.dp,
+                color = if (selected) {
+                    shellColors.primaryAction.copy(alpha = 0.18f)
+                } else {
+                    Color.Transparent
+                },
+                shape = cardShape,
+            ),
         colors = CardColors(
             color = if (selected) {
                 shellColors.primaryAction.copy(alpha = 0.12f)
@@ -432,39 +723,21 @@ private fun ProxySourceCard(
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            RadioButton(
-                selected = selected,
-                onClick = null,
-            )
-            Spacer(modifier = Modifier.width(10.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Text(
-                        text = title,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = colors.onSurface,
-                    )
-                    if (isFastest) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(999.dp))
-                                .background(shellColors.success.copy(alpha = 0.16f))
-                                .padding(horizontal = 10.dp, vertical = 4.dp),
-                        ) {
-                            Text(
-                                text = stringResource(R.string.onboarding_proxy_fastest),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = shellColors.success,
-                            )
-                        }
-                    }
-                }
+            ProxySelectionIndicator(selected = selected)
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .heightIn(min = 42.dp),
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Text(
+                    text = title,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.onSurface,
+                )
                 if (result != null) {
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
@@ -474,11 +747,31 @@ private fun ProxySourceCard(
                             result.errorMessage ?: "Unavailable"
                         },
                         fontSize = 12.sp,
+                        lineHeight = 17.sp,
                         color = if (result.success) {
                             shellColors.secondaryText
                         } else {
                             shellColors.warning
                         },
+                    )
+                }
+            }
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                if (selected) {
+                    ProxyStatusBadge(
+                        text = stringResource(R.string.onboarding_proxy_badge_current),
+                        background = shellColors.primaryAction.copy(alpha = 0.14f),
+                        foreground = shellColors.primaryAction,
+                    )
+                }
+                if (isFastest) {
+                    ProxyStatusBadge(
+                        text = stringResource(R.string.onboarding_proxy_fastest),
+                        background = shellColors.success.copy(alpha = 0.16f),
+                        foreground = shellColors.success,
                     )
                 }
             }
@@ -529,6 +822,9 @@ private fun FloatingOnboardingBar(
     val configuration = LocalConfiguration.current
     val density = LocalDensity.current
     val textMeasurer = rememberTextMeasurer()
+    val summarySwapProgress = remember { Animatable(1f) }
+    var currentSummaryText by remember { mutableStateOf(summary) }
+    var previousSummaryText by remember { mutableStateOf<String?>(null) }
     val summaryTextStyle = remember(shellColors.secondaryText) {
         TextStyle(
             fontSize = 13.sp,
@@ -538,7 +834,6 @@ private fun FloatingOnboardingBar(
     }
     val summaryPillMaxWidth = remember(configuration.screenWidthDp) {
         (configuration.screenWidthDp.dp - 36.dp)
-            .coerceAtLeast(FloatingSummaryMinWidth)
             .coerceAtMost(FloatingSummaryMaxWidth)
     }
     val summaryPillWidth = remember(
@@ -554,9 +849,30 @@ private fun FloatingOnboardingBar(
                     text = AnnotatedString(summary),
                     style = summaryTextStyle,
                     maxLines = 1,
-                ).size.width.toDp() + 36.dp
-            ).coerceIn(FloatingSummaryMinWidth, summaryPillMaxWidth)
+                ).size.width.toDp() + FloatingSummaryHorizontalPadding * 2
+            ).coerceAtMost(summaryPillMaxWidth)
         }
+    }
+    val animatedSummaryPillWidth by animateDpAsState(
+        targetValue = summaryPillWidth,
+        animationSpec = tween(durationMillis = 260, easing = FastOutSlowInEasing),
+        label = "onboarding_summary_pill_width",
+    )
+    val transitionOffsetPx = with(density) { 10.dp.toPx() }
+    val maxBlur = 7.dp
+
+    LaunchedEffect(summary) {
+        if (summary == currentSummaryText) {
+            return@LaunchedEffect
+        }
+        previousSummaryText = currentSummaryText
+        currentSummaryText = summary
+        summarySwapProgress.snapTo(0f)
+        summarySwapProgress.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(durationMillis = 260, easing = FastOutSlowInEasing),
+        )
+        previousSummaryText = null
     }
 
     Column(
@@ -609,7 +925,7 @@ private fun FloatingOnboardingBar(
 
         Card(
             modifier = Modifier
-                .width(summaryPillWidth),
+                .width(animatedSummaryPillWidth),
             colors = CardColors(
                 color = shellColors.cardBackground.copy(alpha = 0.96f),
                 contentColor = colors.onSurface,
@@ -619,17 +935,45 @@ private fun FloatingOnboardingBar(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 18.dp, vertical = FloatingSummaryVerticalPadding),
+                    .padding(
+                        horizontal = FloatingSummaryHorizontalPadding,
+                        vertical = FloatingSummaryVerticalPadding,
+                    ),
                 contentAlignment = Alignment.CenterEnd,
             ) {
+                previousSummaryText?.let { outgoingSummary ->
+                    Text(
+                        text = outgoingSummary,
+                        fontSize = 13.sp,
+                        lineHeight = FloatingSummaryLineHeight,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.End,
+                        color = shellColors.secondaryText,
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .graphicsLayer {
+                                alpha = 1f - summarySwapProgress.value
+                                translationX = -transitionOffsetPx * summarySwapProgress.value
+                            }
+                            .blur(maxBlur * summarySwapProgress.value),
+                    )
+                }
                 Text(
-                    text = summary,
+                    text = currentSummaryText,
                     fontSize = 13.sp,
                     lineHeight = FloatingSummaryLineHeight,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     textAlign = TextAlign.End,
                     color = shellColors.secondaryText,
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .graphicsLayer {
+                            alpha = summarySwapProgress.value
+                            translationX = transitionOffsetPx * (1f - summarySwapProgress.value)
+                        }
+                        .blur(maxBlur * (1f - summarySwapProgress.value)),
                 )
             }
         }
