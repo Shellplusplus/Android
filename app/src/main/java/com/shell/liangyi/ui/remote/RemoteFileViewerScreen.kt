@@ -1,6 +1,9 @@
 package com.shell.liangyi.ui.remote
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -23,18 +27,39 @@ import androidx.compose.material.icons.automirrored.rounded.Subject
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -43,6 +68,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.shell.liangyi.R
@@ -67,25 +93,57 @@ fun RemoteFileViewerScreen(
     navController: NavHostController,
     shellViewModel: ShellViewModel,
 ) {
+    val context = LocalContext.current
     val state by shellViewModel.remoteFileViewerState.collectAsState()
     val connectionState by shellViewModel.connectionState.collectAsState(initial = ConnectionState.DISCONNECTED)
     val scrollBehavior = MiuixScrollBehavior()
-    val fileTooLarge = state.selectedSizeBytes > 3L * 1024L * 1024L
+    val demoMode = connectionState != ConnectionState.CONNECTED
+    var demoState by remember {
+        mutableStateOf(buildDemoListState(path = "/", packageName = context.packageName))
+    }
+    var expandedDemoPaths by remember {
+        mutableStateOf(defaultExpandedDemoPaths())
+    }
+    val displayState = if (demoMode) demoState else state
+    val fileTooLarge = displayState.selectedSizeBytes > 3L * 1024L * 1024L
 
-    LaunchedEffect(Unit) {
-        shellViewModel.showRemoteFileList()
-        shellViewModel.refreshRemoteFileViewerRoot()
+    LaunchedEffect(demoMode) {
+        if (demoMode) {
+            expandedDemoPaths = defaultExpandedDemoPaths()
+            demoState = buildDemoListState(path = "/", packageName = context.packageName)
+        } else {
+            shellViewModel.showRemoteFileList()
+            shellViewModel.refreshRemoteFileViewerRoot()
+        }
     }
 
     ShellBackScaffold(
         title = stringResource(R.string.remote_file_viewer),
         onBack = {
-            when (state.viewMode) {
+            when (displayState.viewMode) {
                 RemoteFileViewMode.IMAGE,
                 RemoteFileViewMode.TEXT,
-                RemoteFileViewMode.HEX -> shellViewModel.showRemoteFileInfo()
+                RemoteFileViewMode.HEX -> {
+                    if (demoMode) {
+                        demoState = buildDemoInfoState(
+                            path = displayState.selectedPath,
+                            packageName = context.packageName,
+                        )
+                    } else {
+                        shellViewModel.showRemoteFileInfo()
+                    }
+                }
 
-                RemoteFileViewMode.INFO -> shellViewModel.showRemoteFileList()
+                RemoteFileViewMode.INFO -> {
+                    if (demoMode) {
+                        demoState = buildDemoListState(
+                            path = parentPath(displayState.selectedPath),
+                            packageName = context.packageName,
+                        )
+                    } else {
+                        shellViewModel.showRemoteFileList()
+                    }
+                }
                 RemoteFileViewMode.LIST -> navController.popBackStack()
             }
         },
@@ -103,41 +161,55 @@ fun RemoteFileViewerScreen(
             item { Spacer(modifier = Modifier.height(12.dp)) }
             item {
                 FileHeroCard(
-                    state = state,
+                    state = displayState,
                     connectionState = connectionState,
                 )
             }
             item {
                 FilePrimaryActions(
-                    state = state,
+                    state = displayState,
                     onRefresh = {
-                        when (state.viewMode) {
-                            RemoteFileViewMode.LIST -> shellViewModel.listRemoteFilePath(state.currentPath)
-                            RemoteFileViewMode.INFO -> shellViewModel.openRemoteFileInfo(state.selectedPath)
-                            RemoteFileViewMode.TEXT -> shellViewModel.openRemoteFileText()
-                            RemoteFileViewMode.HEX -> shellViewModel.openRemoteFileHex(state.hexOffset)
-                            RemoteFileViewMode.IMAGE -> shellViewModel.openRemoteFileImage()
+                        if (demoMode) {
+                            expandedDemoPaths = defaultExpandedDemoPaths()
+                            demoState = refreshDemoState(displayState, context.packageName)
+                        } else {
+                            when (displayState.viewMode) {
+                                RemoteFileViewMode.LIST -> shellViewModel.listRemoteFilePath(displayState.currentPath)
+                                RemoteFileViewMode.INFO -> shellViewModel.openRemoteFileInfo(displayState.selectedPath)
+                                RemoteFileViewMode.TEXT -> shellViewModel.openRemoteFileText()
+                                RemoteFileViewMode.HEX -> shellViewModel.openRemoteFileHex(displayState.hexOffset)
+                                RemoteFileViewMode.IMAGE -> shellViewModel.openRemoteFileImage()
+                            }
                         }
                     },
                     onSecondary = {
-                        when (state.viewMode) {
-                            RemoteFileViewMode.LIST -> shellViewModel.listRemoteFilePath(parentPath(state.currentPath))
-                            RemoteFileViewMode.INFO -> shellViewModel.showRemoteFileList()
-                            RemoteFileViewMode.TEXT,
-                            RemoteFileViewMode.HEX,
-                            RemoteFileViewMode.IMAGE -> shellViewModel.showRemoteFileInfo()
+                        if (demoMode) {
+                            if (displayState.viewMode == RemoteFileViewMode.LIST) {
+                                expandedDemoPaths = defaultExpandedDemoPaths()
+                                demoState = buildDemoListState("/", context.packageName)
+                            } else {
+                                demoState = secondaryDemoState(displayState, context.packageName)
+                            }
+                        } else {
+                            when (displayState.viewMode) {
+                                RemoteFileViewMode.LIST -> shellViewModel.listRemoteFilePath(parentPath(displayState.currentPath))
+                                RemoteFileViewMode.INFO -> shellViewModel.showRemoteFileList()
+                                RemoteFileViewMode.TEXT,
+                                RemoteFileViewMode.HEX,
+                                RemoteFileViewMode.IMAGE -> shellViewModel.showRemoteFileInfo()
+                            }
                         }
                     },
                 )
             }
 
-            when (state.viewMode) {
+            when (displayState.viewMode) {
                 RemoteFileViewMode.LIST -> {
-                    if (state.items.isEmpty()) {
+                    if ((demoMode && demoChildren("/", context.packageName).isEmpty()) || (!demoMode && displayState.items.isEmpty())) {
                         item {
                             FileEmptyCard(
                                 title = stringResource(R.string.remote_file_empty),
-                                summary = if (state.isLoading) {
+                                summary = if (displayState.isLoading) {
                                     stringResource(R.string.remote_file_loading)
                                 } else {
                                     stringResource(R.string.remote_file_empty_desc)
@@ -145,18 +217,51 @@ fun RemoteFileViewerScreen(
                             )
                         }
                     } else {
-                        items(state.items.size) { index ->
-                            val item = state.items[index]
-                            RemoteListCard(
-                                item = item,
-                                onClick = {
-                                    if (item.isDir) {
-                                        shellViewModel.listRemoteFilePath(item.path)
-                                    } else {
-                                        shellViewModel.openRemoteFileInfo(item.path)
-                                    }
-                                },
-                            )
+                        if (demoMode) {
+                            item {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .animateContentSize(
+                                            animationSpec = spring(
+                                                dampingRatio = Spring.DampingRatioNoBouncy,
+                                                stiffness = Spring.StiffnessLow,
+                                            ),
+                                        ),
+                                ) {
+                                    DemoTreeList(
+                                        parentPath = "/",
+                                        packageName = context.packageName,
+                                        expandedPaths = expandedDemoPaths,
+                                        onExpandedPathsChange = { expandedDemoPaths = it },
+                                        onOpenFile = { path ->
+                                            demoState = buildDemoInfoState(path, context.packageName)
+                                        },
+                                    )
+                                }
+                            }
+                        } else {
+                            itemsIndexed(
+                                items = displayState.items,
+                                key = { _, item -> item.id },
+                            ) { index, item ->
+                                RemoteListCard(
+                                    item = item,
+                                    depth = 0,
+                                    ancestorHasNext = emptyList(),
+                                    isFirstSibling = index == 0,
+                                    isLastSibling = index == displayState.items.lastIndex,
+                                    hasChildren = item.isDir,
+                                    isExpanded = false,
+                                    onClick = {
+                                        if (item.isDir) {
+                                            shellViewModel.listRemoteFilePath(item.path)
+                                        } else {
+                                            shellViewModel.openRemoteFileInfo(item.path)
+                                        }
+                                    },
+                                )
+                            }
                         }
                     }
                 }
@@ -175,7 +280,13 @@ fun RemoteFileViewerScreen(
                                 title = stringResource(R.string.remote_file_open_text),
                                 summary = stringResource(R.string.remote_file_open_text_desc),
                                 icon = Icons.AutoMirrored.Rounded.Subject,
-                                onClick = shellViewModel::openRemoteFileText,
+                                onClick = {
+                                    if (demoMode) {
+                                        demoState = buildDemoTextState(displayState.selectedPath, context.packageName)
+                                    } else {
+                                        shellViewModel.openRemoteFileText()
+                                    }
+                                },
                             )
                         }
                         item {
@@ -183,7 +294,17 @@ fun RemoteFileViewerScreen(
                                 title = stringResource(R.string.remote_file_open_hex),
                                 summary = stringResource(R.string.remote_file_open_hex_desc),
                                 icon = Icons.AutoMirrored.Rounded.Article,
-                                onClick = { shellViewModel.openRemoteFileHex(0) },
+                                onClick = {
+                                    if (demoMode) {
+                                        demoState = buildDemoHexState(
+                                            path = displayState.selectedPath,
+                                            offset = 0,
+                                            packageName = context.packageName,
+                                        )
+                                    } else {
+                                        shellViewModel.openRemoteFileHex(0)
+                                    }
+                                },
                             )
                         }
                         item {
@@ -191,7 +312,13 @@ fun RemoteFileViewerScreen(
                                 title = stringResource(R.string.remote_file_open_image),
                                 summary = stringResource(R.string.remote_file_open_image_desc),
                                 icon = Icons.Rounded.Image,
-                                onClick = shellViewModel::openRemoteFileImage,
+                                onClick = {
+                                    if (demoMode) {
+                                        demoState = buildDemoImageState(displayState.selectedPath, context.packageName)
+                                    } else {
+                                        shellViewModel.openRemoteFileImage()
+                                    }
+                                },
                             )
                         }
                     }
@@ -201,24 +328,40 @@ fun RemoteFileViewerScreen(
                 RemoteFileViewMode.HEX -> {
                     item {
                         RemoteTextContentCard(
-                            text = if (state.isLoading) {
+                            text = if (displayState.isLoading) {
                                 stringResource(R.string.remote_file_loading)
                             } else {
-                                state.viewerText
+                                displayState.viewerText
                             },
-                            monospace = state.viewMode == RemoteFileViewMode.HEX,
+                            monospace = displayState.viewMode == RemoteFileViewMode.HEX,
                         )
                     }
-                    if (state.viewMode == RemoteFileViewMode.HEX) {
+                    if (displayState.viewMode == RemoteFileViewMode.HEX) {
                         item {
                             RemoteDualActionRow(
                                 leftTitle = stringResource(R.string.remote_file_previous_page),
                                 rightTitle = stringResource(R.string.remote_file_next_page),
                                 onLeft = {
-                                    shellViewModel.openRemoteFileHex((state.hexOffset - 128).coerceAtLeast(0))
+                                    if (demoMode) {
+                                        demoState = buildDemoHexState(
+                                            path = displayState.selectedPath,
+                                            offset = (displayState.hexOffset - 128).coerceAtLeast(0),
+                                            packageName = context.packageName,
+                                        )
+                                    } else {
+                                        shellViewModel.openRemoteFileHex((displayState.hexOffset - 128).coerceAtLeast(0))
+                                    }
                                 },
                                 onRight = {
-                                    shellViewModel.openRemoteFileHex(state.hexOffset + 128)
+                                    if (demoMode) {
+                                        demoState = buildDemoHexState(
+                                            path = displayState.selectedPath,
+                                            offset = displayState.hexOffset + 128,
+                                            packageName = context.packageName,
+                                        )
+                                    } else {
+                                        shellViewModel.openRemoteFileHex(displayState.hexOffset + 128)
+                                    }
                                 },
                             )
                         }
@@ -228,18 +371,18 @@ fun RemoteFileViewerScreen(
                 RemoteFileViewMode.IMAGE -> {
                     item {
                         RemoteImageCard(
-                            imagePath = state.viewerImagePath,
-                            isLoading = state.isLoading,
+                            imagePath = displayState.viewerImagePath,
+                            isLoading = displayState.isLoading,
                         )
                     }
                 }
             }
 
-            if (state.viewerErrorMessage.isNotBlank()) {
+            if (displayState.viewerErrorMessage.isNotBlank()) {
                 item {
                     FileEmptyCard(
                         title = stringResource(R.string.remote_tool_request_failed),
-                        summary = state.viewerErrorMessage,
+                        summary = displayState.viewerErrorMessage,
                     )
                 }
             }
@@ -455,24 +598,169 @@ private fun FilePrimaryActions(
 }
 
 @Composable
+private fun DemoTreeList(
+    parentPath: String,
+    packageName: String,
+    expandedPaths: Set<String>,
+    onExpandedPathsChange: (Set<String>) -> Unit,
+    onOpenFile: (String) -> Unit,
+    depth: Int = 0,
+    ancestorHasNext: List<Boolean> = emptyList(),
+) {
+    val entries = remember(parentPath, packageName) {
+        demoChildren(parentPath, packageName)
+    }
+
+    entries.forEachIndexed { index, item ->
+        val hasChildren = item.isDir && demoChildren(item.path, packageName).isNotEmpty()
+        val isExpanded = item.isDir && expandedPaths.contains(item.path)
+        val isFirstSibling = index == 0
+        val isLastSibling = index == entries.lastIndex
+
+        RemoteListCard(
+            item = item,
+            depth = depth,
+            ancestorHasNext = ancestorHasNext,
+            isFirstSibling = isFirstSibling,
+            isLastSibling = isLastSibling,
+            hasChildren = hasChildren,
+            isExpanded = isExpanded,
+            onClick = {
+                if (item.isDir) {
+                    onExpandedPathsChange(toggleExpandedPath(expandedPaths, item.path))
+                } else {
+                    onOpenFile(item.path)
+                }
+            },
+        )
+
+        if (item.isDir && hasChildren) {
+            AnimatedVisibility(
+                visible = isExpanded,
+                enter = fadeIn(
+                    animationSpec = tween(durationMillis = 240),
+                ) + expandVertically(
+                    animationSpec = tween(durationMillis = 260),
+                    expandFrom = Alignment.Top,
+                ) + slideInVertically(
+                    animationSpec = tween(durationMillis = 260),
+                    initialOffsetY = { fullHeight -> fullHeight / 8 },
+                ),
+                exit = fadeOut(
+                    animationSpec = tween(durationMillis = 220),
+                ) + shrinkVertically(
+                    animationSpec = tween(durationMillis = 240),
+                    shrinkTowards = Alignment.Top,
+                ) + slideOutVertically(
+                    animationSpec = tween(durationMillis = 240),
+                    targetOffsetY = { fullHeight -> fullHeight / 10 },
+                ),
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    DemoTreeList(
+                        parentPath = item.path,
+                        packageName = packageName,
+                        expandedPaths = expandedPaths,
+                        onExpandedPathsChange = onExpandedPathsChange,
+                        onOpenFile = onOpenFile,
+                        depth = depth + 1,
+                        ancestorHasNext = ancestorHasNext + !isLastSibling,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun RemoteListCard(
+    modifier: Modifier = Modifier,
     item: RemoteFileItem,
+    depth: Int,
+    ancestorHasNext: List<Boolean>,
+    isFirstSibling: Boolean,
+    isLastSibling: Boolean,
+    hasChildren: Boolean,
+    isExpanded: Boolean,
     onClick: () -> Unit,
 ) {
     val colors = MiuixTheme.colorScheme
     val shellColors = ShellTheme.colors
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardColors(color = shellColors.cardBackground, contentColor = colors.onSurface),
-        cornerRadius = 18.dp,
-        onClick = onClick,
-        showIndication = true,
-        pressFeedbackType = PressFeedbackType.Sink,
+    val density = LocalDensity.current
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    var entered by remember(item.id) { mutableStateOf(false) }
+    val baseTreeAccent = when {
+        item.isDir && hasChildren && isExpanded -> shellColors.primaryAction
+        item.isDir -> shellColors.primaryAction.copy(alpha = 0.72f)
+        else -> colors.outline
+    }
+    LaunchedEffect(item.id) {
+        entered = true
+    }
+    val enterAlpha by animateFloatAsState(
+        targetValue = if (entered) 1f else 0f,
+        label = "treeRowEnterAlpha",
+    )
+    val enterOffset by animateDpAsState(
+        targetValue = if (entered) 0.dp else 10.dp,
+        label = "treeRowEnterOffset",
+    )
+    val rowHighlightColor by animateColorAsState(
+        targetValue = if (pressed) {
+            if (item.isDir) shellColors.primaryAction.copy(alpha = 0.08f) else colors.surface.copy(alpha = 0.55f)
+        } else {
+            Color.Transparent
+        },
+        label = "treeRowHighlight",
+    )
+    val treeAccentColor by animateColorAsState(
+        targetValue = if (pressed) {
+            if (item.isDir) shellColors.primaryAction else colors.onSurface
+        } else {
+            baseTreeAccent
+        },
+        label = "treeAccentColor",
+    )
+    val arrowTintColor by animateColorAsState(
+        targetValue = if (pressed && item.isDir) treeAccentColor else colors.onSurfaceVariantSummary,
+        label = "treeArrowTintColor",
+    )
+    val expandArrowRotation by animateFloatAsState(
+        targetValue = if (item.isDir && hasChildren && isExpanded) 90f else 0f,
+        label = "treeExpandArrowRotation",
+    )
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .graphicsLayer {
+                alpha = enterAlpha
+                translationY = with(density) { enterOffset.toPx() }
+            },
+        verticalAlignment = Alignment.CenterVertically,
     ) {
+        TreeConnector(
+            depth = depth,
+            ancestorHasNext = ancestorHasNext,
+            isFirstSibling = isFirstSibling,
+            isLastSibling = isLastSibling,
+            accentColor = treeAccentColor,
+            pressed = pressed,
+        )
+        Spacer(modifier = Modifier.width(6.dp))
         Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .weight(1f)
+                .clip(RoundedCornerShape(12.dp))
+                .background(rowHighlightColor)
+                .clickable(
+                    interactionSource = interactionSource,
+                    indication = null,
+                    onClick = onClick,
+                )
+                .padding(horizontal = 6.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
@@ -481,9 +769,9 @@ private fun RemoteListCard(
                     .clip(RoundedCornerShape(14.dp))
                     .background(
                         if (item.isDir) {
-                            shellColors.primaryAction.copy(alpha = 0.14f)
+                            treeAccentColor.copy(alpha = 0.14f)
                         } else {
-                            colors.surface.copy(alpha = 0.82f)
+                            colors.surface.copy(alpha = 0.62f)
                         },
                     ),
                 contentAlignment = Alignment.Center,
@@ -492,7 +780,7 @@ private fun RemoteListCard(
                     imageVector = if (item.isDir) Icons.Rounded.Folder else Icons.AutoMirrored.Rounded.InsertDriveFile,
                     contentDescription = null,
                     modifier = Modifier.size(18.dp),
-                    tint = if (item.isDir) shellColors.primaryAction else colors.onSurface,
+                    tint = if (item.isDir) treeAccentColor else colors.onSurface,
                 )
             }
             Spacer(modifier = Modifier.width(12.dp))
@@ -520,10 +808,95 @@ private fun RemoteListCard(
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = null,
-                modifier = Modifier.size(18.dp),
-                tint = colors.outline,
+                modifier = Modifier
+                    .size(18.dp)
+                    .graphicsLayer {
+                        if (item.isDir && hasChildren) {
+                            rotationZ = expandArrowRotation
+                        }
+                    },
+                tint = arrowTintColor,
             )
         }
+    }
+}
+
+@Composable
+private fun TreeConnector(
+    depth: Int,
+    ancestorHasNext: List<Boolean>,
+    isFirstSibling: Boolean,
+    isLastSibling: Boolean,
+    accentColor: Color,
+    pressed: Boolean,
+) {
+    val trunkColor = accentColor.copy(alpha = 0.28f)
+    val indentWidth = 14.dp
+    val baseOffset = 8.dp
+    val nodeScale by animateFloatAsState(
+        targetValue = if (pressed) 1.16f else 1f,
+        label = "treeNodeScale",
+    )
+    val nodeColor by animateColorAsState(
+        targetValue = accentColor.copy(alpha = if (pressed) 1f else 0.88f),
+        label = "treeNodeColor",
+    )
+    Box(
+        modifier = Modifier
+            .width(baseOffset + indentWidth * depth + 16.dp)
+            .height(64.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(modifier = Modifier.matchParentSize()) {
+            val base = baseOffset.toPx()
+            val step = indentWidth.toPx()
+            ancestorHasNext.forEachIndexed { level, hasNext ->
+                if (hasNext) {
+                    val x = base + step * level
+                    drawLine(
+                        color = trunkColor,
+                        start = Offset(x, 0f),
+                        end = Offset(x, size.height),
+                        strokeWidth = 2.dp.toPx(),
+                    )
+                }
+            }
+            val centerX = base + step * depth
+            val centerY = size.height * 0.5f
+            val stroke = 2.dp.toPx()
+            if (!isFirstSibling) {
+                drawLine(
+                    color = trunkColor,
+                    start = Offset(centerX, 0f),
+                    end = Offset(centerX, centerY),
+                    strokeWidth = stroke,
+                )
+            }
+            if (!isLastSibling) {
+                drawLine(
+                    color = trunkColor,
+                    start = Offset(centerX, centerY),
+                    end = Offset(centerX, size.height),
+                    strokeWidth = stroke,
+                )
+            }
+            drawLine(
+                color = trunkColor,
+                start = Offset(centerX, centerY),
+                end = Offset(size.width, centerY),
+                strokeWidth = stroke,
+            )
+        }
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .graphicsLayer {
+                    scaleX = nodeScale
+                    scaleY = nodeScale
+                }
+                .clip(CircleShape)
+                .background(nodeColor),
+        )
     }
 }
 
@@ -644,9 +1017,14 @@ private fun RemoteImageCard(
                     textAlign = TextAlign.Center,
                 )
             } else {
+                val modelData = if (imagePath.startsWith("android.resource://")) {
+                    imagePath
+                } else {
+                    File(imagePath)
+                }
                 AsyncImage(
                     model = ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
-                        .data(File(imagePath))
+                        .data(modelData)
                         .crossfade(true)
                         .build(),
                     contentDescription = stringResource(R.string.remote_file_open_image),
@@ -882,6 +1260,182 @@ private fun parentPath(path: String): String {
     val trimmed = if (path.endsWith("/") && path.length > 1) path.dropLast(1) else path
     val index = trimmed.lastIndexOf('/')
     return if (index <= 0) "/" else trimmed.substring(0, index)
+}
+
+private data class DemoRemoteEntry(
+    val path: String,
+    val isDir: Boolean,
+    val sizeLabel: String = "",
+    val sizeBytes: Long = 0L,
+    val textContent: String = "",
+    val imageUri: String = "",
+)
+
+private fun buildDemoListState(
+    path: String,
+    packageName: String,
+): RemoteFileViewerState {
+    val normalizedPath = normalizeDemoPath(path)
+    return RemoteFileViewerState(
+        currentPath = normalizedPath,
+        items = demoChildren(normalizedPath, packageName),
+        viewMode = RemoteFileViewMode.LIST,
+        viewerErrorMessage = "",
+    )
+}
+
+private fun buildDemoInfoState(
+    path: String,
+    packageName: String,
+): RemoteFileViewerState {
+    val entry = demoEntries(packageName).firstOrNull { it.path == path } ?: return buildDemoListState("/", packageName)
+    return RemoteFileViewerState(
+        currentPath = parentPath(entry.path),
+        selectedPath = entry.path,
+        selectedName = entry.path.substringAfterLast('/'),
+        selectedSize = entry.sizeLabel.ifBlank { if (entry.isDir) "-" else "12 KB" },
+        selectedSizeBytes = entry.sizeBytes,
+        viewMode = RemoteFileViewMode.INFO,
+        viewerErrorMessage = "",
+    )
+}
+
+private fun buildDemoTextState(
+    path: String,
+    packageName: String,
+): RemoteFileViewerState {
+    val entry = demoEntries(packageName).firstOrNull { it.path == path } ?: return buildDemoInfoState(path, packageName)
+    return buildDemoInfoState(path, packageName).copy(
+        viewMode = RemoteFileViewMode.TEXT,
+        viewerText = entry.textContent.ifBlank {
+            "Shell++ demo preview\n\nThis is a sample text file for layout review."
+        },
+    )
+}
+
+private fun buildDemoHexState(
+    path: String,
+    offset: Int,
+    packageName: String,
+): RemoteFileViewerState {
+    val entry = demoEntries(packageName).firstOrNull { it.path == path } ?: return buildDemoInfoState(path, packageName)
+    val bytes = entry.textContent.ifBlank { "Shell++ demo hex preview" }.toByteArray(Charsets.UTF_8)
+    val safeOffset = offset.coerceAtLeast(0)
+    val endExclusive = (safeOffset + 128).coerceAtMost(bytes.size)
+    val slice = if (safeOffset < bytes.size) bytes.copyOfRange(safeOffset, endExclusive) else ByteArray(0)
+    val content = if (slice.isEmpty()) {
+        "-- EOF --"
+    } else {
+        slice.toList()
+            .chunked(16)
+            .mapIndexed { index, row ->
+                val rowOffset = safeOffset + index * 16
+                val hexBytes = row.joinToString(" ") { byte -> "%02X".format(byte) }
+                "%08X  %s".format(rowOffset, hexBytes)
+            }
+            .joinToString("\n")
+    }
+    return buildDemoInfoState(path, packageName).copy(
+        viewMode = RemoteFileViewMode.HEX,
+        hexOffset = safeOffset,
+        viewerText = content,
+    )
+}
+
+private fun buildDemoImageState(
+    path: String,
+    packageName: String,
+): RemoteFileViewerState {
+    val entry = demoEntries(packageName).firstOrNull { it.path == path } ?: return buildDemoInfoState(path, packageName)
+    return buildDemoInfoState(path, packageName).copy(
+        viewMode = RemoteFileViewMode.IMAGE,
+        viewerImagePath = entry.imageUri,
+    )
+}
+
+private fun refreshDemoState(
+    state: RemoteFileViewerState,
+    packageName: String,
+): RemoteFileViewerState {
+    return when (state.viewMode) {
+        RemoteFileViewMode.LIST -> buildDemoListState(state.currentPath, packageName)
+        RemoteFileViewMode.INFO -> buildDemoInfoState(state.selectedPath, packageName)
+        RemoteFileViewMode.TEXT -> buildDemoTextState(state.selectedPath, packageName)
+        RemoteFileViewMode.HEX -> buildDemoHexState(state.selectedPath, state.hexOffset, packageName)
+        RemoteFileViewMode.IMAGE -> buildDemoImageState(state.selectedPath, packageName)
+    }
+}
+
+private fun secondaryDemoState(
+    state: RemoteFileViewerState,
+    packageName: String,
+): RemoteFileViewerState {
+    return when (state.viewMode) {
+        RemoteFileViewMode.LIST -> buildDemoListState(parentPath(state.currentPath), packageName)
+        RemoteFileViewMode.INFO -> buildDemoListState(parentPath(state.selectedPath), packageName)
+        RemoteFileViewMode.TEXT,
+        RemoteFileViewMode.HEX,
+        RemoteFileViewMode.IMAGE -> buildDemoInfoState(state.selectedPath, packageName)
+    }
+}
+
+private fun demoChildren(
+    path: String,
+    packageName: String,
+): List<RemoteFileItem> {
+    return demoEntries(packageName)
+        .filter { parentPath(it.path) == path }
+        .sortedWith(compareByDescending<DemoRemoteEntry> { it.isDir }.thenBy { it.path.substringAfterLast('/') })
+        .map { entry ->
+            RemoteFileItem(
+                id = "demo-${entry.path}",
+                name = entry.path.substringAfterLast('/'),
+                path = entry.path,
+                isDir = entry.isDir,
+                size = entry.sizeLabel,
+            )
+        }
+}
+
+private fun toggleExpandedPath(
+    expandedPaths: Set<String>,
+    path: String,
+): Set<String> {
+    return expandedPaths.toMutableSet().also { paths ->
+        if (!paths.add(path)) {
+            paths.remove(path)
+        }
+    }
+}
+
+private fun demoEntries(packageName: String): List<DemoRemoteEntry> {
+    val demoImageUri = "android.resource://$packageName/${R.drawable.cover_bg}"
+    return listOf(
+        DemoRemoteEntry("/storage", true),
+        DemoRemoteEntry("/storage/screenshots", true),
+        DemoRemoteEntry("/storage/logs", true),
+        DemoRemoteEntry("/storage/screenshots/2026-07-10_hero.png", false, "1.4 MB", 1_468_000L, imageUri = demoImageUri),
+        DemoRemoteEntry("/storage/screenshots/2026-07-10_debug.png", false, "928 KB", 928_000L, imageUri = demoImageUri),
+        DemoRemoteEntry("/storage/logs/latest.log", false, "18 KB", 18_432L, textContent = "07-10 12:10:13  Shell++ demo log\n07-10 12:10:15  Listing /storage/screenshots\n07-10 12:10:17  UI preview mode active"),
+        DemoRemoteEntry("/apps", true),
+        DemoRemoteEntry("/apps/com.shell.liangyi", true),
+        DemoRemoteEntry("/apps/com.shell.liangyi/cache", true),
+        DemoRemoteEntry("/apps/com.shell.liangyi/manifest.json", false, "4 KB", 4_096L, textContent = "{\n  \"package\": \"com.shell.liangyi\",\n  \"name\": \"Shell++\",\n  \"type\": \"demo\"\n}"),
+        DemoRemoteEntry("/apps/com.shell.liangyi/cache/session.tmp", false, "12 KB", 12_288L, textContent = "temporary cache content"),
+        DemoRemoteEntry("/system", true),
+        DemoRemoteEntry("/system/fonts", true),
+        DemoRemoteEntry("/system/fonts/Roboto-Regular.ttf", false, "164 KB", 167_936L, textContent = "Binary font file preview is omitted in demo mode."),
+    )
+}
+
+private fun defaultExpandedDemoPaths(): Set<String> {
+    return setOf("/storage", "/apps")
+}
+
+private fun normalizeDemoPath(path: String): String {
+    if (path.isBlank()) return "/"
+    val trimmed = if (path.length > 1 && path.endsWith("/")) path.dropLast(1) else path
+    return if (trimmed.isBlank()) "/" else trimmed
 }
 
 private fun ConnectionState.labelRes(): Int = when (this) {

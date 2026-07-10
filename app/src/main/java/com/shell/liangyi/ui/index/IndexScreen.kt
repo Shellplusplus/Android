@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
@@ -475,7 +476,7 @@ private fun ActionList(navController: NavHostController) {
                     ActionCard(
                         modifier = Modifier
                             .weight(1f)
-                            .height(82.dp),
+                            .heightIn(min = 68.dp),
                         title = item.title,
                         icon = item.icon,
                         onClick = item.onClick,
@@ -511,7 +512,7 @@ private fun ActionCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
