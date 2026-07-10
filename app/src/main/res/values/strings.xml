@@ -153,13 +153,13 @@
     <string name="receiving_watch_screenshots">正在接收手表截图</string>
     <string name="quick_app_ready">快应用通信已就绪</string>
     <string name="tap_refresh_connection">点击刷新连接</string>
-    <string name="action_bluetooth_sync_title">截图同步（蓝牙）</string>
+    <string name="action_bluetooth_sync_title">蓝牙同步</string>
     <string name="action_bluetooth_sync_summary">通过小米穿戴消息通道获取截图</string>
-    <string name="action_lan_sync_title">截图同步（局域网）</string>
+    <string name="action_lan_sync_title">局域网同步</string>
     <string name="action_lan_sync_summary">启动手机端 HTTP 服务，使用 Wi-Fi 直传截图</string>
     <string name="action_remote_terminal_title">远程终端</string>
     <string name="action_remote_terminal_summary">命令执行与调试能力</string>
-    <string name="action_file_viewer_title">文件查看</string>
+    <string name="action_file_viewer_title">文件管理</string>
     <string name="action_file_viewer_summary">远程只读浏览手表文件</string>
     <string name="action_cache_clean_title">缓存清理</string>
     <string name="action_cache_clean_summary">查看并清理手表缓存</string>

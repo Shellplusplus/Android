@@ -27,6 +27,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -43,6 +44,8 @@ class ShellViewModel : ViewModel() {
     private var githubProxyManualSelection = false
     private var updateDownloadJob: Job? = null
     private var activeDownloadPrompt: UpdatePrompt? = null
+    private var remotePagesPreloadJob: Job? = null
+    private var remotePagesPreloaded = false
 
     lateinit var wearMessageCenter: WearMessageCenter
         private set
@@ -199,6 +202,31 @@ class ShellViewModel : ViewModel() {
     fun hideAllRemoteApps() = remoteToolController.hideAllApps()
     fun showAllRemoteApps() = remoteToolController.showAllApps()
     fun deleteSelectedRemoteApps() = remoteToolController.deleteSelectedApps()
+
+    fun preloadAllPages() {
+        if (!::wearMessageCenter.isInitialized || !::remoteToolController.isInitialized) return
+        if (remotePagesPreloaded || remotePagesPreloadJob?.isActive == true) return
+        if (wearMessageCenter.getCurrentConnectionState() != com.shell.liangyi.core.ConnectionState.CONNECTED) return
+
+        remotePagesPreloadJob = scope.launch {
+            val fileViewerReady = preloadRemoteRequest(
+                trigger = {
+                    remoteToolController.showFileList()
+                    remoteToolController.refreshFileViewerRoot()
+                },
+                isLoading = { remoteToolController.fileViewerState.value.isLoading },
+            )
+            val cacheReady = preloadRemoteRequest(
+                trigger = remoteToolController::refreshCacheStatus,
+                isLoading = { remoteToolController.cacheCleanState.value.isLoading },
+            )
+            val appManagerReady = preloadRemoteRequest(
+                trigger = remoteToolController::refreshApps,
+                isLoading = { remoteToolController.appManagerState.value.isLoading },
+            )
+            remotePagesPreloaded = fileViewerReady && cacheReady && appManagerReady
+        }
+    }
 
     fun restartOnboarding() {
         applyOnboardingState(onboardingStateStore.readState())
@@ -496,9 +524,28 @@ class ShellViewModel : ViewModel() {
         )
     }
 
+    private suspend fun preloadRemoteRequest(
+        trigger: () -> Unit,
+        isLoading: () -> Boolean,
+    ): Boolean {
+        trigger()
+        if (!isLoading()) {
+            return false
+        }
+        repeat(260) {
+            if (!isLoading()) {
+                delay(80)
+                return true
+            }
+            delay(50)
+        }
+        return !isLoading()
+    }
+
     override fun onCleared() {
         super.onCleared()
         updateDownloadJob?.cancel()
+        remotePagesPreloadJob?.cancel()
         if (::remoteToolController.isInitialized) {
             remoteToolController.destroy()
         }

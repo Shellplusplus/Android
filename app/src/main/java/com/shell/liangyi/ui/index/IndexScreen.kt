@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.add
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -476,7 +477,7 @@ private fun ActionList(navController: NavHostController) {
                     ActionCard(
                         modifier = Modifier
                             .weight(1f)
-                            .heightIn(min = 68.dp),
+                            .heightIn(min = 96.dp),
                         title = item.title,
                         icon = item.icon,
                         onClick = item.onClick,
@@ -498,6 +499,7 @@ private fun ActionCard(
     onClick: () -> Unit,
 ) {
     val colors = MiuixTheme.colorScheme
+    val shellColors = ShellTheme.colors
     Card(
         modifier = modifier,
         colors = CardColors(
@@ -509,33 +511,58 @@ private fun ActionCard(
         showIndication = true,
         pressFeedbackType = PressFeedbackType.Sink,
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                .defaultMinSize(minHeight = 96.dp)
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.SpaceBetween,
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                modifier = Modifier.size(24.dp),
-                tint = colors.onSurface,
-            )
-            Spacer(Modifier.width(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Card(
+                        modifier = Modifier.fillMaxSize(),
+                        colors = CardColors(
+                            color = colors.surface.copy(alpha = 0.82f),
+                            contentColor = colors.onSurface,
+                        ),
+                        cornerRadius = 12.dp,
+                    ) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                                tint = colors.onSurface,
+                            )
+                        }
+                    }
+                }
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = shellColors.secondaryText,
+                )
+            }
+            Spacer(Modifier.height(12.dp))
             Text(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.fillMaxWidth(),
                 text = title,
-                fontSize = 15.sp,
+                fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = colors.onSurface,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
-            )
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-                tint = colors.onSurfaceVariantSummary,
             )
         }
     }
