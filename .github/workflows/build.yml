@@ -144,7 +144,7 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: release-apks
-          path: app/build/outputs/apk/*/release/*.apk
+          path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
           retention-days: 7
 
@@ -160,7 +160,7 @@ jobs:
           RELEASE_NAME: ${{ steps.release_target.outputs.name }}
           RELEASE_BODY_PATH: ${{ steps.changelog.outputs.body_path }}
         run: |
-          mapfile -t APK_FILES < <(find app/build/outputs/apk -type f -path '*/release/*.apk' | sort)
+          mapfile -t APK_FILES < <(find app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' | sort)
           if [ "${#APK_FILES[@]}" -eq 0 ]; then
             echo "::error::No release APK files were found."
             exit 1
