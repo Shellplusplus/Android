@@ -56,33 +56,6 @@ data class RemoteFileViewerState(
     val hexOffset: Int = 0,
 )
 
-data class RemoteCacheItem(
-    val id: String,
-    val name: String,
-    val size: String,
-)
-
-data class RemoteCacheCleanState(
-    val isLoading: Boolean = false,
-    val totalSize: String = "-",
-    val statusText: String = "",
-    val items: List<RemoteCacheItem> = emptyList(),
-)
-
-data class RemoteAppItem(
-    val id: String,
-    val packageName: String,
-    val name: String,
-    val hidden: Boolean,
-    val locked: Boolean,
-)
-
-data class RemoteAppManagerState(
-    val isLoading: Boolean = false,
-    val apps: List<RemoteAppItem> = emptyList(),
-    val selectedPackages: Set<String> = emptySet(),
-)
-
 private data class ActiveRemoteRequest(
     val requestId: String,
     val feature: String,
@@ -107,20 +80,10 @@ class RemoteToolController(
 ) {
     companion object {
         private const val FEATURE_FILE_VIEWER = "fileviewer"
-        private const val FEATURE_CACHE_CLEAN = "cacheclean"
-        private const val FEATURE_APP_MANAGER = "appmanager"
     }
 
     private val _fileViewerState = MutableStateFlow(RemoteFileViewerState())
     val fileViewerState: StateFlow<RemoteFileViewerState> = _fileViewerState.asStateFlow()
-
-    private val _cacheCleanState = MutableStateFlow(
-        RemoteCacheCleanState(statusText = context.getString(R.string.remote_cache_ready)),
-    )
-    val cacheCleanState: StateFlow<RemoteCacheCleanState> = _cacheCleanState.asStateFlow()
-
-    private val _appManagerState = MutableStateFlow(RemoteAppManagerState())
-    val appManagerState: StateFlow<RemoteAppManagerState> = _appManagerState.asStateFlow()
 
     private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 8)
     val messages: SharedFlow<String> = _messages.asSharedFlow()
@@ -271,108 +234,6 @@ class RemoteToolController(
         )
     }
 
-    fun refreshCacheStatus() {
-        if (!startRequest(FEATURE_CACHE_CLEAN, "status", expectsBinary = false)) return
-        _cacheCleanState.value = _cacheCleanState.value.copy(
-            isLoading = true,
-            statusText = context.getString(R.string.remote_cache_loading),
-        )
-        sendRemoteRequest(FEATURE_CACHE_CLEAN, "status", JSONObject())
-    }
-
-    fun clearCache() {
-        if (!startRequest(FEATURE_CACHE_CLEAN, "clear", expectsBinary = false)) return
-        _cacheCleanState.value = _cacheCleanState.value.copy(
-            isLoading = true,
-            statusText = context.getString(R.string.remote_cache_clearing),
-        )
-        sendRemoteRequest(FEATURE_CACHE_CLEAN, "clear", JSONObject())
-    }
-
-    fun refreshApps() {
-        if (!startRequest(FEATURE_APP_MANAGER, "apps", expectsBinary = false)) return
-        _appManagerState.value = _appManagerState.value.copy(
-            isLoading = true,
-            selectedPackages = emptySet(),
-        )
-        sendRemoteRequest(FEATURE_APP_MANAGER, "apps", JSONObject())
-    }
-
-    fun toggleAppSelection(packageName: String) {
-        if (packageName.isBlank()) return
-        val state = _appManagerState.value
-        val next = state.selectedPackages.toMutableSet()
-        if (!next.add(packageName)) {
-            next.remove(packageName)
-        }
-        _appManagerState.value = state.copy(selectedPackages = next)
-    }
-
-    fun toggleAllApps() {
-        val selectable = _appManagerState.value.apps.filterNot { it.locked }.map { it.packageName }.toSet()
-        val next = if (selectable.isNotEmpty() && selectable == _appManagerState.value.selectedPackages) {
-            emptySet()
-        } else {
-            selectable
-        }
-        _appManagerState.value = _appManagerState.value.copy(selectedPackages = next)
-    }
-
-    fun hideSelectedApps() {
-        performAppVisibilityMutation(visible = false, all = false)
-    }
-
-    fun showSelectedApps() {
-        performAppVisibilityMutation(visible = true, all = false)
-    }
-
-    fun hideAllApps() {
-        performAppVisibilityMutation(visible = false, all = true)
-    }
-
-    fun showAllApps() {
-        performAppVisibilityMutation(visible = true, all = true)
-    }
-
-    fun deleteSelectedApps() {
-        val packages = selectedPackagesOrNull() ?: return
-        if (!startRequest(FEATURE_APP_MANAGER, "delete", expectsBinary = false)) return
-        _appManagerState.value = _appManagerState.value.copy(isLoading = true)
-        sendRemoteRequest(
-            FEATURE_APP_MANAGER,
-            "delete",
-            JSONObject().apply {
-                put("packages", JSONArray(packages))
-            },
-        )
-    }
-
-    private fun performAppVisibilityMutation(visible: Boolean, all: Boolean) {
-        val packages = if (all) emptyList() else selectedPackagesOrNull() ?: return
-        if (!startRequest(FEATURE_APP_MANAGER, "set_visible", expectsBinary = false)) return
-        _appManagerState.value = _appManagerState.value.copy(isLoading = true)
-        sendRemoteRequest(
-            FEATURE_APP_MANAGER,
-            "set_visible",
-            JSONObject().apply {
-                put("visible", visible)
-                put("all", all)
-                if (!all) {
-                    put("packages", JSONArray(packages))
-                }
-            },
-        )
-    }
-
-    private fun selectedPackagesOrNull(): List<String>? {
-        val selected = _appManagerState.value.selectedPackages.toList()
-        if (selected.isEmpty()) {
-            emitMessage(context.getString(R.string.remote_app_no_selection))
-            return null
-        }
-        return selected
-    }
-
     private fun sendRemoteRequest(feature: String, action: String, payload: JSONObject) {
         val request = JSONObject(payload.toString()).apply {
             put("requestId", activeRequest?.requestId)
@@ -452,8 +313,6 @@ class RemoteToolController(
         }
         when (request.feature) {
             FEATURE_FILE_VIEWER -> handleFileViewerResult(request, json)
-            FEATURE_CACHE_CLEAN -> handleCacheCleanResult(request, json)
-            FEATURE_APP_MANAGER -> handleAppManagerResult(request, json)
         }
     }
 
@@ -515,35 +374,6 @@ class RemoteToolController(
                     clearActiveRequest()
                 }
             }
-        }
-    }
-
-    private fun handleCacheCleanResult(request: ActiveRemoteRequest, json: JSONObject) {
-        val itemsJson = json.optJSONArray("items")
-        _cacheCleanState.value = _cacheCleanState.value.copy(
-            isLoading = false,
-            totalSize = json.optString("totalSize", _cacheCleanState.value.totalSize),
-            statusText = json.optString("message", _cacheCleanState.value.statusText),
-            items = buildRemoteCacheItems(itemsJson),
-        )
-        clearActiveRequest()
-        if (request.action == "clear") {
-            emitMessage(context.getString(R.string.remote_cache_done))
-        }
-    }
-
-    private fun handleAppManagerResult(request: ActiveRemoteRequest, json: JSONObject) {
-        val apps = buildRemoteApps(json.optJSONArray("apps"))
-        val selectablePackages = apps.filterNot { it.locked }.map { it.packageName }.toSet()
-        val preservedSelection = _appManagerState.value.selectedPackages.intersect(selectablePackages)
-        _appManagerState.value = _appManagerState.value.copy(
-            isLoading = false,
-            apps = apps,
-            selectedPackages = preservedSelection,
-        )
-        clearActiveRequest()
-        if (request.action != "apps") {
-            emitMessage(json.optString("message", context.getString(R.string.remote_app_action_done)))
         }
     }
 
@@ -662,38 +492,6 @@ class RemoteToolController(
         return items
     }
 
-    private fun buildRemoteCacheItems(itemsJson: JSONArray?): List<RemoteCacheItem> {
-        if (itemsJson == null) return emptyList()
-        val items = mutableListOf<RemoteCacheItem>()
-        for (index in 0 until itemsJson.length()) {
-            val item = itemsJson.optJSONObject(index) ?: continue
-            val path = item.optString("path")
-            items += RemoteCacheItem(
-                id = "remote-cache-$index-$path",
-                name = item.optString("name", path.substringAfterLast("/")),
-                size = item.optString("size", "-"),
-            )
-        }
-        return items
-    }
-
-    private fun buildRemoteApps(itemsJson: JSONArray?): List<RemoteAppItem> {
-        if (itemsJson == null) return emptyList()
-        val items = mutableListOf<RemoteAppItem>()
-        for (index in 0 until itemsJson.length()) {
-            val item = itemsJson.optJSONObject(index) ?: continue
-            val packageName = item.optString("package")
-            items += RemoteAppItem(
-                id = "remote-app-$index-$packageName",
-                packageName = packageName,
-                name = item.optString("name", packageName),
-                hidden = item.optBoolean("hidden", false),
-                locked = item.optBoolean("locked", false),
-            )
-        }
-        return items
-    }
-
     private fun clearBinaryTransfer(keepFile: Boolean = false) {
         val transfer = activeBinaryTransfer ?: return
         try {
@@ -716,17 +514,6 @@ class RemoteToolController(
                     isLoading = false,
                     viewerErrorMessage = message,
                 )
-            }
-
-            FEATURE_CACHE_CLEAN -> {
-                _cacheCleanState.value = _cacheCleanState.value.copy(
-                    isLoading = false,
-                    statusText = message,
-                )
-            }
-
-            FEATURE_APP_MANAGER -> {
-                _appManagerState.value = _appManagerState.value.copy(isLoading = false)
             }
         }
         emitMessage(message.ifBlank { context.getString(R.string.remote_tool_request_failed) })

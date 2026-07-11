@@ -4,8 +4,6 @@ import android.content.Context
 import android.text.format.Formatter
 import androidx.lifecycle.ViewModel
 import com.shell.liangyi.R
-import com.shell.liangyi.core.RemoteAppManagerState
-import com.shell.liangyi.core.RemoteCacheCleanState
 import com.shell.liangyi.core.RemoteFileViewerState
 import com.shell.liangyi.core.RemoteToolController
 import com.shell.liangyi.core.ScreenshotReceiver
@@ -136,12 +134,6 @@ class ShellViewModel : ViewModel() {
     val remoteFileViewerState: StateFlow<RemoteFileViewerState>
         get() = remoteToolController.fileViewerState
 
-    val remoteCacheCleanState: StateFlow<RemoteCacheCleanState>
-        get() = remoteToolController.cacheCleanState
-
-    val remoteAppManagerState: StateFlow<RemoteAppManagerState>
-        get() = remoteToolController.appManagerState
-
     val remoteToolMessages: SharedFlow<String>
         get() = remoteToolController.messages
 
@@ -189,17 +181,6 @@ class ShellViewModel : ViewModel() {
     fun openRemoteFileImage() = remoteToolController.openFileImage()
     fun showRemoteFileList() = remoteToolController.showFileList()
     fun showRemoteFileInfo() = remoteToolController.showFileInfo()
-    fun refreshRemoteCacheStatus() = remoteToolController.refreshCacheStatus()
-    fun clearRemoteCache() = remoteToolController.clearCache()
-    fun refreshRemoteApps() = remoteToolController.refreshApps()
-    fun toggleRemoteAppSelection(packageName: String) = remoteToolController.toggleAppSelection(packageName)
-    fun toggleAllRemoteApps() = remoteToolController.toggleAllApps()
-    fun hideSelectedRemoteApps() = remoteToolController.hideSelectedApps()
-    fun showSelectedRemoteApps() = remoteToolController.showSelectedApps()
-    fun hideAllRemoteApps() = remoteToolController.hideAllApps()
-    fun showAllRemoteApps() = remoteToolController.showAllApps()
-    fun deleteSelectedRemoteApps() = remoteToolController.deleteSelectedApps()
-
     fun restartOnboarding() {
         applyOnboardingState(onboardingStateStore.readState())
         _showOnboarding.value = true

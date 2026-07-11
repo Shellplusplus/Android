@@ -32,10 +32,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.Article
-import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.Bluetooth
 import androidx.compose.material.icons.rounded.CheckCircleOutline
-import androidx.compose.material.icons.rounded.CleaningServices
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Terminal
@@ -452,14 +450,6 @@ private fun ActionList(navController: NavHostController) {
             stringResource(R.string.action_file_viewer_title),
             Icons.Rounded.Folder,
         ) { navController.navigate(Routes.FILE_VIEWER) },
-        HomeActionItem(
-            stringResource(R.string.action_cache_clean_title),
-            Icons.Rounded.CleaningServices,
-        ) { navController.navigate(Routes.CACHE_CLEAN) },
-        HomeActionItem(
-            stringResource(R.string.action_app_manager_title),
-            Icons.Rounded.Apps,
-        ) { navController.navigate(Routes.APP_MANAGER) },
         HomeActionItem(
             stringResource(R.string.action_remote_terminal_title),
             Icons.Rounded.Terminal,
