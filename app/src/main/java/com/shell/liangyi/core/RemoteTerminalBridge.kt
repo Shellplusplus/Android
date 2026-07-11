@@ -89,6 +89,7 @@ class RemoteTerminalBridge(
         val payload = JSONObject().apply {
             put("reqId", reqId)
             put("cmd", command)
+            put("source", "shell-plus-plus-android")
         }
         messageCenter.send("execCommand", payload) { success, error ->
             if (!success) {
@@ -123,4 +124,3 @@ class RemoteTerminalBridge(
         return runCommandOnce(command = command, timeoutMs = timeoutMs)
     }
 }
-

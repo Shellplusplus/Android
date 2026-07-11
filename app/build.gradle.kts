@@ -121,6 +121,12 @@ tasks.configureEach {
     }
 }
 
+tasks.register("assembleStandardRelease") {
+    group = "build"
+    description = "Compatibility alias for the single release APK."
+    dependsOn("assembleRelease")
+}
+
 dependencies {
     // AndroidX
     implementation(libs.androidx.core.ktx)
