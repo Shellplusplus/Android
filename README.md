@@ -162,13 +162,16 @@ https://shellupdate.rth1.xyz/api.php
 ## CI / 发布链路
 
 - `.github/workflows/build.yml`
-  在 `android` 分支 push 或手动触发时执行构建。
+  在 `main` / `android` 分支 push 或手动触发时执行构建。
 - 工作流会：
   - 解码签名文件
   - 生成 `local.properties`
   - 构建 release APK
   - 上传 artifact
-  - 创建 GitHub 预发布版本
+  - 默认向公开仓库 `DefateStar/public-shellpp` 创建或更新 GitHub Release
   - 可选调用 `webhook/` 服务发送 QQ 群通知
+- 手动触发时可通过 `release_repository` 输入临时覆盖发布目标仓库。
+- 如果需要覆盖默认公开仓库，可配置仓库变量 `PUBLIC_RELEASE_REPOSITORY`。
+- 当发布目标不是当前仓库时，必须配置 `PUBLIC_SHELLPP_TOKEN`，并确保该 token 对目标仓库具备 `Contents: Read and write` 权限。
 
 `webhook/` 目录下是一个 Go `1.22` 服务，用于接收 GitHub Actions 的 POST 数据并转发给 NapCat / OneBot HTTP API。详细部署说明见 `webhook/README.md`。

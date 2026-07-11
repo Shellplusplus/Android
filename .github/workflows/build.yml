@@ -4,6 +4,14 @@ on:
   push:
     branches: [ main, android ]
   workflow_dispatch:
+    inputs:
+      release_repository:
+        description: "Override target release repository (owner/repo)"
+        required: false
+        type: string
+
+env:
+  DEFAULT_PUBLIC_RELEASE_REPOSITORY: DefateStar/public-shellpp
 
 jobs:
   build:
@@ -47,8 +55,67 @@ jobs:
           VERSION_CODE: ${{ github.run_number }}
           VERSION_NAME: "beta${{ github.run_number }}"
 
-      - name: Generate changelog
+      - name: Prepare release target
+        id: release_target
+        env:
+          DEFAULT_PUBLIC_RELEASE_REPOSITORY: ${{ env.DEFAULT_PUBLIC_RELEASE_REPOSITORY }}
+          INPUT_RELEASE_REPOSITORY: ${{ github.event.inputs.release_repository || '' }}
+          PUBLIC_RELEASE_REPOSITORY: ${{ vars.PUBLIC_RELEASE_REPOSITORY }}
+          PUBLIC_SHELLPP_TOKEN: ${{ secrets.PUBLIC_SHELLPP_TOKEN }}
+        run: |
+          trim() {
+            printf '%s' "$1" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//'
+          }
+
+          TARGET_REPOSITORY="$(trim "${INPUT_RELEASE_REPOSITORY:-}")"
+          if [ -z "$TARGET_REPOSITORY" ]; then
+            TARGET_REPOSITORY="$(trim "${PUBLIC_RELEASE_REPOSITORY:-}")"
+          fi
+          if [ -z "$TARGET_REPOSITORY" ]; then
+            TARGET_REPOSITORY="$DEFAULT_PUBLIC_RELEASE_REPOSITORY"
+          fi
+
+          if ! printf '%s' "$TARGET_REPOSITORY" | grep -Eq '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'; then
+            echo "::error::Invalid release repository '$TARGET_REPOSITORY'. Expected owner/repo."
+            exit 1
+          fi
+
+          RELEASE_TAG="beta${GITHUB_RUN_NUMBER}"
+          RELEASE_NAME="Shell++ ${RELEASE_TAG}"
+
+          if [ "$TARGET_REPOSITORY" = "$GITHUB_REPOSITORY" ]; then
+            EXTERNAL_REPOSITORY=false
+            TOKEN_SOURCE="github.token"
+          else
+            EXTERNAL_REPOSITORY=true
+            TOKEN_SOURCE="secrets.PUBLIC_SHELLPP_TOKEN"
+            if [ -z "${PUBLIC_SHELLPP_TOKEN:-}" ]; then
+              echo "::error::PUBLIC_SHELLPP_TOKEN is required when publishing to external repository '$TARGET_REPOSITORY'."
+              exit 1
+            fi
+          fi
+
+          {
+            echo "repository=$TARGET_REPOSITORY"
+            echo "tag=$RELEASE_TAG"
+            echo "name=$RELEASE_NAME"
+            echo "external_repo=$EXTERNAL_REPOSITORY"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "### Release target"
+            echo ""
+            echo "- Source repository: \`$GITHUB_REPOSITORY\`"
+            echo "- Target repository: \`$TARGET_REPOSITORY\`"
+            echo "- Tag: \`$RELEASE_TAG\`"
+            echo "- Token source: \`$TOKEN_SOURCE\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Generate release notes
         id: changelog
+        env:
+          RELEASE_TAG: ${{ steps.release_target.outputs.tag }}
+          RELEASE_NAME: ${{ steps.release_target.outputs.name }}
         run: |
           LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
           if [ -z "$LAST_TAG" ]; then
@@ -59,9 +126,19 @@ jobs:
           if [ -z "$LOG" ]; then
             LOG="- 首次发布"
           fi
-          echo "log<<EOF" >> $GITHUB_OUTPUT
-          echo "$LOG" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+
+          BODY_PATH="$RUNNER_TEMP/release-notes.md"
+          {
+            echo "## ${RELEASE_NAME}"
+            echo ""
+            echo "### 更新内容"
+            echo "$LOG"
+            echo ""
+            echo "### 安装说明"
+            echo "下载下方 APK 文件，直接安装即可。"
+          } > "$BODY_PATH"
+
+          echo "body_path=$BODY_PATH" >> "$GITHUB_OUTPUT"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v6
@@ -75,60 +152,41 @@ jobs:
         # Keep this for runner-side path debugging when artifact layouts change.
         run: find app/build/outputs/apk -type f | sort
 
-      - name: Resolve release target
-        id: release_target
+      - name: Publish release
         env:
-          PUBLIC_RELEASE_REPOSITORY: ${{ vars.PUBLIC_RELEASE_REPOSITORY }}
+          GH_TOKEN: ${{ steps.release_target.outputs.external_repo == 'true' && secrets.PUBLIC_SHELLPP_TOKEN || github.token }}
+          TARGET_REPOSITORY: ${{ steps.release_target.outputs.repository }}
+          RELEASE_TAG: ${{ steps.release_target.outputs.tag }}
+          RELEASE_NAME: ${{ steps.release_target.outputs.name }}
+          RELEASE_BODY_PATH: ${{ steps.changelog.outputs.body_path }}
         run: |
-          if [ -n "$PUBLIC_RELEASE_REPOSITORY" ]; then
-            echo "repository=$PUBLIC_RELEASE_REPOSITORY" >> $GITHUB_OUTPUT
-            echo "external_repo=true" >> $GITHUB_OUTPUT
-          else
-            echo "repository=${GITHUB_REPOSITORY}" >> $GITHUB_OUTPUT
-            echo "external_repo=false" >> $GITHUB_OUTPUT
+          mapfile -t APK_FILES < <(find app/build/outputs/apk -type f -path '*/release/*.apk' | sort)
+          if [ "${#APK_FILES[@]}" -eq 0 ]; then
+            echo "::error::No release APK files were found."
+            exit 1
           fi
 
-      - name: Create release in current repository
-        if: steps.release_target.outputs.external_repo == 'false'
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: beta${{ github.run_number }}
-          name: "Shell++ beta${{ github.run_number }}"
-          body: |
-            ## Shell++ beta${{ github.run_number }}
+          TARGET_ARGS=()
+          if [ "$TARGET_REPOSITORY" = "$GITHUB_REPOSITORY" ]; then
+            TARGET_ARGS+=(--target "$GITHUB_SHA")
+          fi
 
-            ### 更新内容
-            ${{ steps.changelog.outputs.log }}
-
-            ### 安装说明
-            下载下方 APK 文件，直接安装即可。
-          files: app/build/outputs/apk/*/release/*.apk
-          fail_on_unmatched_files: true
-          draft: false
-          prerelease: false
-          make_latest: true
-
-      - name: Create release in external repository
-        if: steps.release_target.outputs.external_repo == 'true'
-        uses: softprops/action-gh-release@v3
-        with:
-          repository: ${{ steps.release_target.outputs.repository }}
-          token: ${{ secrets.PUBLIC_SHELLPP_TOKEN }}
-          tag_name: beta${{ github.run_number }}
-          name: "Shell++ beta${{ github.run_number }}"
-          body: |
-            ## Shell++ beta${{ github.run_number }}
-
-            ### 更新内容
-            ${{ steps.changelog.outputs.log }}
-
-            ### 安装说明
-            下载下方 APK 文件，直接安装即可。
-          files: app/build/outputs/apk/*/release/*.apk
-          fail_on_unmatched_files: true
-          draft: false
-          prerelease: false
-          make_latest: true
+          if gh release view "$RELEASE_TAG" --repo "$TARGET_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "${APK_FILES[@]}" --repo "$TARGET_REPOSITORY" --clobber
+            gh release edit "$RELEASE_TAG" \
+              --repo "$TARGET_REPOSITORY" \
+              --title "$RELEASE_NAME" \
+              --notes-file "$RELEASE_BODY_PATH" \
+              --latest
+          else
+            gh release create "$RELEASE_TAG" \
+              "${APK_FILES[@]}" \
+              --repo "$TARGET_REPOSITORY" \
+              --title "$RELEASE_NAME" \
+              --notes-file "$RELEASE_BODY_PATH" \
+              --latest \
+              "${TARGET_ARGS[@]}"
+          fi
 
       - name: Notify QQ group
         if: always() && github.event_name == 'push'
