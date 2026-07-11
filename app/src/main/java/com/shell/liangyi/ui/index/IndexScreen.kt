@@ -36,6 +36,7 @@ import androidx.compose.material.icons.rounded.Bluetooth
 import androidx.compose.material.icons.rounded.CheckCircleOutline
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Folder
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.runtime.Composable
@@ -57,6 +58,7 @@ import androidx.navigation.NavHostController
 import com.shell.liangyi.R
 import com.shell.liangyi.core.ConnectionState
 import com.shell.liangyi.core.ScreenshotReceiver
+import com.shell.liangyi.feature.AgentEntryPointProvider
 import com.shell.liangyi.ui.Routes
 import com.shell.liangyi.ui.ShellViewModel
 import com.shell.liangyi.ui.theme.ShellTheme
@@ -88,6 +90,8 @@ fun IndexScreen(
     val httpRunning by shellViewModel.httpServerRunning.collectAsState()
     val httpIp by shellViewModel.httpServerIp.collectAsState()
     val httpPort by shellViewModel.httpServerPort.collectAsState()
+    val aiLicenseState by shellViewModel.aiLicenseState.collectAsState()
+    val openAiByDefault = AgentEntryPointProvider.entryPoint.isEnabled && aiLicenseState.canUse
     val scrollBehavior = MiuixScrollBehavior()
     val bottomInnerPadding = 16.dp + bottomContentPadding
     val isBusy = syncState is ScreenshotReceiver.SyncState.Receiving ||
@@ -138,7 +142,7 @@ fun IndexScreen(
                             onOpenTimeline = { navController.navigate(Routes.SCREENSHOT_TIMELINE) },
                         ),
                     )
-                    ActionList(navController)
+                    ActionList(navController, openAiByDefault)
                     InfoCard(
                         connectionState = connectionState,
                         screenshotCount = screenshots.size,
@@ -436,7 +440,7 @@ private fun CounterCard(
 }
 
 @Composable
-private fun ActionList(navController: NavHostController) {
+private fun ActionList(navController: NavHostController, openAiByDefault: Boolean) {
     val actions = listOf(
         HomeActionItem(
             stringResource(R.string.action_bluetooth_sync_title),
@@ -451,9 +455,11 @@ private fun ActionList(navController: NavHostController) {
             Icons.Rounded.Folder,
         ) { navController.navigate(Routes.FILE_VIEWER) },
         HomeActionItem(
-            stringResource(R.string.action_remote_terminal_title),
-            Icons.Rounded.Terminal,
-        ) { navController.navigate(Routes.TERMINAL) },
+            if (openAiByDefault) "AI 助手" else stringResource(R.string.action_remote_terminal_title),
+            if (openAiByDefault) Icons.Rounded.AutoAwesome else Icons.Rounded.Terminal,
+        ) {
+            navController.navigate(if (openAiByDefault) Routes.AI_ASSISTANT else Routes.TERMINAL)
+        },
     )
 
     Column(

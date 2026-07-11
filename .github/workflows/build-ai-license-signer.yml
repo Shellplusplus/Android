@@ -1,0 +1,63 @@
+name: Build AI license signer
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "tools/ai-license-signer/**"
+      - ".github/workflows/build-ai-license-signer.yml"
+
+jobs:
+  build:
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            archive: zip
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            archive: tar.gz
+          - os: macos-13
+            target: x86_64-apple-darwin
+            archive: tar.gz
+          - os: macos-14
+            target: aarch64-apple-darwin
+            archive: tar.gz
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Build
+        run: cargo build --release --manifest-path tools/ai-license-signer/Cargo.toml --target ${{ matrix.target }}
+
+      - name: Package Unix binary
+        if: matrix.archive == 'tar.gz'
+        shell: bash
+        run: |
+          mkdir -p dist/shell-ai-license-signer-${{ matrix.target }}
+          cp tools/ai-license-signer/target/${{ matrix.target }}/release/shell-ai-license-signer dist/shell-ai-license-signer-${{ matrix.target }}/
+          cp tools/ai-license-signer/README.md dist/shell-ai-license-signer-${{ matrix.target }}/
+          tar -czf shell-ai-license-signer-${{ matrix.target }}.tar.gz -C dist shell-ai-license-signer-${{ matrix.target }}
+
+      - name: Package Windows binary
+        if: matrix.archive == 'zip'
+        shell: pwsh
+        run: |
+          $dir = "dist/shell-ai-license-signer-${{ matrix.target }}"
+          New-Item -ItemType Directory -Force $dir | Out-Null
+          Copy-Item "tools/ai-license-signer/target/${{ matrix.target }}/release/shell-ai-license-signer.exe" $dir
+          Copy-Item "tools/ai-license-signer/README.md" $dir
+          Compress-Archive -Path $dir -DestinationPath "shell-ai-license-signer-${{ matrix.target }}.zip" -Force
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shell-ai-license-signer-${{ matrix.target }}
+          path: shell-ai-license-signer-${{ matrix.target }}.*

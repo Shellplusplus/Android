@@ -13,8 +13,7 @@ import java.nio.charset.StandardCharsets
 /**
  * 手写的 OpenAI 兼容 chat completions 客户端。
  * 项目里没有 OkHttp/Retrofit/Gson 依赖，和 WearMessageCenter/HttpScreenshotServer
- * 一样全程用 HttpURLConnection + org.json，避免仅为这一个 developer-only 功能
- * 引入新依赖（新依赖还得额外用 developerImplementation 才能不进 standard 包）。
+ * 全程用 HttpURLConnection + org.json，避免仅为 AI 功能引入额外网络依赖。
  */
 object OpenAIClient {
 

@@ -31,6 +31,13 @@ if (hasSigningCredentials && !localSigningKeystore.exists()) {
 
 val hasLocalSigningConfig = localSigningKeystore.exists() && hasSigningCredentials
 
+fun buildConfigString(value: String): String =
+    "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+
+val aiIssuerPublicKey = localProps.getProperty("shell.aiIssuerPublicKey") ?: ""
+val aiLicenseRegistryUrl = localProps.getProperty("shell.aiLicenseRegistryUrl")
+    ?: "https://raw.githubusercontent.com/cat-5054/shellpplicense/main/registry.json"
+
 android {
     namespace = "com.shell.liangyi"
     compileSdk = 36
@@ -54,22 +61,15 @@ android {
         versionCode = (System.getenv("VERSION_CODE") ?: "1").toInt()
         versionName = System.getenv("VERSION_NAME") ?: "1.0"
 
+        buildConfigField("String", "AI_LICENSE_ISSUER_PUBLIC_KEY", buildConfigString(aiIssuerPublicKey))
+        buildConfigField("String", "AI_LICENSE_REGISTRY_URL", buildConfigString(aiLicenseRegistryUrl))
+
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    // "standard" 是面向用户发布的版本，不包含手环 AI agent 助手；
-    // "developer" 额外编译 src/developer 下的 agent 聊天/命令桥接代码。
-    // 两个 flavor 都不能加 applicationIdSuffix —— interconnect 要求手机包名
-    // 与快应用 manifest.json 的 package 字段（com.shell.liangyi）严格一致。
-    flavorDimensions += "tier"
-    productFlavors {
-        create("standard") {
-            dimension = "tier"
-        }
-        create("developer") {
-            dimension = "tier"
-        }
-    }
+    // Ship one APK. The ordinary remote terminal is always available; the AI
+    // assistant is gated at runtime by the signed license state.
+    sourceSets["main"].java.srcDir("src/developer/java")
 
     buildTypes {
         debug {
@@ -150,6 +150,7 @@ dependencies {
     implementation(libs.miuix.blur)
     implementation(libs.miuix.preference)
     implementation(libs.miuix.icons)
+    implementation(libs.bouncycastle)
 
     testImplementation(libs.junit)
     testImplementation("org.json:json:20240303")

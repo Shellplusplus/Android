@@ -12,6 +12,7 @@ import com.shell.liangyi.model.AgentApiConfig
 import com.shell.liangyi.model.ChatMessage
 import com.shell.liangyi.model.Conversation
 import com.shell.liangyi.model.ExecState
+import com.shell.liangyi.security.ai.AiLicenseManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -29,6 +30,7 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
     private val prefs = application.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val store = AgentConversationStore(application)
     private val bridge = AgentCommandBridge(application, viewModelScope)
+    private val licenseManager = AiLicenseManager(application)
 
     private val _apiConfig = MutableStateFlow(loadApiConfig())
     val apiConfig: StateFlow<AgentApiConfig> = _apiConfig.asStateFlow()
@@ -107,6 +109,10 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
 
     fun sendUserMessage(text: String) {
         if (text.isBlank()) return
+        if (!licenseManager.hasAccess()) {
+            _errorMessage.value = "AI 助手授权无效或需要联网验证"
+            return
+        }
         if (!_apiConfig.value.isConfigured) {
             _errorMessage.value = "请先在设置里填写 API 地址和模型名称"
             return
@@ -134,6 +140,10 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun requestAssistantReply() {
+        if (!licenseManager.hasAccess()) {
+            _errorMessage.value = "AI 助手授权已失效，请重新验证"
+            return
+        }
         val history = currentConversationValue()?.messages ?: return
         _isSending.value = true
         _errorMessage.value = null
@@ -159,6 +169,10 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun confirmExec(assistantMessageId: String) {
+        if (!licenseManager.hasAccess()) {
+            _errorMessage.value = "AI 助手授权已失效，请重新验证"
+            return
+        }
         val command = currentConversationValue()
             ?.messages
             ?.find { it.id == assistantMessageId }

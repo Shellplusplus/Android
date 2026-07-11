@@ -2,7 +2,6 @@ package com.shell.liangyi.core.update
 
 import org.json.JSONArray
 import org.json.JSONObject
-import java.util.Locale
 
 internal object GitHubReleaseParser {
     private val minSupportedVersionPattern = Regex(
@@ -10,12 +9,7 @@ internal object GitHubReleaseParser {
     )
     private val versionCodePattern = Regex("""(\d+)""")
 
-    fun preferredAssetNameForFlavor(flavor: String): String {
-        return when (flavor.lowercase(Locale.ROOT)) {
-            "developer" -> "app-developer-release.apk"
-            else -> "app-standard-release.apk"
-        }
-    }
+    fun preferredAssetName(): String = "app-release.apk"
 
     fun parseRelease(json: JSONObject, preferredAssetName: String): AppUpdateInfo {
         val tagName = json.optString("tag_name", "")

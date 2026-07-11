@@ -5,7 +5,7 @@ import androidx.navigation.NavHostController
 import com.shell.liangyi.ui.ShellViewModel
 import com.shell.liangyi.ui.agent.AgentChatScreen
 
-/** developer flavor：真实的 agent 聊天界面。 */
+/** 单 APK 中的真实 agent 聊天界面入口。 */
 object AgentEntryPointProvider {
     val entryPoint: AgentEntryPoint = object : AgentEntryPoint {
         override val isEnabled: Boolean = true

@@ -25,3 +25,8 @@ AGENTS.md
 app/developer/release/
 
 sign
+
+# Rust AI license signer local outputs
+tools/ai-license-signer/target/
+tools/ai-license-signer/*.key.json
+tools/ai-license-signer/issuer_public.txt

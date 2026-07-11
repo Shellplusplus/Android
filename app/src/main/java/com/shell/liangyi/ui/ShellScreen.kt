@@ -54,6 +54,7 @@ import com.shell.liangyi.R
 import com.shell.liangyi.core.update.UpdateInstaller
 import com.shell.liangyi.feature.AgentEntryPointProvider
 import com.shell.liangyi.ui.about.AboutScreen
+import com.shell.liangyi.ui.ai.AiLicenseScreen
 import com.shell.liangyi.ui.bluetooth.BluetoothScreen
 import com.shell.liangyi.ui.components.LiquidGlassBottomBar
 import com.shell.liangyi.ui.components.LiquidGlassConfirmDialog
@@ -72,6 +73,7 @@ import com.shell.liangyi.ui.screenshot.ScreenshotDetailScreen
 import com.shell.liangyi.ui.screenshot.ScreenshotTimelineScreen
 import com.shell.liangyi.ui.settings.SettingsScreen
 import com.shell.liangyi.ui.settings.SettingsTabScreen
+import com.shell.liangyi.ui.terminal.RemoteTerminalScreen
 import com.shell.liangyi.ui.theme.ShellTheme
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Card
@@ -89,6 +91,8 @@ object Routes {
     const val FETCH = "fetch"
     const val FILE_VIEWER = "file_viewer"
     const val TERMINAL = "terminal"
+    const val AI_LICENSE = "ai_license"
+    const val AI_ASSISTANT = "ai_assistant"
     const val LOGS = "logs"
     const val SCREENSHOT_TIMELINE = "screenshot_timeline"
     const val SCREENSHOT_DETAIL = "screenshot_detail/{shotId}"
@@ -124,6 +128,7 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
     val rootBackdrop = rememberShellBlurBackdrop(enableBlur = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S_V2)
     val catalogDialogBackdrop = rememberCatalogDialogBackdrop()
     val showOnboarding by shellViewModel.showOnboarding.collectAsState()
+    val aiLicenseState by shellViewModel.aiLicenseState.collectAsState()
     val updatePrompt by shellViewModel.updatePrompt.collectAsState()
     val updateDownloadState by shellViewModel.updateDownloadState.collectAsState()
     val skipOptionalUpdateInfoDialogVisible by shellViewModel.skipOptionalUpdateInfoDialogVisible.collectAsState()
@@ -141,6 +146,7 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
 
     LaunchedEffect(showOnboarding) {
         if (!showOnboarding) {
+            shellViewModel.refreshAiLicense()
             shellViewModel.checkForUpdates(manual = false)
         }
     }
@@ -314,15 +320,20 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
                         )
                     }
                     composable(Routes.TERMINAL) {
-                        if (AgentEntryPointProvider.entryPoint.isEnabled) {
+                        RemoteTerminalScreen(navController, shellViewModel)
+                    }
+                    composable(Routes.AI_ASSISTANT) {
+                        if (AgentEntryPointProvider.entryPoint.isEnabled && aiLicenseState.canUse) {
                             AgentEntryPointProvider.entryPoint.Screen(navController, shellViewModel)
                         } else {
-                            PlaceholderScreen(
-                                title = stringResource(R.string.remote_terminal),
-                                subtitle = stringResource(R.string.remote_terminal_developing),
-                                navController = navController
-                            )
+                            AiLicenseScreen(navController, shellViewModel)
                         }
+                    }
+                    composable(Routes.AI_LICENSE) {
+                        AiLicenseScreen(
+                            navController = navController,
+                            shellViewModel = shellViewModel,
+                        )
                     }
                     composable(Routes.LOGS) {
                         SettingsScreen(navController, shellViewModel)
@@ -462,6 +473,7 @@ private fun MainPagerScreen(
                 2 -> AboutScreen(
                     showBackButton = false,
                     bottomContentPadding = rootBottomPadding,
+                    onSecretUnlock = { navController.navigate(Routes.AI_LICENSE) },
                 )
             }
         }

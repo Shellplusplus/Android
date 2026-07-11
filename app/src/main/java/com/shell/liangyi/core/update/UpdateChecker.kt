@@ -2,7 +2,6 @@ package com.shell.liangyi.core.update
 
 import android.content.Context
 import androidx.core.content.pm.PackageInfoCompat
-import com.shell.liangyi.BuildConfig
 import com.shell.liangyi.R
 import com.shell.liangyi.core.onboarding.GitHubUrlResolver
 import org.json.JSONObject
@@ -10,7 +9,6 @@ import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
-import java.util.Locale
 
 object UpdateChecker {
     private const val UPDATE_URL = "https://api.github.com/repos/DefateStar/public-shellpp/releases/latest"
@@ -143,9 +141,7 @@ object UpdateChecker {
                 throw IllegalStateException("GitHub API $responseCode: ${body.take(200)}")
             }
 
-            val preferredAssetName = GitHubReleaseParser.preferredAssetNameForFlavor(
-                BuildConfig.FLAVOR.lowercase(Locale.ROOT)
-            )
+            val preferredAssetName = GitHubReleaseParser.preferredAssetName()
             val info = GitHubReleaseParser.parseRelease(
                 json = JSONObject(body),
                 preferredAssetName = preferredAssetName,

@@ -131,6 +131,19 @@ shell.keyPassword=your-key-password
 
 如果 `sign/Android.jks` 或上述字段不完整，Gradle 不会启用 `localShellSign` 这套本地签名配置。
 
+## AI 助手授权签名
+
+AI 授权文件和 GitHub 授权清单使用 Ed25519 签名。APK 只需要配置签发公钥，签发私钥必须保存在仓库外的离线机器上：
+
+```properties
+shell.aiIssuerPublicKey=BASE64URL_RAW_ED25519_PUBLIC_KEY
+shell.aiLicenseRegistryUrl=https://raw.githubusercontent.com/cat-5054/shellpplicense/main/registry.json
+```
+
+本地签发工具位于 `tools/ai-license-signer/`，使用 Rust 编写，默认启动跨平台 GUI，也保留 CLI 模式，可打包 Windows、Linux 和 macOS 版本。设备导出的申请包只包含 Android Keystore 公钥、硬件证明信息和设备签名，不包含设备私钥。
+
+授权仓库使用 `cat-5054/shellpplicense`，默认分支为 `main`，根目录必须放置签名后的 `registry.json`。每个授权文件不需要公开托管，签发工具只将授权文件哈希写入清单；App 导入授权文件后，通过清单中的 `licenseSha256` 和 Ed25519 签名完成校验。仓库需要先上传清单和对应的签发公钥配置，空仓库或缺少 `registry.json` 时 AI 授权会保持不可用。
+
 ## 更新接口
 
 应用内更新检查默认请求：
