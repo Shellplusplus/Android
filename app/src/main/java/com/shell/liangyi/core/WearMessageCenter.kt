@@ -789,10 +789,15 @@ class WearMessageCenter private constructor(private val context: Context) {
             val total = json.optInt("t", -1)
             val data = json.optString("d")
 
-            if (id.isEmpty() || index < 0 || total <= 0 || total > MAX_CHUNK_TOTAL || index >= total || data.isEmpty()) {
+            if (id.isEmpty() || index < 0 || total <= 0 || index >= total || data.isEmpty()) {
                 addLog("ERROR", "chunk", tr(R.string.invalid_chunk, id, index, total))
                 return
             }
+            // 终端输出可能非常长；这里不再用 MAX_CHUNK_TOTAL 限制分片总数。
+            // if (total > MAX_CHUNK_TOTAL) {
+            //     addLog("ERROR", "chunk", tr(R.string.invalid_chunk, id, index, total))
+            //     return
+            // }
 
             if (chunkBuffers.size >= MAX_CONCURRENT_CHUNKS && !chunkBuffers.containsKey(id)) {
                 addLog("ERROR", "chunk", "Too many concurrent chunk sessions, rejecting $id")
