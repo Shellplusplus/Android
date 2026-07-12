@@ -1,6 +1,5 @@
 package com.shell.liangyi.ui.ai
 
-import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -16,6 +15,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -44,6 +46,7 @@ fun AiLicenseScreen(
 ) {
     val context = LocalContext.current
     val state by shellViewModel.aiLicenseState.collectAsState()
+    var pendingRequestContent by remember { mutableStateOf<String?>(null) }
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
     ) { uri ->
@@ -61,6 +64,22 @@ fun AiLicenseScreen(
             },
             onFailure = { toast(context, it.message ?: "无法读取授权文件") },
         )
+    }
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json"),
+    ) { uri ->
+        val content = pendingRequestContent
+        pendingRequestContent = null
+        if (uri == null || content == null) return@rememberLauncherForActivityResult
+        runCatching {
+            context.contentResolver.openOutputStream(uri)?.use { output ->
+                output.write(content.toByteArray(Charsets.UTF_8))
+            } ?: throw IllegalStateException("无法写入导出文件")
+        }.onSuccess {
+            toast(context, "授权申请 JSON 已导出")
+        }.onFailure {
+            toast(context, it.message ?: "导出授权申请失败")
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -82,17 +101,15 @@ fun AiLicenseScreen(
             item {
                 ActionCard(
                     title = "导出授权申请",
-                    summary = "只导出设备公钥和申请签名，不会导出设备私钥",
+                    summary = "保存设备申请 JSON 文件，只导出设备公钥和申请签名，不会导出设备私钥",
                     onClick = {
                         runCatching {
-                            val request = shellViewModel.exportAiLicenseRequest()
-                            val intent = Intent(Intent.ACTION_SEND).apply {
-                                type = "application/json"
-                                putExtra(Intent.EXTRA_SUBJECT, "Shell++ AI 授权申请")
-                                putExtra(Intent.EXTRA_TEXT, request)
-                            }
-                            context.startActivity(Intent.createChooser(intent, "发送授权申请"))
-                        }.onFailure { toast(context, it.message ?: "无法生成申请包") }
+                            pendingRequestContent = shellViewModel.exportAiLicenseRequest()
+                            exportLauncher.launch(buildRequestFileName(state))
+                        }.onFailure {
+                            pendingRequestContent = null
+                            toast(context, it.message ?: "无法生成申请包")
+                        }
                     },
                 )
             }
@@ -219,6 +236,16 @@ private fun formatDuration(value: Long): String {
     val hours = TimeUnit.MILLISECONDS.toHours(value)
     val minutes = TimeUnit.MILLISECONDS.toMinutes(value) % 60
     return "${hours} 小时 ${minutes} 分钟"
+}
+
+private fun buildRequestFileName(state: AiLicenseState): String {
+    val suffix = state.deviceFingerprint
+        .takeLast(8)
+        .ifBlank { "device" }
+        .lowercase(Locale.ROOT)
+    val timestamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.getDefault())
+        .format(Date())
+    return "shellpp-ai-request-$suffix-$timestamp.json"
 }
 
 private fun toast(context: android.content.Context, message: String) {

@@ -45,6 +45,7 @@ jobs:
           echo "shell.storePassword=${{ secrets.STORE_PASSWORD }}" >> local.properties
           echo "shell.keyAlias=${{ secrets.KEY_ALIAS }}" >> local.properties
           echo "shell.keyPassword=${{ secrets.KEY_PASSWORD }}" >> local.properties
+          echo "shell.aiIssuerPublicKey=${{ secrets.AI_LICENSE_ISSUER_PUBLIC_KEY }}" >> local.properties
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew

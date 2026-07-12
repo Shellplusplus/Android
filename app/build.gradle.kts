@@ -35,8 +35,7 @@ fun buildConfigString(value: String): String =
     "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
 val aiIssuerPublicKey = localProps.getProperty("shell.aiIssuerPublicKey") ?: ""
-val aiLicenseRegistryUrl = localProps.getProperty("shell.aiLicenseRegistryUrl")
-    ?: "https://raw.githubusercontent.com/cat-5054/shellpplicense/main/registry.json"
+val aiLicenseRegistryUrl = "http://154.12.85.206:3040/api/ai-license/registry"
 
 android {
     namespace = "com.shell.liangyi"
