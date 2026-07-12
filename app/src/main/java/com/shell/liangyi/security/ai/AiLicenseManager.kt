@@ -55,7 +55,7 @@ class AiLicenseManager(context: Context) {
         val license = AiLicense.fromJson(text)
         val identity = deviceIdentityStore.identity()
         val issuerKey = issuerPublicKey(license.issuerKeyId)
-            ?: throw IllegalArgumentException("未知的签发密钥")
+            ?: throw IllegalArgumentException(issuerKeyError(license.issuerKeyId))
         require(AiLicenseCrypto.verifyLicense(license, issuerKey)) { "授权签名无效" }
         require(license.packageName == appContext.packageName) { "授权包名不匹配" }
         require(license.deviceKeySha256.equals(identity.fingerprint, ignoreCase = true)) {
@@ -90,7 +90,7 @@ class AiLicenseManager(context: Context) {
         try {
             val registry = fetchRegistry()
             val issuerKey = issuerPublicKey(registry.issuerKeyId)
-                ?: return@withContext publish(invalidState(license, "未知的清单签发密钥"))
+                ?: return@withContext publish(invalidState(license, issuerKeyError(registry.issuerKeyId)))
             if (!AiLicenseCrypto.verifyRegistry(registry, issuerKey)) {
                 return@withContext publish(invalidState(license, "授权清单签名无效"))
             }
@@ -223,6 +223,15 @@ class AiLicenseManager(context: Context) {
     private fun issuerPublicKey(keyId: String): String? {
         if (keyId != "ed25519-main-2026") return null
         return BuildConfig.AI_LICENSE_ISSUER_PUBLIC_KEY.takeIf { it.isNotBlank() }
+    }
+
+    private fun issuerKeyError(keyId: String): String {
+        if (keyId != "ed25519-main-2026") return "未知的签发密钥: $keyId"
+        return if (BuildConfig.AI_LICENSE_ISSUER_PUBLIC_KEY.isBlank()) {
+            "当前构建未配置 AI 签发公钥"
+        } else {
+            "AI 签发公钥不可用"
+        }
     }
 
     private fun loadLicense(): AiLicense? = prefs.getString(KEY_LICENSE, null)?.let {

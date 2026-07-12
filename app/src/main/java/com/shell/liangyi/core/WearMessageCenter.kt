@@ -123,7 +123,7 @@ class WearMessageCenter private constructor(private val context: Context) {
         }
     }
 
-    private val _messageFlow = MutableSharedFlow<JSONObject>(extraBufferCapacity = 64)
+    private val _messageFlow = MutableSharedFlow<JSONObject>(replay = 32, extraBufferCapacity = 64)
     val messageFlow: SharedFlow<JSONObject> = _messageFlow.asSharedFlow()
 
     private val _connectionState = MutableSharedFlow<ConnectionState>(

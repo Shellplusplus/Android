@@ -34,8 +34,19 @@ val hasLocalSigningConfig = localSigningKeystore.exists() && hasSigningCredentia
 fun buildConfigString(value: String): String =
     "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
-val aiIssuerPublicKey = localProps.getProperty("shell.aiIssuerPublicKey") ?: ""
-val aiLicenseRegistryUrl = "http://154.12.85.206:3040/api/ai-license/registry"
+val aiIssuerPublicKey = localProps.getProperty("shell.aiIssuerPublicKey")
+    ?: System.getenv("AI_LICENSE_ISSUER_PUBLIC_KEY")
+    ?: ""
+val aiLicenseRegistryUrl = localProps.getProperty("shell.aiLicenseRegistryUrl")
+    ?: System.getenv("AI_LICENSE_REGISTRY_URL")
+    ?: "http://154.12.85.206:3040/api/ai-license/registry"
+
+if (aiIssuerPublicKey.isBlank()) {
+    logger.warn(
+        "AI license issuer public key is not configured. " +
+            "Set shell.aiIssuerPublicKey in local.properties or AI_LICENSE_ISSUER_PUBLIC_KEY in the build environment."
+    )
+}
 
 android {
     namespace = "com.shell.liangyi"
