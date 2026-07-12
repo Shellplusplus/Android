@@ -36,7 +36,7 @@ fun buildConfigString(value: String): String =
 
 val aiIssuerPublicKey = localProps.getProperty("shell.aiIssuerPublicKey")
     ?: System.getenv("AI_LICENSE_ISSUER_PUBLIC_KEY")
-    ?: ""
+    ?: "0oWRuoah8jPFZ0XQ1WSlwqIOT9Hkttz04FGRjv0XMBk"
 val aiLicenseRegistryUrl = localProps.getProperty("shell.aiLicenseRegistryUrl")
     ?: System.getenv("AI_LICENSE_REGISTRY_URL")
     ?: "http://154.12.85.206:3040/api/ai-license/registry"

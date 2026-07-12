@@ -78,6 +78,7 @@ class AgentCommandBridge(
         val payload = JSONObject().apply {
             put("reqId", reqId)
             put("cmd", cmd)
+            put("source", "shell-plus-plus-android")
         }
         messageCenter.send("execCommand", payload) { success, error ->
             if (!success) {
