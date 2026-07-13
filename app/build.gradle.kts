@@ -40,6 +40,9 @@ val aiIssuerPublicKey = localProps.getProperty("shell.aiIssuerPublicKey")
 val aiLicenseRegistryUrl = localProps.getProperty("shell.aiLicenseRegistryUrl")
     ?: System.getenv("AI_LICENSE_REGISTRY_URL")
     ?: "http://154.12.85.206:3040/api/ai-license/registry"
+val aiLicenseMailboxAddress = localProps.getProperty("shell.aiLicenseMailboxAddress")
+    ?: System.getenv("AI_LICENSE_MAILBOX_ADDRESS")
+    ?: ""
 
 if (aiIssuerPublicKey.isBlank()) {
     logger.warn(
@@ -73,6 +76,7 @@ android {
 
         buildConfigField("String", "AI_LICENSE_ISSUER_PUBLIC_KEY", buildConfigString(aiIssuerPublicKey))
         buildConfigField("String", "AI_LICENSE_REGISTRY_URL", buildConfigString(aiLicenseRegistryUrl))
+        buildConfigField("String", "AI_LICENSE_MAILBOX_ADDRESS", buildConfigString(aiLicenseMailboxAddress))
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
