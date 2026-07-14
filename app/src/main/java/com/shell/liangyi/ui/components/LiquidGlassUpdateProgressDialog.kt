@@ -6,7 +6,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -40,6 +39,7 @@ import com.shell.liangyi.ui.glassport.effects.blur
 import com.shell.liangyi.ui.glassport.effects.colorControls
 import com.shell.liangyi.ui.glassport.effects.lens
 import com.shell.liangyi.ui.glassport.highlight.Highlight
+import com.shell.liangyi.ui.theme.ShellTheme
 import kotlinx.coroutines.delay
 import top.yukonga.miuix.kmp.basic.LinearProgressIndicator
 import top.yukonga.miuix.kmp.basic.ProgressIndicatorDefaults
@@ -55,7 +55,7 @@ fun LiquidGlassUpdateProgressDialog(
     onExitFinished: () -> Unit,
     backdrop: Backdrop? = null,
 ) {
-    val isLightTheme = !isSystemInDarkTheme()
+    val isLightTheme = !ShellTheme.isDarkTheme
     val titleColor = if (isLightTheme) Color.Black else Color.White
     val secondaryColor = if (isLightTheme) Color.Black else Color.White
     val containerColor = if (isLightTheme) {

@@ -8,7 +8,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -43,6 +42,7 @@ import com.shell.liangyi.ui.glassport.effects.blur
 import com.shell.liangyi.ui.glassport.effects.colorControls
 import com.shell.liangyi.ui.glassport.effects.lens
 import com.shell.liangyi.ui.glassport.highlight.Highlight
+import com.shell.liangyi.ui.theme.ShellTheme
 import kotlinx.coroutines.delay
 
 private const val CONFIRM_DIALOG_EXIT_DURATION_MS = 180
@@ -59,7 +59,7 @@ fun LiquidGlassConfirmDialog(
     onExitFinished: () -> Unit,
     backdrop: Backdrop? = null,
 ) {
-    val isLightTheme = !isSystemInDarkTheme()
+    val isLightTheme = !ShellTheme.isDarkTheme
     val contentColor = if (isLightTheme) Color.Black else Color.White
     val accentColor = if (isLightTheme) Color(0xFF0088FF) else Color(0xFF0091FF)
     val containerColor = if (isLightTheme) {

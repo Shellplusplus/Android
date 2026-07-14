@@ -35,6 +35,11 @@
     <string name="server_not_started">服务器未启动</string>
     <string name="no_lan_transfer_logs">暂无局域网传输日志</string>
     <string name="settings">设置</string>
+    <string name="app_theme_title">应用主题</string>
+    <string name="app_theme_summary">选择浅色、深色或跟随系统外观</string>
+    <string name="app_theme_follow_system">跟随系统</string>
+    <string name="app_theme_light">浅色模式</string>
+    <string name="app_theme_dark">深色模式</string>
     <string name="skip_optional_updates">非强制更新不提醒</string>
     <string name="skip_optional_updates_summary">开启后，仅强制更新会自动提醒，手动检查不受影响</string>
     <string name="skip_optional_updates_locked_summary">同一可选更新弹窗出现 3 次后可用（当前 %1$d/3）</string>

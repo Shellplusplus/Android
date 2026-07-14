@@ -75,6 +75,7 @@ import com.shell.liangyi.ui.settings.SettingsScreen
 import com.shell.liangyi.ui.settings.SettingsTabScreen
 import com.shell.liangyi.ui.terminal.RemoteTerminalScreen
 import com.shell.liangyi.ui.theme.ShellTheme
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardColors
@@ -433,10 +434,16 @@ private fun MainPagerScreen(
         pageCount = { rootTabItems.size },
     )
     val scope = rememberCoroutineScope()
+    var pageAnimationJob by remember { mutableStateOf<Job?>(null) }
     val navigationBarPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val rootBottomPadding = 88.dp + navigationBarPadding
     val blurSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S_V2
     val pageBackground = ShellTheme.colors.pageBackground
+    val selectedTabIndex = if (pagerState.currentPageOffsetFraction == 0f) {
+        pagerState.currentPage
+    } else {
+        pagerState.targetPage
+    }
     val liquidGlassBackdrop = if (blurSupported) {
         rememberLayerBackdrop {
             drawRect(pageBackground)
@@ -450,6 +457,7 @@ private fun MainPagerScreen(
         HorizontalPager(
             state = pagerState,
             beyondViewportPageCount = rootTabItems.lastIndex,
+            overscrollEffect = null,
             modifier = if (liquidGlassBackdrop != null) {
                 Modifier
                     .fillMaxSize()
@@ -480,9 +488,13 @@ private fun MainPagerScreen(
 
         LiquidGlassBottomBar(
             items = rootTabItems,
-            selectedIndex = pagerState.currentPage,
+            selectedIndex = selectedTabIndex,
             onSelectedIndexChange = { index ->
-                scope.launch {
+                if (index == selectedTabIndex && pagerState.currentPageOffsetFraction == 0f) {
+                    return@LiquidGlassBottomBar
+                }
+                pageAnimationJob?.cancel()
+                pageAnimationJob = scope.launch {
                     if (index == pagerState.currentPage && index == pagerState.targetPage) {
                         return@launch
                     }

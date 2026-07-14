@@ -1,6 +1,8 @@
 package com.shell.liangyi.ui.settings
 
 import android.widget.Toast
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.CheckCircleOutline
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,9 +29,11 @@ import androidx.compose.ui.unit.sp
 import com.shell.liangyi.R
 import com.shell.liangyi.ui.ShellViewModel
 import com.shell.liangyi.ui.components.ShellRootTabScaffold
+import com.shell.liangyi.ui.theme.ShellThemeMode
 import com.shell.liangyi.ui.theme.ShellTheme
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardColors
+import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -49,15 +53,20 @@ fun SettingsTabScreen(
     val skipOptionalUpdatePrompts by shellViewModel.skipOptionalUpdatePrompts.collectAsState()
     val skipOptionalUpdateAvailable by shellViewModel.skipOptionalUpdateAvailable.collectAsState()
     val skipOptionalUpdateHint by shellViewModel.skipOptionalUpdateHint.collectAsState()
+    val themeMode by shellViewModel.themeMode.collectAsState()
     val effectiveSkipOptionalUpdateAvailable = previewMode || skipOptionalUpdateAvailable
     var previewSkipOptionalUpdatePrompts by remember(previewMode, skipOptionalUpdatePrompts) {
         mutableStateOf(skipOptionalUpdatePrompts)
+    }
+    var previewThemeMode by remember(previewMode, themeMode) {
+        mutableStateOf(themeMode)
     }
     val effectiveSkipOptionalUpdatePrompts = if (previewMode) {
         previewSkipOptionalUpdatePrompts
     } else {
         skipOptionalUpdatePrompts
     }
+    val effectiveThemeMode = if (previewMode) previewThemeMode else themeMode
 
     ShellRootTabScaffold(title = stringResource(R.string.settings)) { innerPadding ->
         Column(
@@ -66,6 +75,84 @@ fun SettingsTabScreen(
                 .padding(innerPadding),
         ) {
             Spacer(modifier = Modifier.height(14.dp))
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 11.dp),
+                colors = CardColors(
+                    color = shellColors.cardBackground,
+                    contentColor = colors.onSurface,
+                ),
+                cornerRadius = 15.dp,
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.app_theme_title),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = colors.onSurface,
+                    )
+                    Text(
+                        text = stringResource(R.string.app_theme_summary),
+                        fontSize = 12.sp,
+                        color = shellColors.secondaryText,
+                    )
+                    ThemeModeOption(
+                        title = stringResource(R.string.app_theme_follow_system),
+                        selected = effectiveThemeMode == ShellThemeMode.FOLLOW_SYSTEM,
+                        onClick = {
+                            if (previewMode) {
+                                previewThemeMode = ShellThemeMode.FOLLOW_SYSTEM
+                                Toast.makeText(
+                                    context,
+                                    context.getString(R.string.preview_mode_setting_message),
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                            } else {
+                                shellViewModel.setThemeMode(ShellThemeMode.FOLLOW_SYSTEM)
+                            }
+                        },
+                    )
+                    ThemeModeOption(
+                        title = stringResource(R.string.app_theme_light),
+                        selected = effectiveThemeMode == ShellThemeMode.LIGHT,
+                        onClick = {
+                            if (previewMode) {
+                                previewThemeMode = ShellThemeMode.LIGHT
+                                Toast.makeText(
+                                    context,
+                                    context.getString(R.string.preview_mode_setting_message),
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                            } else {
+                                shellViewModel.setThemeMode(ShellThemeMode.LIGHT)
+                            }
+                        },
+                    )
+                    ThemeModeOption(
+                        title = stringResource(R.string.app_theme_dark),
+                        selected = effectiveThemeMode == ShellThemeMode.DARK,
+                        onClick = {
+                            if (previewMode) {
+                                previewThemeMode = ShellThemeMode.DARK
+                                Toast.makeText(
+                                    context,
+                                    context.getString(R.string.preview_mode_setting_message),
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                            } else {
+                                shellViewModel.setThemeMode(ShellThemeMode.DARK)
+                            }
+                        },
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(10.dp))
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -238,6 +325,54 @@ fun SettingsTabScreen(
                 }
             }
             Spacer(modifier = Modifier.height(bottomContentPadding))
+        }
+    }
+}
+
+@Composable
+private fun ThemeModeOption(
+    title: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val colors = MiuixTheme.colorScheme
+    val shellColors = ShellTheme.colors
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardColors(
+            color = if (selected) {
+                shellColors.primaryAction.copy(alpha = 0.14f)
+            } else {
+                colors.surfaceContainer.copy(alpha = 0.72f)
+            },
+            contentColor = colors.onSurface,
+        ),
+        cornerRadius = 12.dp,
+        onClick = onClick,
+        showIndication = true,
+        pressFeedbackType = PressFeedbackType.Sink,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = title,
+                fontSize = 14.sp,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                color = colors.onSurface,
+            )
+            if (selected) {
+                Icon(
+                    imageVector = Icons.Rounded.CheckCircleOutline,
+                    contentDescription = null,
+                    tint = shellColors.primaryAction,
+                )
+            }
         }
     }
 }

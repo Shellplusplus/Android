@@ -4,6 +4,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import com.shell.liangyi.ui.ShellScreen
 import com.shell.liangyi.ui.ShellViewModel
 import com.shell.liangyi.ui.theme.ShellAppTheme
@@ -18,7 +20,8 @@ class MainActivity : ComponentActivity() {
         shellViewModel.initialize(this)
 
         setContent {
-            ShellAppTheme {
+            val themeMode by shellViewModel.themeMode.collectAsState()
+            ShellAppTheme(themeMode = themeMode) {
                 ShellScreen(shellViewModel)
             }
         }

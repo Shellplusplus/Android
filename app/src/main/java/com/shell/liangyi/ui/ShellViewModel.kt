@@ -29,6 +29,7 @@ import com.shell.liangyi.ui.terminal.RemoteTerminalGuard
 import com.shell.liangyi.ui.terminal.RemoteTerminalResultKind
 import com.shell.liangyi.ui.terminal.RemoteTerminalUiState
 import com.shell.liangyi.ui.terminal.RemoteTerminalValidationError
+import com.shell.liangyi.ui.theme.ShellThemeMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -92,6 +93,8 @@ class ShellViewModel : ViewModel() {
     val deleteScreenshotConfirmShotId = _deleteScreenshotConfirmShotId.asStateFlow()
     private val _aiLicenseState = MutableStateFlow(AiLicenseState())
     val aiLicenseState: StateFlow<AiLicenseState> = _aiLicenseState.asStateFlow()
+    private val _themeMode = MutableStateFlow(ShellThemeMode.FOLLOW_SYSTEM)
+    val themeMode = _themeMode.asStateFlow()
 
     private val _updateMessages = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val updateMessages = _updateMessages.asSharedFlow()
@@ -118,7 +121,8 @@ class ShellViewModel : ViewModel() {
         screenshotReceiver = ScreenshotReceiver(context, scope)
         remoteToolController = RemoteToolController(context, scope, wearMessageCenter)
         loadRemoteTerminalPreferences(context)
-}
+        loadThemePreferences(context)
+    }
     fun refreshAiLicense() {
         val manager = aiLicenseManager ?: return
         scope.launch {
@@ -199,6 +203,15 @@ class ShellViewModel : ViewModel() {
     }
     fun stopHttpServer() = screenshotReceiver.stopHttpServer()
     fun appContext(): Context = appCtx!!
+
+    fun setThemeMode(mode: ShellThemeMode) {
+        val context = appCtx ?: return
+        _themeMode.value = mode
+        context.getSharedPreferences(APP_UI_PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putString(APP_THEME_MODE_KEY, mode.storageValue)
+            .apply()
+    }
 
     fun isLanTransferBlocked(productCode: String = watchProductCode.value): Boolean {
         val normalized = productCode
@@ -551,6 +564,13 @@ class ShellViewModel : ViewModel() {
         )
     }
 
+    private fun loadThemePreferences(context: Context) {
+        val prefs = context.getSharedPreferences(APP_UI_PREFS, Context.MODE_PRIVATE)
+        _themeMode.value = ShellThemeMode.fromStorage(
+            prefs.getString(APP_THEME_MODE_KEY, ShellThemeMode.FOLLOW_SYSTEM.storageValue),
+        )
+    }
+
     private fun saveRemoteTerminalList(
         context: Context,
         key: String,
@@ -737,6 +757,8 @@ class ShellViewModel : ViewModel() {
         wearMessageCenter.destroy()
     }
     private companion object {
+        const val APP_UI_PREFS = "app_ui_prefs"
+        const val APP_THEME_MODE_KEY = "theme_mode"
         const val REMOTE_TERMINAL_PREFS = "remote_terminal_prefs"
         const val REMOTE_TERMINAL_HISTORY_KEY = "history"
         const val REMOTE_TERMINAL_FAVORITES_KEY = "favorites"

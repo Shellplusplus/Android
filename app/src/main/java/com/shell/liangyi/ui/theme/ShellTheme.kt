@@ -47,16 +47,42 @@ private val LocalShellColors = staticCompositionLocalOf {
     )
 }
 
+private val LocalShellIsDarkTheme = staticCompositionLocalOf { false }
+
+enum class ShellThemeMode(val storageValue: String) {
+    FOLLOW_SYSTEM("system"),
+    LIGHT("light"),
+    DARK("dark");
+
+    companion object {
+        fun fromStorage(value: String?): ShellThemeMode {
+            return values().firstOrNull { it.storageValue == value } ?: FOLLOW_SYSTEM
+        }
+    }
+}
+
 object ShellTheme {
     val colors: ShellColors
         @Composable
         @ReadOnlyComposable
         get() = LocalShellColors.current
+
+    val isDarkTheme: Boolean
+        @Composable
+        @ReadOnlyComposable
+        get() = LocalShellIsDarkTheme.current
 }
 
 @Composable
-fun ShellAppTheme(content: @Composable () -> Unit) {
-    val isDark = isSystemInDarkTheme()
+fun ShellAppTheme(
+    themeMode: ShellThemeMode = ShellThemeMode.FOLLOW_SYSTEM,
+    content: @Composable () -> Unit,
+) {
+    val isDark = when (themeMode) {
+        ShellThemeMode.FOLLOW_SYSTEM -> isSystemInDarkTheme()
+        ShellThemeMode.LIGHT -> false
+        ShellThemeMode.DARK -> true
+    }
     val miuixColors = if (isDark) darkColorScheme() else lightColorScheme()
     val shellColors = shellColorScheme(miuixColors, isDark)
     val view = LocalView.current
@@ -77,6 +103,7 @@ fun ShellAppTheme(content: @Composable () -> Unit) {
     MiuixTheme(colors = miuixColors) {
         androidx.compose.runtime.CompositionLocalProvider(
             LocalShellColors provides shellColors,
+            LocalShellIsDarkTheme provides isDark,
             content = content
         )
     }

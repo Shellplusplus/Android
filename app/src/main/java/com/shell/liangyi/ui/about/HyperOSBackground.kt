@@ -7,7 +7,6 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -16,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import com.shell.liangyi.ui.theme.ShellTheme
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -48,10 +48,10 @@ private val DARK_COLORS = listOf(
 
 @Composable
 fun HyperOSBackground(modifier: Modifier = Modifier) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = ShellTheme.isDarkTheme
     val colors = remember(isDark) { if (isDark) DARK_COLORS else LIGHT_COLORS }
 
-    val colorPeriod = remember(isDark) { if (isDark) 8f else 5f }
+    val colorPeriod = remember(isDark) { if (isDark) 12f else 8f }
     val pointOffset = remember(isDark) { if (isDark) 0.4f else 0.2f }
 
     val transition = rememberInfiniteTransition(label = "hyperos_bg")
@@ -59,7 +59,7 @@ fun HyperOSBackground(modifier: Modifier = Modifier) {
         initialValue = 0f,
         targetValue = 62.83f,
         animationSpec = infiniteRepeatable(
-            animation = tween(50000, easing = LinearEasing),
+            animation = tween(82000, easing = LinearEasing),
             repeatMode = RepeatMode.Restart,
         ),
         label = "hyperos_time",
