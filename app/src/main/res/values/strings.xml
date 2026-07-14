@@ -38,8 +38,11 @@
     <string name="app_theme_title">应用主题</string>
     <string name="app_theme_summary">选择浅色、深色或跟随系统外观</string>
     <string name="app_theme_follow_system">跟随系统</string>
+    <string name="app_theme_follow_system_summary">自动匹配系统当前的浅色或深色外观</string>
     <string name="app_theme_light">浅色模式</string>
+    <string name="app_theme_light_summary">始终使用浅色界面显示应用内容</string>
     <string name="app_theme_dark">深色模式</string>
+    <string name="app_theme_dark_summary">始终使用深色界面显示应用内容</string>
     <string name="skip_optional_updates">非强制更新不提醒</string>
     <string name="skip_optional_updates_summary">开启后，仅强制更新会自动提醒，手动检查不受影响</string>
     <string name="skip_optional_updates_locked_summary">同一可选更新弹窗出现 3 次后可用（当前 %1$d/3）</string>

@@ -1,8 +1,6 @@
 package com.shell.liangyi.ui.settings
 
 import android.widget.Toast
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.CheckCircleOutline
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,9 +31,10 @@ import com.shell.liangyi.ui.theme.ShellThemeMode
 import com.shell.liangyi.ui.theme.ShellTheme
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardColors
-import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.preference.RadioButtonLocation
+import top.yukonga.miuix.kmp.preference.RadioButtonPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 
@@ -102,8 +101,10 @@ fun SettingsTabScreen(
                         fontSize = 12.sp,
                         color = shellColors.secondaryText,
                     )
+                    Spacer(modifier = Modifier.height(2.dp))
                     ThemeModeOption(
                         title = stringResource(R.string.app_theme_follow_system),
+                        summary = stringResource(R.string.app_theme_follow_system_summary),
                         selected = effectiveThemeMode == ShellThemeMode.FOLLOW_SYSTEM,
                         onClick = {
                             if (previewMode) {
@@ -120,6 +121,7 @@ fun SettingsTabScreen(
                     )
                     ThemeModeOption(
                         title = stringResource(R.string.app_theme_light),
+                        summary = stringResource(R.string.app_theme_light_summary),
                         selected = effectiveThemeMode == ShellThemeMode.LIGHT,
                         onClick = {
                             if (previewMode) {
@@ -136,6 +138,7 @@ fun SettingsTabScreen(
                     )
                     ThemeModeOption(
                         title = stringResource(R.string.app_theme_dark),
+                        summary = stringResource(R.string.app_theme_dark_summary),
                         selected = effectiveThemeMode == ShellThemeMode.DARK,
                         onClick = {
                             if (previewMode) {
@@ -332,47 +335,15 @@ fun SettingsTabScreen(
 @Composable
 private fun ThemeModeOption(
     title: String,
+    summary: String,
     selected: Boolean,
     onClick: () -> Unit,
 ) {
-    val colors = MiuixTheme.colorScheme
-    val shellColors = ShellTheme.colors
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardColors(
-            color = if (selected) {
-                shellColors.primaryAction.copy(alpha = 0.14f)
-            } else {
-                colors.surfaceContainer.copy(alpha = 0.72f)
-            },
-            contentColor = colors.onSurface,
-        ),
-        cornerRadius = 12.dp,
+    RadioButtonPreference(
+        title = title,
+        selected = selected,
         onClick = onClick,
-        showIndication = true,
-        pressFeedbackType = PressFeedbackType.Sink,
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text(
-                text = title,
-                fontSize = 14.sp,
-                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-                color = colors.onSurface,
-            )
-            if (selected) {
-                Icon(
-                    imageVector = Icons.Rounded.CheckCircleOutline,
-                    contentDescription = null,
-                    tint = shellColors.primaryAction,
-                )
-            }
-        }
-    }
+        summary = summary,
+        radioButtonLocation = RadioButtonLocation.End,
+    )
 }
