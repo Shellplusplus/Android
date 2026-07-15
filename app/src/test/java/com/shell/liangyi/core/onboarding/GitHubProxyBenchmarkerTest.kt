@@ -5,7 +5,9 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
+import kotlin.coroutines.cancellation.CancellationException
 
 class GitHubProxyBenchmarkerTest {
 
@@ -24,5 +26,17 @@ class GitHubProxyBenchmarkerTest {
         assertEquals("ghproxy", GitHubProxyBenchmarker.fastestAvailableSourceId(results))
         assertFalse(results.first { it.sourceId == "gitwarp" }.success)
         assertTrue(results.first { it.sourceId == "ghproxy" }.success)
+    }
+
+    @Test
+    fun benchmarkBuiltInSourcesPropagatesCancellation() = runBlocking {
+        try {
+            GitHubProxyBenchmarker.benchmarkBuiltInSources {
+                throw CancellationException("cancelled")
+            }
+            fail("CancellationException should be propagated")
+        } catch (error: CancellationException) {
+            assertEquals("cancelled", error.message)
+        }
     }
 }

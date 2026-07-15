@@ -38,6 +38,17 @@ class GitHubUrlResolverTest {
             "https://mirror.example.com/path/",
             GitHubUrlResolver.normalizeCustomBaseUrl("https://mirror.example.com/path"),
         )
+        assertEquals(
+            "http://192.168.1.8:8080/",
+            GitHubUrlResolver.normalizeCustomBaseUrl("http://192.168.1.8:8080"),
+        )
+    }
+
+    @Test
+    fun normalizeCustomBaseUrlRejectsNonHttpSchemesAndMissingHosts() {
+        assertEquals("", GitHubUrlResolver.normalizeCustomBaseUrl("file:///tmp/proxy"))
+        assertEquals("", GitHubUrlResolver.normalizeCustomBaseUrl("ftp://mirror.example.com"))
+        assertEquals("", GitHubUrlResolver.normalizeCustomBaseUrl("https:///missing-host"))
     }
 
     @Test

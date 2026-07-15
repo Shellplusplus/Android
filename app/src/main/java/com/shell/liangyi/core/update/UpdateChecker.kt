@@ -1,6 +1,7 @@
 package com.shell.liangyi.core.update
 
 import android.content.Context
+import androidx.core.content.edit
 import androidx.core.content.pm.PackageInfoCompat
 import com.shell.liangyi.R
 import com.shell.liangyi.core.onboarding.GitHubUrlResolver
@@ -127,16 +128,21 @@ object UpdateChecker {
                 setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
             }
 
-            val responseCode = connection.responseCode
-            val responseStream = if (responseCode in 200..299) {
-                connection.inputStream
-            } else {
-                connection.errorStream ?: connection.inputStream
+            val body: String
+            val responseCode: Int
+            try {
+                responseCode = connection.responseCode
+                val responseStream = if (responseCode in 200..299) {
+                    connection.inputStream
+                } else {
+                    connection.errorStream ?: connection.inputStream
+                }
+                body = responseStream.use { input ->
+                    BufferedReader(InputStreamReader(input, Charsets.UTF_8)).readText()
+                }
+            } finally {
+                connection.disconnect()
             }
-            val body = responseStream.use { input ->
-                BufferedReader(InputStreamReader(input)).readText()
-            }
-            connection.disconnect()
             if (responseCode !in 200..299) {
                 throw IllegalStateException("GitHub API $responseCode: ${body.take(200)}")
             }
@@ -188,29 +194,27 @@ object UpdateChecker {
     }
 
     private fun saveMandatoryPrompt(context: Context, info: AppUpdateInfo) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putBoolean(KEY_MANDATORY_CONFIRMED, true)
-            .putString(KEY_LATEST_VERSION, info.latestVersion)
-            .putLong(KEY_LATEST_VERSION_CODE, info.latestVersionCode)
-            .putString(KEY_DOWNLOAD_URL, info.downloadUrl)
-            .putString(KEY_CHANGELOG, info.changelog)
-            .putLong(KEY_MIN_SUPPORTED_VERSION_CODE, info.minSupportedVersionCode)
-            .putString(KEY_RELEASE_DATE, info.releaseDate)
-            .apply()
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit {
+            putBoolean(KEY_MANDATORY_CONFIRMED, true)
+            putString(KEY_LATEST_VERSION, info.latestVersion)
+            putLong(KEY_LATEST_VERSION_CODE, info.latestVersionCode)
+            putString(KEY_DOWNLOAD_URL, info.downloadUrl)
+            putString(KEY_CHANGELOG, info.changelog)
+            putLong(KEY_MIN_SUPPORTED_VERSION_CODE, info.minSupportedVersionCode)
+            putString(KEY_RELEASE_DATE, info.releaseDate)
+        }
     }
 
     private fun clearMandatoryPrompt(context: Context) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .remove(KEY_MANDATORY_CONFIRMED)
-            .remove(KEY_LATEST_VERSION)
-            .remove(KEY_LATEST_VERSION_CODE)
-            .remove(KEY_DOWNLOAD_URL)
-            .remove(KEY_CHANGELOG)
-            .remove(KEY_MIN_SUPPORTED_VERSION_CODE)
-            .remove(KEY_RELEASE_DATE)
-            .apply()
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit {
+            remove(KEY_MANDATORY_CONFIRMED)
+            remove(KEY_LATEST_VERSION)
+            remove(KEY_LATEST_VERSION_CODE)
+            remove(KEY_DOWNLOAD_URL)
+            remove(KEY_CHANGELOG)
+            remove(KEY_MIN_SUPPORTED_VERSION_CODE)
+            remove(KEY_RELEASE_DATE)
+        }
     }
 
     private fun syncOptionalUpdatePreferenceState(
@@ -252,15 +256,14 @@ object UpdateChecker {
         context: Context,
         snapshot: OptionalUpdatePreferenceSnapshot,
     ) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putBoolean(KEY_SKIP_OPTIONAL_PROMPTS, snapshot.skipOptionalPrompts)
-            .putLong(KEY_OPTIONAL_PROMPT_COUNT_VERSION_CODE, snapshot.promptCountVersionCode)
-            .putInt(KEY_OPTIONAL_PROMPT_DISPLAY_COUNT, snapshot.promptDisplayCount)
-            .putLong(KEY_OPTIONAL_SKIP_UNLOCK_VERSION_CODE, snapshot.unlockVersionCode)
-            .putLong(KEY_OPTIONAL_SKIP_ENABLED_BASE_VERSION_CODE, snapshot.enabledBaseVersionCode)
-            .putLong(KEY_LATEST_SEEN_OPTIONAL_VERSION_CODE, snapshot.latestSeenOptionalVersionCode)
-            .apply()
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit {
+            putBoolean(KEY_SKIP_OPTIONAL_PROMPTS, snapshot.skipOptionalPrompts)
+            putLong(KEY_OPTIONAL_PROMPT_COUNT_VERSION_CODE, snapshot.promptCountVersionCode)
+            putInt(KEY_OPTIONAL_PROMPT_DISPLAY_COUNT, snapshot.promptDisplayCount)
+            putLong(KEY_OPTIONAL_SKIP_UNLOCK_VERSION_CODE, snapshot.unlockVersionCode)
+            putLong(KEY_OPTIONAL_SKIP_ENABLED_BASE_VERSION_CODE, snapshot.enabledBaseVersionCode)
+            putLong(KEY_LATEST_SEEN_OPTIONAL_VERSION_CODE, snapshot.latestSeenOptionalVersionCode)
+        }
     }
 
     private fun readCurrentVersion(context: Context): CurrentVersion {

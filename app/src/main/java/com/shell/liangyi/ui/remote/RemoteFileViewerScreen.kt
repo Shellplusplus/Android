@@ -48,7 +48,6 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -74,6 +73,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.shell.liangyi.R
@@ -99,8 +99,10 @@ fun RemoteFileViewerScreen(
     shellViewModel: ShellViewModel,
 ) {
     val context = LocalContext.current
-    val state by shellViewModel.remoteFileViewerState.collectAsState()
-    val connectionState by shellViewModel.connectionState.collectAsState(initial = ConnectionState.DISCONNECTED)
+    val state by shellViewModel.remoteFileViewerState.collectAsStateWithLifecycle()
+    val connectionState by shellViewModel.connectionState.collectAsStateWithLifecycle(
+        initialValue = ConnectionState.DISCONNECTED,
+    )
     val scrollBehavior = MiuixScrollBehavior()
     val demoMode = connectionState != ConnectionState.CONNECTED
     var demoState by remember {

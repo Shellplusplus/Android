@@ -4,10 +4,10 @@ import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ResolveInfo
-import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.FileProvider
+import androidx.core.net.toUri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,6 +29,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.shell.liangyi.BuildConfig
 import com.shell.liangyi.security.ai.AiLicenseState
@@ -37,6 +37,8 @@ import com.shell.liangyi.security.ai.AiLicenseStatus
 import com.shell.liangyi.ui.ShellViewModel
 import com.shell.liangyi.ui.components.ShellBackScaffold
 import com.shell.liangyi.ui.theme.ShellTheme
+import com.shell.liangyi.util.AtomicFileWriter
+import com.shell.liangyi.util.FileCacheTrimmer
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardColors
 import top.yukonga.miuix.kmp.basic.Text
@@ -48,13 +50,15 @@ import java.util.Locale
 import java.util.concurrent.TimeUnit
 import java.io.File
 
+private const val AI_LICENSE_REQUEST_CACHE_LIMIT = 5
+
 @Composable
 fun AiLicenseScreen(
     navController: NavHostController,
     shellViewModel: ShellViewModel,
 ) {
     val context = LocalContext.current
-    val state by shellViewModel.aiLicenseState.collectAsState()
+    val state by shellViewModel.aiLicenseState.collectAsStateWithLifecycle()
     var pendingRequestContent by remember { mutableStateOf<String?>(null) }
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
@@ -284,14 +288,17 @@ private fun launchRequestMailChooser(
 ) {
     val requestDir = File(context.cacheDir, "ai-license").apply { mkdirs() }
     val requestFile = File(requestDir, fileName)
-    requestFile.writeText(requestContent, Charsets.UTF_8)
+    AtomicFileWriter.writeText(requestFile, requestContent)
+    FileCacheTrimmer.trim(requestDir, AI_LICENSE_REQUEST_CACHE_LIMIT) { file ->
+        file.extension.equals("json", ignoreCase = true)
+    }
     val requestUri = FileProvider.getUriForFile(
         context,
         "${context.packageName}.fileprovider",
         requestFile,
     )
     val mailQueryIntent = Intent(Intent.ACTION_SENDTO).apply {
-        data = Uri.parse("mailto:")
+        data = "mailto:".toUri()
     }
     val packageManager = context.packageManager
     val directMailPackages = packageManager

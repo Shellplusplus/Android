@@ -33,7 +33,6 @@ import androidx.compose.material.icons.rounded.Downloading
 import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -60,6 +59,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -93,15 +93,15 @@ fun FetchScreen(
 ) {
     val context = LocalContext.current
     var isLogExpanded by rememberSaveable { mutableStateOf(false) }
-    val httpRunning by shellViewModel.httpServerRunning.collectAsState()
-    val httpTransferInProgress by shellViewModel.httpTransferInProgress.collectAsState()
-    val httpIp by shellViewModel.httpServerIp.collectAsState()
-    val httpPort by shellViewModel.httpServerPort.collectAsState()
-    val receiveProgress by shellViewModel.receiveProgress.collectAsState()
-    val logs by shellViewModel.logs.collectAsState(initial = emptyList())
-    val watchProductCode by shellViewModel.watchProductCode.collectAsState()
+    val httpRunning by shellViewModel.httpServerRunning.collectAsStateWithLifecycle()
+    val httpTransferInProgress by shellViewModel.httpTransferInProgress.collectAsStateWithLifecycle()
+    val httpIp by shellViewModel.httpServerIp.collectAsStateWithLifecycle()
+    val httpPort by shellViewModel.httpServerPort.collectAsStateWithLifecycle()
+    val receiveProgress by shellViewModel.receiveProgress.collectAsStateWithLifecycle()
+    val logs by shellViewModel.logs.collectAsStateWithLifecycle(initialValue = emptyList())
+    val watchProductCode by shellViewModel.watchProductCode.collectAsStateWithLifecycle()
     val lanLogs = remember(logs) { logs.filter { it.direction == "HTTP" || it.type == "transfer" } }
-    val screenshots by shellViewModel.screenshots.collectAsState()
+    val screenshots by shellViewModel.screenshots.collectAsStateWithLifecycle()
     val isLanTransferBlocked = shellViewModel.isLanTransferBlocked(watchProductCode)
     val scrollBehavior = MiuixScrollBehavior()
 

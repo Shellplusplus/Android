@@ -35,7 +35,6 @@ import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,6 +52,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.shell.liangyi.R
 import com.shell.liangyi.core.ConnectionState
@@ -73,8 +73,10 @@ fun RemoteTerminalScreen(
     shellViewModel: ShellViewModel,
 ) {
     val context = LocalContext.current
-    val uiState by shellViewModel.remoteTerminalUiState.collectAsState()
-    val connectionState by shellViewModel.connectionState.collectAsState(initial = ConnectionState.DISCONNECTED)
+    val uiState by shellViewModel.remoteTerminalUiState.collectAsStateWithLifecycle()
+    val connectionState by shellViewModel.connectionState.collectAsStateWithLifecycle(
+        initialValue = ConnectionState.DISCONNECTED,
+    )
     val scrollBehavior = MiuixScrollBehavior()
 
     LaunchedEffect(Unit) {
@@ -537,7 +539,7 @@ private fun InputCard(
             )
             ActionButton(
                 modifier = Modifier.fillMaxWidth(),
-                text = if (uiState.isRunning) "等待手表返回中..." else "发送这条命令",
+                text = if (uiState.isRunning) "等待手表返回中…" else "发送这条命令",
                 icon = Icons.AutoMirrored.Rounded.Send,
                 enabled = !uiState.isRunning,
                 filled = true,
@@ -950,4 +952,3 @@ private fun ConnectionState.labelRes(): Int = when (this) {
     ConnectionState.CONNECTED -> R.string.connected
     ConnectionState.ERROR -> R.string.connection_state_error
 }
-

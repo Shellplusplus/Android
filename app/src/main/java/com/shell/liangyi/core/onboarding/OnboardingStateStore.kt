@@ -2,6 +2,7 @@ package com.shell.liangyi.core.onboarding
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.core.content.edit
 
 data class OnboardingState(
     val completed: Boolean,
@@ -39,9 +40,9 @@ class OnboardingStateStore(
     }
 
     fun setOnboardingCompleted(completed: Boolean) {
-        preferences.edit()
-            .putBoolean(KEY_ONBOARDING_COMPLETED, completed)
-            .apply()
+        preferences.edit {
+            putBoolean(KEY_ONBOARDING_COMPLETED, completed)
+        }
     }
 
     fun saveProxySelection(
@@ -52,7 +53,7 @@ class OnboardingStateStore(
         val normalizedCustomBaseUrl = GitHubUrlResolver.normalizeCustomBaseUrl(
             selection.customBaseUrl,
         )
-        preferences.edit().apply {
+        preferences.edit {
             putString(KEY_GITHUB_PROXY_SOURCE_ID, selection.sourceId)
             putString(KEY_GITHUB_PROXY_CUSTOM_BASE_URL, normalizedCustomBaseUrl)
             if (benchmarkMs != null) {
@@ -65,7 +66,6 @@ class OnboardingStateStore(
             } else {
                 remove(KEY_GITHUB_PROXY_LAST_BENCHMARK_AT)
             }
-            apply()
         }
     }
 

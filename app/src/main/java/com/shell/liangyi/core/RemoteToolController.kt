@@ -4,6 +4,8 @@ import android.content.Context
 import android.util.Base64
 import android.util.Log
 import com.shell.liangyi.R
+import com.shell.liangyi.util.FileCacheTrimmer
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -24,6 +26,7 @@ import java.util.Locale
 private const val REMOTE_TOOL_TAG = "RemoteToolController"
 private const val REMOTE_TOOL_TIMEOUT_MS = 25_000L
 private const val REMOTE_FILE_CACHE_LIMIT = 32
+private const val REMOTE_PREVIEW_CACHE_LIMIT = 12
 
 enum class RemoteFileViewMode {
     LIST,
@@ -71,6 +74,7 @@ private data class ActiveBinaryTransfer(
     val totalBytes: Long,
     val totalChunks: Int,
     var lastIndex: Int = -1,
+    var receivedBytes: Long = 0L,
 )
 
 class RemoteToolController(
@@ -89,7 +93,10 @@ class RemoteToolController(
     val messages: SharedFlow<String> = _messages.asSharedFlow()
 
     private val previewCacheDir: File by lazy {
-        File(context.cacheDir, "watch_remote_preview").apply { mkdirs() }
+        File(context.cacheDir, "watch_remote_preview").apply {
+            mkdirs()
+            FileCacheTrimmer.trim(this, REMOTE_PREVIEW_CACHE_LIMIT)
+        }
     }
 
     private var activeRequest: ActiveRemoteRequest? = null
@@ -102,7 +109,16 @@ class RemoteToolController(
     init {
         collectorJob = scope.launch(Dispatchers.IO) {
             messageCenter.messageFlow.collect { json ->
-                handleMessage(json)
+                try {
+                    handleMessage(json)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.e(REMOTE_TOOL_TAG, "Failed to handle remote tool message", e)
+                    if (activeRequest != null) {
+                        failActiveRequest(context.getString(R.string.remote_tool_request_failed))
+                    }
+                }
             }
         }
     }
@@ -118,6 +134,7 @@ class RemoteToolController(
     }
 
     fun refreshFileViewerRoot() {
+        cancelActiveRequest()
         _fileViewerState.value = RemoteFileViewerState(currentPath = "/")
         listFilePath("/", forceRefresh = true)
     }
@@ -217,6 +234,7 @@ class RemoteToolController(
     }
 
     fun showFileList() {
+        cancelActiveRequest()
         _fileViewerState.value = _fileViewerState.value.copy(
             viewMode = RemoteFileViewMode.LIST,
             isLoading = false,
@@ -227,6 +245,7 @@ class RemoteToolController(
     }
 
     fun showFileInfo() {
+        cancelActiveRequest()
         _fileViewerState.value = _fileViewerState.value.copy(
             viewMode = RemoteFileViewMode.INFO,
             isLoading = false,
@@ -235,14 +254,15 @@ class RemoteToolController(
     }
 
     private fun sendRemoteRequest(feature: String, action: String, payload: JSONObject) {
+        val requestId = activeRequest?.requestId ?: return
         val request = JSONObject(payload.toString()).apply {
-            put("requestId", activeRequest?.requestId)
+            put("requestId", requestId)
             put("feature", feature)
             put("action", action)
         }
         scheduleTimeout()
         messageCenter.send(MessageType.REMOTE_TOOL_REQUEST, request) { success, error ->
-            if (!success) {
+            if (!success && activeRequest?.requestId == requestId) {
                 failActiveRequest(error?.message ?: context.getString(R.string.send_failed))
             }
         }
@@ -288,6 +308,11 @@ class RemoteToolController(
         timeoutJob?.cancel()
         timeoutJob = null
         activeRequest = null
+    }
+
+    private fun cancelActiveRequest() {
+        clearActiveRequest()
+        clearBinaryTransfer()
     }
 
     private suspend fun handleMessage(json: JSONObject) {
@@ -384,14 +409,27 @@ class RemoteToolController(
         val totalBytes = json.optLong("totalBytes", 0L)
         val totalChunks = json.optInt("totalChunks", 0)
         val fileName = json.optString("fileName", "${request.requestId}.bin")
-        if (totalBytes <= 0L || totalChunks <= 0) {
+        if (!RemoteBinaryTransferGuard.canStart(totalBytes, totalChunks)) {
             messageCenter.sendRemoteToolBinaryAbort(request.requestId, "invalid_start", "invalid binary start")
-            failActiveRequest(context.getString(R.string.remote_file_image_failed))
+            failActiveRequest(
+                if (totalBytes > RemoteBinaryTransferGuard.MAX_PREVIEW_IMAGE_BYTES) {
+                    context.getString(R.string.remote_file_too_large)
+                } else {
+                    context.getString(R.string.remote_file_image_failed)
+                },
+            )
             return
         }
         clearBinaryTransfer()
         val outputFile = File(previewCacheDir, "${request.requestId}_${sanitizeFileName(fileName)}")
-        val stream = FileOutputStream(outputFile, false)
+        val stream = try {
+            FileOutputStream(outputFile, false)
+        } catch (e: Exception) {
+            Log.e(REMOTE_TOOL_TAG, "Failed to open remote image preview cache", e)
+            messageCenter.sendRemoteToolBinaryAbort(request.requestId, "io_failed", e.message ?: "io failed")
+            failActiveRequest(context.getString(R.string.remote_file_image_failed))
+            return
+        }
         activeBinaryTransfer = ActiveBinaryTransfer(
             requestId = request.requestId,
             file = outputFile,
@@ -416,7 +454,13 @@ class RemoteToolController(
         }
         try {
             val bytes = Base64.decode(data, Base64.DEFAULT)
+            if (!RemoteBinaryTransferGuard.canAcceptChunk(transfer.receivedBytes, bytes.size, transfer.totalBytes)) {
+                messageCenter.sendRemoteToolBinaryAbort(request.requestId, "size_mismatch", "invalid binary size")
+                failActiveRequest(context.getString(R.string.remote_file_image_failed))
+                return
+            }
             transfer.outputStream.write(bytes)
+            transfer.receivedBytes += bytes.size.toLong()
             transfer.lastIndex = index
             scheduleTimeout()
             messageCenter.sendRemoteToolBinaryAck(request.requestId, "part", true, index)
@@ -455,6 +499,7 @@ class RemoteToolController(
             )
             clearActiveRequest()
             clearBinaryTransfer(keepFile = true)
+            FileCacheTrimmer.trim(previewCacheDir, REMOTE_PREVIEW_CACHE_LIMIT)
         } catch (e: Exception) {
             Log.e(REMOTE_TOOL_TAG, "Failed to finalize remote image preview", e)
             messageCenter.sendRemoteToolBinaryAbort(request.requestId, "io_failed", e.message ?: "io failed")

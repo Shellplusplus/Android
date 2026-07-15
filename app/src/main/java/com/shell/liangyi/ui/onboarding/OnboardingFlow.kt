@@ -54,13 +54,13 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.TextFieldColors
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -74,8 +74,8 @@ import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
@@ -85,6 +85,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.shell.liangyi.R
 import com.shell.liangyi.core.onboarding.GitHubProxyBenchmarkResult
 import com.shell.liangyi.core.onboarding.GitHubProxyBenchmarkUiState
@@ -123,9 +124,9 @@ fun OnboardingFlow(
     shellViewModel: ShellViewModel,
 ) {
     val shellColors = ShellTheme.colors
-    val selectedSourceId by shellViewModel.selectedGitHubProxySourceId.collectAsState()
-    val customBaseUrl by shellViewModel.customGitHubProxyBaseUrl.collectAsState()
-    val benchmarkState by shellViewModel.gitHubProxyBenchmarkState.collectAsState()
+    val selectedSourceId by shellViewModel.selectedGitHubProxySourceId.collectAsStateWithLifecycle()
+    val customBaseUrl by shellViewModel.customGitHubProxyBaseUrl.collectAsStateWithLifecycle()
+    val benchmarkState by shellViewModel.gitHubProxyBenchmarkState.collectAsStateWithLifecycle()
     val pagerState = rememberPagerState(
         initialPage = 0,
         pageCount = { OnboardingPageCount },
@@ -137,8 +138,7 @@ fun OnboardingFlow(
         GitHubUrlResolver.normalizeCustomBaseUrl(customBaseUrl).isNotBlank()
     val canNavigateBack = pagerState.currentPage > 0
     var predictiveBackProgress by remember { mutableFloatStateOf(0f) }
-    val pageProgress = (((pagerState.currentPage + pagerState.currentPageOffsetFraction)
-        .coerceIn(0f, (OnboardingPageCount - 1).toFloat())) + 1f) / OnboardingPageCount.toFloat()
+    var pageProgress by remember { mutableFloatStateOf(1f / OnboardingPageCount.toFloat()) }
     val animatedPageProgress by animateFloatAsState(
         targetValue = pageProgress.coerceIn(0f, 1f),
         animationSpec = tween(durationMillis = 220),
@@ -150,6 +150,16 @@ fun OnboardingFlow(
         2 -> stringResource(R.string.onboarding_page_summary_settings)
         3 -> stringResource(R.string.onboarding_page_summary_about)
         else -> stringResource(R.string.onboarding_page_summary_end)
+    }
+
+    LaunchedEffect(pagerState) {
+        snapshotFlow {
+            (((pagerState.currentPage + pagerState.currentPageOffsetFraction)
+                .coerceIn(0f, (OnboardingPageCount - 1).toFloat())) + 1f) /
+                OnboardingPageCount.toFloat()
+        }.collect { progress ->
+            pageProgress = progress
+        }
     }
 
     fun navigateToPage(page: Int) {
@@ -215,13 +225,13 @@ fun OnboardingFlow(
                     alpha = 1f - 0.08f * predictiveBackProgress
                 },
         ) { page ->
-            val pageOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction)
-                .absoluteValue
-            val alpha = lerpFloat(0.8f, 1f, 1f - pageOffset.coerceIn(0f, 1f))
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer {
+                        val pageOffset = ((pagerState.currentPage - page) +
+                            pagerState.currentPageOffsetFraction).absoluteValue
+                        val alpha = lerpFloat(0.8f, 1f, 1f - pageOffset.coerceIn(0f, 1f))
                         this.alpha = alpha
                     },
             ) {
@@ -819,7 +829,7 @@ private fun FloatingOnboardingBar(
 ) {
     val shellColors = ShellTheme.colors
     val colors = MiuixTheme.colorScheme
-    val configuration = LocalConfiguration.current
+    val containerWidth = LocalWindowInfo.current.containerSize.width
     val density = LocalDensity.current
     val textMeasurer = rememberTextMeasurer()
     val summarySwapProgress = remember { Animatable(1f) }
@@ -832,8 +842,8 @@ private fun FloatingOnboardingBar(
             color = shellColors.secondaryText,
         )
     }
-    val summaryPillMaxWidth = remember(configuration.screenWidthDp) {
-        (configuration.screenWidthDp.dp - 36.dp)
+    val summaryPillMaxWidth = remember(containerWidth, density) {
+        with(density) { containerWidth.toDp() - 36.dp }
             .coerceAtMost(FloatingSummaryMaxWidth)
     }
     val summaryPillWidth = remember(

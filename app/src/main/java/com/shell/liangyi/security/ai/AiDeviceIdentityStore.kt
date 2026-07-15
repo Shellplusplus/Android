@@ -1,6 +1,7 @@
 package com.shell.liangyi.security.ai
 
 import android.content.Context
+import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyInfo
 import android.security.keystore.KeyProperties
@@ -43,7 +44,7 @@ class AiDeviceIdentityStore(private val context: Context) {
         val hardwareBacked = runCatching {
             val keyFactory = KeyFactory.getInstance(privateKey.algorithm, "AndroidKeyStore")
             val keyInfo = keyFactory.getKeySpec(privateKey, KeyInfo::class.java)
-            keyInfo.isInsideSecureHardware
+            keyInfo.isHardwareBacked()
         }.getOrDefault(false)
         val attestationChain = keyStore.getCertificateChain(KEY_ALIAS)
             ?.map { AiLicenseCrypto.encodeBase64Url(it.encoded) }
@@ -124,5 +125,14 @@ class AiDeviceIdentityStore(private val context: Context) {
             fallbackGenerator.generateKeyPair()
         }
         return generated
+    }
+
+    private fun KeyInfo.isHardwareBacked(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            securityLevel != KeyProperties.SECURITY_LEVEL_SOFTWARE
+        } else {
+            @Suppress("DEPRECATION")
+            isInsideSecureHardware
+        }
     }
 }

@@ -1,9 +1,22 @@
 import java.util.Properties
+import org.gradle.kotlin.dsl.named
+
+@Suppress("DEPRECATION")
+fun configureReleaseOptimization(buildType: com.android.build.api.dsl.ApplicationBuildType) {
+    buildType.optimization {
+        baselineProfile {
+            // Work around AGP/profgen failures while compiling inherited
+            // library baseline profiles during release packaging. AGP 8.13.2
+            // still reports this ApplicationBuildType override as deprecated.
+            ignoreFromAllExternalDependencies = true
+        }
+    }
+}
 
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
-    id("org.jetbrains.kotlin.plugin.compose")
+    alias(libs.plugins.kotlin.compose)
 }
 
 val localProps = Properties().apply {
@@ -94,13 +107,6 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            optimization {
-                baselineProfile {
-                    // Work around AGP/profgen failures while compiling inherited
-                    // library baseline profiles during release packaging.
-                    ignoreFromAllExternalDependencies = true
-                }
-            }
             if (hasLocalSigningConfig) {
                 signingConfig = signingConfigs.getByName("localShellSign")
             }
@@ -109,6 +115,10 @@ android {
                 "proguard-rules.pro"
             )
         }
+    }
+
+    buildTypes.named<com.android.build.api.dsl.ApplicationBuildType>("release") {
+        configureReleaseOptimization(this)
     }
 
     compileOptions {
@@ -146,9 +156,12 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.lifecycle.runtime)
+    implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel)
     implementation(libs.androidx.activity.compose)
     implementation(libs.navigation.compose)
+    implementation(libs.navigationevent)
+    implementation(libs.navigationevent.compose)
     implementation(libs.coroutines.core)
     implementation(libs.coroutines.android)
     implementation(libs.coil.compose)
@@ -156,7 +169,7 @@ dependencies {
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.material3)
-    implementation("androidx.compose.material:material-icons-extended")
+    implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.compose.ui.tooling.preview)
     debugImplementation(libs.androidx.compose.ui.tooling)
 
@@ -173,7 +186,7 @@ dependencies {
     implementation(libs.bouncycastle)
 
     testImplementation(libs.junit)
-    testImplementation("org.json:json:20240303")
+    testImplementation(libs.json)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
 }

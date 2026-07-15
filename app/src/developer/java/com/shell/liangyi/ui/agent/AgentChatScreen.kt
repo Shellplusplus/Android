@@ -37,7 +37,6 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.TextFieldColors
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.shell.liangyi.model.AgentApiConfig
@@ -82,11 +82,11 @@ fun AgentChatScreen(
     shellViewModel: ShellViewModel,
     viewModel: AgentViewModel = viewModel(),
 ) {
-    val conversations by viewModel.conversations.collectAsState()
-    val conversation by viewModel.currentConversationFlow.collectAsState()
-    val isSending by viewModel.isSending.collectAsState()
-    val errorMessage by viewModel.errorMessage.collectAsState()
-    val apiConfig by viewModel.apiConfig.collectAsState()
+    val conversations by viewModel.conversations.collectAsStateWithLifecycle()
+    val conversation by viewModel.currentConversationFlow.collectAsStateWithLifecycle()
+    val isSending by viewModel.isSending.collectAsStateWithLifecycle()
+    val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
+    val apiConfig by viewModel.apiConfig.collectAsStateWithLifecycle()
 
     var showHistory by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }

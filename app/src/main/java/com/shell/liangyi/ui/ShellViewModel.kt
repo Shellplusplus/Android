@@ -1,7 +1,9 @@
 package com.shell.liangyi.ui
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.text.format.Formatter
+import androidx.core.content.edit
 import androidx.lifecycle.ViewModel
 import com.shell.liangyi.R
 import com.shell.liangyi.core.RemoteExecResult
@@ -44,14 +46,20 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import java.util.Locale
+import kotlin.coroutines.cancellation.CancellationException
 
 class ShellViewModel : ViewModel() {
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private val viewModelJob = SupervisorJob()
+    private val scope = CoroutineScope(viewModelJob + Dispatchers.Main.immediate)
     private var githubProxyManualSelection = false
+    private var aiLicenseRefreshJob: Job? = null
+    private var gitHubProxyBenchmarkJob: Job? = null
+    private var updateCheckJob: Job? = null
     private var updateDownloadJob: Job? = null
     private var activeDownloadPrompt: UpdatePrompt? = null
     private lateinit var remoteTerminalBridge: RemoteTerminalBridge
+    private var initialized = false
 
     lateinit var wearMessageCenter: WearMessageCenter
         private set
@@ -65,6 +73,7 @@ class ShellViewModel : ViewModel() {
     lateinit var onboardingStateStore: OnboardingStateStore
         private set
 
+    @SuppressLint("StaticFieldLeak")
     private var appCtx: Context? = null
     private var autoUpdateChecked = false
     private var aiLicenseManager: AiLicenseManager? = null
@@ -106,31 +115,45 @@ class ShellViewModel : ViewModel() {
     val remoteTerminalMessages = _remoteTerminalMessages.asSharedFlow()
 
     fun initialize(context: Context) {
-        appCtx = context
-        aiLicenseManager = AiLicenseManager(context)
-        _aiLicenseState.value = aiLicenseManager!!.currentState()
-        onboardingStateStore = OnboardingStateStore.from(context)
+        if (initialized) {
+            return
+        }
+        val appContext = context.applicationContext
+        appCtx = appContext
+        val licenseManager = AiLicenseManager(appContext)
+        aiLicenseManager = licenseManager
+        _aiLicenseState.value = licenseManager.currentState()
+        onboardingStateStore = OnboardingStateStore.from(appContext)
         applyOnboardingState(onboardingStateStore.readState())
         applyOptionalUpdatePreferenceState(
-            context,
-            UpdateChecker.readOptionalUpdatePreferenceState(context),
+            appContext,
+            UpdateChecker.readOptionalUpdatePreferenceState(appContext),
         )
-        wearMessageCenter = WearMessageCenter.getInstance(context)
+        wearMessageCenter = WearMessageCenter.getInstance(appContext)
         wearMessageCenter.initialize()
         remoteTerminalBridge = RemoteTerminalBridge(wearMessageCenter, scope)
-        screenshotReceiver = ScreenshotReceiver(context, scope)
-        remoteToolController = RemoteToolController(context, scope, wearMessageCenter)
-        loadRemoteTerminalPreferences(context)
-        loadThemePreferences(context)
+        screenshotReceiver = ScreenshotReceiver(appContext, scope)
+        remoteToolController = RemoteToolController(appContext, scope, wearMessageCenter)
+        loadRemoteTerminalPreferences(appContext)
+        loadThemePreferences(appContext)
+        initialized = true
     }
     fun refreshAiLicense() {
         val manager = aiLicenseManager ?: return
-        scope.launch {
-            _aiLicenseState.value = manager.refresh()
+        if (aiLicenseRefreshJob?.isActive == true) {
+            return
+        }
+        aiLicenseRefreshJob = scope.launch {
+            try {
+                _aiLicenseState.value = manager.refresh()
+            } finally {
+                aiLicenseRefreshJob = null
+            }
         }
     }
 
     fun importAiLicense(content: String): Result<AiLicenseState> {
+        cancelAiLicenseRefresh()
         val result = aiLicenseManager?.importLicense(content)
             ?: Result.failure(IllegalStateException("应用尚未初始化"))
         result.onSuccess { _aiLicenseState.value = it }
@@ -141,6 +164,7 @@ class ShellViewModel : ViewModel() {
         aiLicenseManager?.exportRequest() ?: throw IllegalStateException("应用尚未初始化")
 
     fun clearAiLicense() {
+        cancelAiLicenseRefresh()
         aiLicenseManager?.clearLicense()
         _aiLicenseState.value = aiLicenseManager?.currentState() ?: AiLicenseState()
     }
@@ -202,15 +226,14 @@ class ShellViewModel : ViewModel() {
         return screenshotReceiver.startHttpServer()
     }
     fun stopHttpServer() = screenshotReceiver.stopHttpServer()
-    fun appContext(): Context = appCtx!!
+    fun appContext(): Context = appCtx ?: error("应用尚未初始化")
 
     fun setThemeMode(mode: ShellThemeMode) {
         val context = appCtx ?: return
         _themeMode.value = mode
-        context.getSharedPreferences(APP_UI_PREFS, Context.MODE_PRIVATE)
-            .edit()
-            .putString(APP_THEME_MODE_KEY, mode.storageValue)
-            .apply()
+        context.getSharedPreferences(APP_UI_PREFS, Context.MODE_PRIVATE).edit {
+            putString(APP_THEME_MODE_KEY, mode.storageValue)
+        }
     }
 
     fun isLanTransferBlocked(productCode: String = watchProductCode.value): Boolean {
@@ -291,8 +314,8 @@ class ShellViewModel : ViewModel() {
             isRunning = true,
             resultKind = RemoteTerminalResultKind.Waiting,
             history = nextHistory,
-            output = "> $command\n\n等待手表返回执行结果...",
-            fullOutput = "> $command\n\n等待手表返回执行结果...",
+            output = "> $command\n\n等待手表返回执行结果…",
+            fullOutput = "> $command\n\n等待手表返回执行结果…",
         )
 
         scope.launch {
@@ -314,6 +337,7 @@ class ShellViewModel : ViewModel() {
                 )
                 _remoteTerminalMessages.emit("命令已执行完成")
             }.onFailure { error ->
+                error.throwIfCancellation()
                 val reason = remoteTerminalFailureMessage(error.message ?: "unknown")
                 val output = buildString {
                     append("> ").append(command).append("\n\n")
@@ -371,27 +395,36 @@ class ShellViewModel : ViewModel() {
     }
 
     fun runGitHubProxyBenchmark(resetManualSelection: Boolean = false) {
-        if (_gitHubProxyBenchmarkState.value.isRunning) return
+        if (gitHubProxyBenchmarkJob?.isActive == true || _gitHubProxyBenchmarkState.value.isRunning) return
         if (resetManualSelection) {
             githubProxyManualSelection = false
         }
         _gitHubProxyBenchmarkState.value = _gitHubProxyBenchmarkState.value.copy(
             isRunning = true,
         )
-        scope.launch {
-            val results = withContext(Dispatchers.IO) {
-                GitHubProxyBenchmarker.benchmarkBuiltInSources()
-            }
-            val fastestSourceId = GitHubProxyBenchmarker.fastestAvailableSourceId(results)
-            val lastRunAt = System.currentTimeMillis()
-            _gitHubProxyBenchmarkState.value = GitHubProxyBenchmarkUiState(
-                isRunning = false,
-                results = results,
-                fastestSourceId = fastestSourceId,
-                lastRunAt = lastRunAt,
-            )
-            if ((!githubProxyManualSelection || resetManualSelection) && fastestSourceId != null) {
-                _selectedGitHubProxySourceId.value = fastestSourceId
+        gitHubProxyBenchmarkJob = scope.launch {
+            try {
+                val results = withContext(Dispatchers.IO) {
+                    GitHubProxyBenchmarker.benchmarkBuiltInSources()
+                }
+                val fastestSourceId = GitHubProxyBenchmarker.fastestAvailableSourceId(results)
+                val lastRunAt = System.currentTimeMillis()
+                _gitHubProxyBenchmarkState.value = GitHubProxyBenchmarkUiState(
+                    isRunning = false,
+                    results = results,
+                    fastestSourceId = fastestSourceId,
+                    lastRunAt = lastRunAt,
+                )
+                if ((!githubProxyManualSelection || resetManualSelection) && fastestSourceId != null) {
+                    _selectedGitHubProxySourceId.value = fastestSourceId
+                }
+            } catch (error: Exception) {
+                error.throwIfCancellation()
+                _gitHubProxyBenchmarkState.value = _gitHubProxyBenchmarkState.value.copy(
+                    isRunning = false,
+                )
+            } finally {
+                gitHubProxyBenchmarkJob = null
             }
         }
     }
@@ -417,63 +450,74 @@ class ShellViewModel : ViewModel() {
 
     fun checkForUpdates(manual: Boolean) {
         if (!manual && autoUpdateChecked) return
-        if (!manual) autoUpdateChecked = true
 
         val context = appCtx ?: return
+        if (updateCheckJob?.isActive == true) {
+            if (manual) {
+                _updateMessages.tryEmit(context.getString(R.string.update_check_in_progress))
+            }
+            return
+        }
+        if (!manual) autoUpdateChecked = true
+
         val cachedMandatoryPrompt = UpdateChecker.cachedMandatoryPrompt(context)
         if (cachedMandatoryPrompt != null) {
             _updatePrompt.value = cachedMandatoryPrompt
         }
 
-        scope.launch {
-            when (val result = withContext(Dispatchers.IO) { UpdateChecker.check(context) }) {
-                is UpdateCheckResult.UpdateAvailable -> {
-                    if (!result.prompt.mandatory) {
-                        if (!manual && UpdateChecker.shouldSkipOptionalPrompt(context, result.prompt.info.latestVersionCode)) {
+        updateCheckJob = scope.launch {
+            try {
+                when (val result = withContext(Dispatchers.IO) { UpdateChecker.check(context) }) {
+                    is UpdateCheckResult.UpdateAvailable -> {
+                        if (!result.prompt.mandatory) {
+                            if (!manual && UpdateChecker.shouldSkipOptionalPrompt(context, result.prompt.info.latestVersionCode)) {
+                                applyOptionalUpdatePreferenceState(
+                                    context,
+                                    UpdateChecker.readOptionalUpdatePreferenceState(context),
+                                )
+                                return@launch
+                            }
+                            applyOptionalUpdatePreferenceState(
+                                context,
+                                UpdateChecker.recordOptionalUpdatePromptDisplayed(
+                                    context,
+                                    result.prompt.info.latestVersionCode,
+                                ),
+                            )
+                        } else {
                             applyOptionalUpdatePreferenceState(
                                 context,
                                 UpdateChecker.readOptionalUpdatePreferenceState(context),
                             )
-                            return@launch
                         }
-                        applyOptionalUpdatePreferenceState(
-                            context,
-                            UpdateChecker.recordOptionalUpdatePromptDisplayed(
-                                context,
-                                result.prompt.info.latestVersionCode,
-                            ),
-                        )
-                    } else {
+                        _updatePrompt.value = result.prompt
+                    }
+                    is UpdateCheckResult.UpToDate -> {
                         applyOptionalUpdatePreferenceState(
                             context,
                             UpdateChecker.readOptionalUpdatePreferenceState(context),
                         )
+                        if (_updatePrompt.value?.mandatory == true) {
+                            _updatePrompt.value = null
+                        }
+                        if (manual) {
+                            _updateMessages.tryEmit(context.getString(R.string.already_latest_version))
+                        }
                     }
-                    _updatePrompt.value = result.prompt
-                }
-                is UpdateCheckResult.UpToDate -> {
-                    applyOptionalUpdatePreferenceState(
-                        context,
-                        UpdateChecker.readOptionalUpdatePreferenceState(context),
-                    )
-                    if (_updatePrompt.value?.mandatory == true) {
-                        _updatePrompt.value = null
-                    }
-                    if (manual) {
-                        _updateMessages.tryEmit(context.getString(R.string.already_latest_version))
-                    }
-                }
-                is UpdateCheckResult.Failed -> {
-                    applyOptionalUpdatePreferenceState(
-                        context,
-                        UpdateChecker.readOptionalUpdatePreferenceState(context),
-                    )
-                    if (manual) {
-                        _updateMessages.tryEmit(
-                            context.getString(R.string.update_check_failed, result.message)
+                    is UpdateCheckResult.Failed -> {
+                        applyOptionalUpdatePreferenceState(
+                            context,
+                            UpdateChecker.readOptionalUpdatePreferenceState(context),
                         )
+                        if (manual) {
+                            _updateMessages.tryEmit(
+                                context.getString(R.string.update_check_failed, result.message)
+                            )
+                        }
                     }
                 }
+            } finally {
+                updateCheckJob = null
             }
         }
     }
@@ -524,6 +568,7 @@ class ShellViewModel : ViewModel() {
                 )
                 _installUpdateRequests.emit(apkFile.absolutePath)
             }.onFailure { throwable ->
+                throwable.throwIfCancellation()
                 _updateDownloadState.value = UpdateDownloadUiState()
                 activeDownloadPrompt?.let { _updatePrompt.value = it }
                 _updateMessages.tryEmit(
@@ -576,10 +621,9 @@ class ShellViewModel : ViewModel() {
         key: String,
         values: List<String>,
     ) {
-        context.getSharedPreferences(REMOTE_TERMINAL_PREFS, Context.MODE_PRIVATE)
-            .edit()
-            .putString(key, JSONArray(values).toString())
-            .apply()
+        context.getSharedPreferences(REMOTE_TERMINAL_PREFS, Context.MODE_PRIVATE).edit {
+            putString(key, JSONArray(values).toString())
+        }
     }
 
     private fun readRemoteTerminalList(raw: String?, limit: Int): List<String> {
@@ -748,13 +792,36 @@ class ShellViewModel : ViewModel() {
         )
     }
 
+    private fun Throwable.throwIfCancellation() {
+        if (this is CancellationException) {
+            throw this
+        }
+    }
+
+    private fun cancelAiLicenseRefresh() {
+        aiLicenseRefreshJob?.cancel()
+        aiLicenseRefreshJob = null
+    }
+
     override fun onCleared() {
         super.onCleared()
+        cancelAiLicenseRefresh()
+        gitHubProxyBenchmarkJob?.cancel()
+        updateCheckJob?.cancel()
         updateDownloadJob?.cancel()
+        if (::remoteTerminalBridge.isInitialized) {
+            remoteTerminalBridge.destroy()
+        }
         if (::remoteToolController.isInitialized) {
             remoteToolController.destroy()
         }
-        wearMessageCenter.destroy()
+        if (::screenshotReceiver.isInitialized) {
+            screenshotReceiver.destroy()
+        }
+        if (::wearMessageCenter.isInitialized) {
+            wearMessageCenter.destroy()
+        }
+        viewModelJob.cancel()
     }
     private companion object {
         const val APP_UI_PREFS = "app_ui_prefs"

@@ -2,6 +2,7 @@ package com.shell.liangyi.core.update
 
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class GitHubReleaseParserTest {
@@ -73,5 +74,53 @@ class GitHubReleaseParserTest {
             "app-release.apk",
             GitHubReleaseParser.preferredAssetName(),
         )
+    }
+
+    @Test
+    fun parseReleaseRejectsNonHttpDownloadUrl() {
+        val json = JSONObject(
+            """
+            {
+              "tag_name": "beta22",
+              "assets": [
+                {
+                  "name": "app-release.apk",
+                  "browser_download_url": "file:///tmp/app-release.apk"
+                }
+              ]
+            }
+            """.trimIndent()
+        )
+
+        assertThrows(IllegalStateException::class.java) {
+            GitHubReleaseParser.parseRelease(
+                json = json,
+                preferredAssetName = GitHubReleaseParser.preferredAssetName(),
+            )
+        }
+    }
+
+    @Test
+    fun parseReleaseRejectsDownloadUrlWithoutHost() {
+        val json = JSONObject(
+            """
+            {
+              "tag_name": "beta23",
+              "assets": [
+                {
+                  "name": "app-release.apk",
+                  "browser_download_url": "https:///app-release.apk"
+                }
+              ]
+            }
+            """.trimIndent()
+        )
+
+        assertThrows(IllegalStateException::class.java) {
+            GitHubReleaseParser.parseRelease(
+                json = json,
+                preferredAssetName = GitHubReleaseParser.preferredAssetName(),
+            )
+        }
     }
 }

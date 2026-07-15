@@ -2,6 +2,7 @@ package com.shell.liangyi.core.update
 
 import org.json.JSONArray
 import org.json.JSONObject
+import java.net.URI
 
 internal object GitHubReleaseParser {
     private val minSupportedVersionPattern = Regex(
@@ -23,6 +24,7 @@ internal object GitHubReleaseParser {
         if (downloadUrl.isBlank()) {
             throw IllegalStateException("Release APK asset is missing a download URL")
         }
+        requireValidDownloadUrl(downloadUrl)
 
         return AppUpdateInfo(
             latestVersion = releaseName,
@@ -85,5 +87,17 @@ internal object GitHubReleaseParser {
         val publishedAt = json.optString("published_at", "")
             .ifBlank { json.optString("created_at", "") }
         return publishedAt.substringBefore('T')
+    }
+
+    private fun requireValidDownloadUrl(downloadUrl: String) {
+        val uri = runCatching { URI(downloadUrl) }.getOrNull()
+            ?: throw IllegalStateException("Release APK download URL is invalid")
+        val scheme = uri.scheme?.lowercase()
+        if (scheme != "https" && scheme != "http") {
+            throw IllegalStateException("Release APK download URL must use HTTP or HTTPS")
+        }
+        if (uri.host.isNullOrBlank()) {
+            throw IllegalStateException("Release APK download URL is missing a host")
+        }
     }
 }

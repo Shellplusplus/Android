@@ -27,11 +27,10 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,8 +57,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.fastCoerceIn
 import androidx.compose.ui.util.fastRoundToInt
 import androidx.compose.ui.util.lerp
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
@@ -159,6 +156,7 @@ private fun rememberGravityRotatedHighlight(
 fun LiquidGlassBottomBar(
     items: List<LiquidGlassTabItem>,
     selectedIndex: Int,
+    indicatorPosition: Float,
     onSelectedIndexChange: (Int) -> Unit,
     backdrop: Backdrop?,
     modifier: Modifier = Modifier,
@@ -180,6 +178,7 @@ fun LiquidGlassBottomBar(
         LiquidGlassBottomBarFallback(
             items = items,
             selectedIndex = selectedIndex,
+            indicatorPosition = indicatorPosition,
             onSelectedIndexChange = onSelectedIndexChange,
             accentColor = accentColor,
             containerColor = containerColor,
@@ -195,6 +194,8 @@ fun LiquidGlassBottomBar(
     val animationScope = rememberCoroutineScope()
     var tabWidthPx by remember { mutableFloatStateOf(0f) }
     var totalWidthPx by remember { mutableFloatStateOf(0f) }
+    val coercedIndicatorPosition = indicatorPosition.fastCoerceIn(0f, items.lastIndex.toFloat())
+    val latestIndicatorPosition = rememberUpdatedState(coercedIndicatorPosition)
 
     val offsetAnimation = remember { Animatable(0f) }
     val rubberBandPx = with(density) { 4.dp.toPx() }
@@ -209,10 +210,6 @@ fun LiquidGlassBottomBar(
         }
     }
 
-    var currentIndex by remember {
-        mutableIntStateOf(selectedIndex)
-    }
-
     class DampedDragAnimationHolder {
         var instance: DampedDragAnimation? = null
     }
@@ -222,7 +219,7 @@ fun LiquidGlassBottomBar(
     val dampedDragAnimation = remember(animationScope, items.size, density, isLtr) {
         DampedDragAnimation(
             animationScope = animationScope,
-            initialValue = selectedIndex.toFloat(),
+            initialValue = coercedIndicatorPosition,
             valueRange = 0f..items.lastIndex.toFloat(),
             visibilityThreshold = 0.001f,
             initialScale = 1f,
@@ -240,11 +237,12 @@ fun LiquidGlassBottomBar(
                 }
                 globalTouchX in 0f..totalWidthPx
             },
-            onDragStarted = {},
+            onDragStarted = {
+                snapToValue(latestIndicatorPosition.value)
+            },
             onDragStopped = {
                 val targetIndex = targetValue.fastRoundToInt().fastCoerceIn(0, items.lastIndex)
-                currentIndex = targetIndex
-                animateToValue(targetIndex.toFloat())
+                onSelectedIndexChange(targetIndex)
                 animationScope.launch {
                     offsetAnimation.animateTo(0f, spring(1f, 300f, 0.5f))
                 }
@@ -263,25 +261,12 @@ fun LiquidGlassBottomBar(
         ).also { holder.instance = it }
     }
 
-    androidx.compose.runtime.LaunchedEffect(selectedIndex) {
-        currentIndex = selectedIndex
-        if (
-            dampedDragAnimation.pressProgress <= 0.001f &&
-            abs(dampedDragAnimation.targetValue - selectedIndex.toFloat()) > 0.001f
-        ) {
-            dampedDragAnimation.animateToValue(selectedIndex.toFloat())
-        }
+    val visualIndicatorPosition = if (dampedDragAnimation.pressProgress > 0.001f) {
+        dampedDragAnimation.value
+    } else {
+        coercedIndicatorPosition
     }
-    androidx.compose.runtime.LaunchedEffect(dampedDragAnimation, selectedIndex) {
-        snapshotFlow { currentIndex }
-            .drop(1)
-            .collectLatest { index ->
-                if (index != selectedIndex) {
-                    dampedDragAnimation.animateToValue(index.toFloat())
-                    onSelectedIndexChange(index)
-                }
-            }
-    }
+    val latestVisualIndicatorPosition = rememberUpdatedState(visualIndicatorPosition)
 
     val interactiveHighlight = remember(animationScope, tabWidthPx, isLtr) {
         InteractiveHighlight(
@@ -289,9 +274,9 @@ fun LiquidGlassBottomBar(
             position = { size, _ ->
                 Offset(
                     x = if (isLtr) {
-                        (dampedDragAnimation.value + 0.5f) * tabWidthPx + panelOffset
+                        (latestVisualIndicatorPosition.value + 0.5f) * tabWidthPx + panelOffset
                     } else {
-                        size.width - (dampedDragAnimation.value + 0.5f) * tabWidthPx + panelOffset
+                        size.width - (latestVisualIndicatorPosition.value + 0.5f) * tabWidthPx + panelOffset
                     },
                     y = size.height / 2f,
                 )
@@ -369,7 +354,7 @@ fun LiquidGlassBottomBar(
             items.forEachIndexed { index, item ->
                 LiquidGlassBottomBarItem(
                     item = item,
-                    onClick = { currentIndex = index },
+                    onClick = { onSelectedIndexChange(index) },
                 )
             }
         }
@@ -410,7 +395,7 @@ fun LiquidGlassBottomBar(
                 items.forEachIndexed { index, item ->
                     LiquidGlassBottomBarItem(
                         item = item,
-                        onClick = { currentIndex = index },
+                        onClick = { onSelectedIndexChange(index) },
                     )
                 }
             }
@@ -422,7 +407,7 @@ fun LiquidGlassBottomBar(
                 modifier = Modifier
                     .padding(horizontal = BarInset)
                     .graphicsLayer {
-                        val progressOffset = dampedDragAnimation.value * tabWidthPx
+                        val progressOffset = visualIndicatorPosition * tabWidthPx
                         translationX = if (isLtr) {
                             progressOffset + panelOffset
                         } else {
@@ -484,6 +469,7 @@ fun LiquidGlassBottomBar(
 private fun LiquidGlassBottomBarFallback(
     items: List<LiquidGlassTabItem>,
     selectedIndex: Int,
+    indicatorPosition: Float,
     onSelectedIndexChange: (Int) -> Unit,
     accentColor: Color,
     containerColor: Color,
@@ -500,7 +486,7 @@ private fun LiquidGlassBottomBarFallback(
         val tabWidth = maxWidth / items.size
         val tabWidthPx = with(density) { tabWidth.toPx() }
         val animatedIndex by animateFloatAsState(
-            targetValue = selectedIndex.toFloat(),
+            targetValue = indicatorPosition.fastCoerceIn(0f, items.lastIndex.toFloat()),
             animationSpec = spring(
                 dampingRatio = 0.85f,
                 stiffness = 420f,

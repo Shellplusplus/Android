@@ -6,6 +6,8 @@ import android.util.Log
 import androidx.annotation.StringRes
 import com.shell.liangyi.R
 import com.shell.liangyi.model.Screenshot
+import com.shell.liangyi.util.AtomicFileWriter
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -18,6 +20,7 @@ import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
 import java.io.RandomAccessFile
+import java.util.Locale
 
 /**
  * 截图接收处理类
@@ -63,6 +66,7 @@ class ScreenshotReceiver(
     private var currentRequestedShotId: String? = null
     private var requestTimeoutJob: Job? = null
     private var bulkStartTimeoutJob: Job? = null
+    private var collectorJob: Job? = null
     private var lastTransferActivityAt: Long = 0L
     private val requestRetryCounts = mutableMapOf<String, Int>()
     private val localFilePathByShotId = linkedMapOf<String, String>()
@@ -76,7 +80,7 @@ class ScreenshotReceiver(
     }
 
     // HTTP 服务器（WiFi 直传）
-    private val httpServer: HttpScreenshotServer by lazy {
+    private val httpServerDelegate = lazy {
         HttpScreenshotServer(
             context = context,
             screenshotsDir = transferRootDir,
@@ -95,6 +99,7 @@ class ScreenshotReceiver(
             }
         )
     }
+    private val httpServer: HttpScreenshotServer by httpServerDelegate
 
     /** HTTP 服务器是否在运行 */
     private val _httpServerRunning = MutableStateFlow(false)
@@ -418,7 +423,7 @@ class ScreenshotReceiver(
             put("status", record.status)
             put("updatedAtUnix", record.updatedAtUnix)
         }
-        stateFile(record.shotId).writeText(state.toString())
+        AtomicFileWriter.writeText(stateFile(record.shotId), state.toString())
     }
 
     private fun readTransferRecord(shotId: String): TransferRecord? {
@@ -963,8 +968,8 @@ class ScreenshotReceiver(
     private fun formatBytes(bytes: Long): String {
         val value = bytes.toDouble()
         return when {
-            value >= 1024 * 1024 -> String.format("%.1f MB", value / (1024 * 1024))
-            value >= 1024 -> String.format("%.1f KB", value / 1024)
+            value >= 1024 * 1024 -> String.format(Locale.US, "%.1f MB", value / (1024 * 1024))
+            value >= 1024 -> String.format(Locale.US, "%.1f KB", value / 1024)
             else -> "${bytes} B"
         }
     }
@@ -973,9 +978,9 @@ class ScreenshotReceiver(
         val elapsedMs = (System.currentTimeMillis() - startedAtMs).coerceAtLeast(1L)
         val bytesPerSecond = bytes * 1000.0 / elapsedMs
         return when {
-            bytesPerSecond >= 1024 * 1024 -> String.format("%.1f MB/s", bytesPerSecond / (1024 * 1024))
-            bytesPerSecond >= 1024 -> String.format("%.1f KB/s", bytesPerSecond / 1024)
-            else -> String.format("%.0f B/s", bytesPerSecond)
+            bytesPerSecond >= 1024 * 1024 -> String.format(Locale.US, "%.1f MB/s", bytesPerSecond / (1024 * 1024))
+            bytesPerSecond >= 1024 -> String.format(Locale.US, "%.1f KB/s", bytesPerSecond / 1024)
+            else -> String.format(Locale.US, "%.0f B/s", bytesPerSecond)
         }
     }
 
@@ -1118,9 +1123,20 @@ class ScreenshotReceiver(
 
     init {
         loadStoredScreenshots()
-        scope.launch(Dispatchers.IO) {
+        collectorJob = scope.launch(Dispatchers.IO) {
             messageCenter.messageFlow.collect { json ->
-                handleMessage(json)
+                try {
+                    handleMessage(json)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to handle screenshot message", e)
+                    currentRequestedShotId?.let { shotId ->
+                        markTransferFailed(shotId, e.message ?: "message handling failed")
+                    }
+                    _syncState.value = SyncState.Error(e.message ?: "message handling failed")
+                    _receiveProgress.value = ""
+                }
             }
         }
     }
@@ -1823,7 +1839,7 @@ class ScreenshotReceiver(
         try {
             val bytes = Base64.decode(imageData, Base64.DEFAULT)
             val finalFile = completedFile(shotId)
-            finalFile.writeBytes(bytes)
+            AtomicFileWriter.writeBytes(finalFile, bytes)
             registerLocalFile(shotId, finalFile)
             safeDelete(partialFile(shotId))
             writeTransferRecord(
@@ -1983,5 +1999,19 @@ class ScreenshotReceiver(
         pendingScreenshots.clear()
         requestRetryCounts.clear()
         _screenshots.value = emptyList()
+    }
+
+    fun destroy() {
+        collectorJob?.cancel()
+        collectorJob = null
+        cancelRequestTimeout()
+        cancelBulkStartTimeout()
+        activeBulkSession = null
+        currentRequestedShotId = null
+        chunkSessions.keys.toList().forEach { closeChunkSession(it) }
+        chunkSessions.clear()
+        if (httpServerDelegate.isInitialized()) {
+            httpServer.stop()
+        }
     }
 }

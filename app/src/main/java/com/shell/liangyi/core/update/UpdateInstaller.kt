@@ -11,8 +11,10 @@ object UpdateInstaller {
         context: Context,
         apkFilePath: String,
     ) {
-        val apkFile = File(apkFilePath)
-        require(apkFile.exists()) { "APK file does not exist." }
+        val apkFile = resolveInstallableApk(
+            cacheDir = context.cacheDir,
+            apkFilePath = apkFilePath,
+        )
 
         val uri = FileProvider.getUriForFile(
             context,
@@ -27,5 +29,21 @@ object UpdateInstaller {
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             },
         )
+    }
+
+    internal fun resolveInstallableApk(
+        cacheDir: File,
+        apkFilePath: String,
+    ): File {
+        val updatesDir = File(cacheDir, "updates").canonicalFile
+        val apkFile = File(apkFilePath).canonicalFile
+        require(apkFile.exists() && apkFile.isFile) { "APK file does not exist." }
+        require(apkFile.extension.equals("apk", ignoreCase = true)) { "Update file is not an APK." }
+        require(apkFile.isInside(updatesDir)) { "APK file is outside the update cache." }
+        return apkFile
+    }
+
+    private fun File.isInside(parent: File): Boolean {
+        return path == parent.path || path.startsWith(parent.path + File.separator)
     }
 }

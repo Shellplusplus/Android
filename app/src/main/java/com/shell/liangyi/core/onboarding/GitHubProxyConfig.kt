@@ -58,6 +58,10 @@ object GitHubUrlResolver {
         val trimmed = raw.trim()
         if (trimmed.isBlank()) return ""
         val withScheme = if ("://" in trimmed) trimmed else "https://$trimmed"
+        val parsed = runCatching { URI(withScheme) }.getOrNull() ?: return ""
+        val scheme = parsed.scheme?.lowercase() ?: return ""
+        if (scheme != "https" && scheme != "http") return ""
+        if (parsed.host.isNullOrBlank()) return ""
         return if (withScheme.endsWith("/")) withScheme else "$withScheme/"
     }
 

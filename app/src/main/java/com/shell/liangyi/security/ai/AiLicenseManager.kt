@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Build
 import android.os.SystemClock
 import android.provider.Settings
+import androidx.core.content.edit
 import com.shell.liangyi.BuildConfig
 import com.shell.liangyi.core.onboarding.GitHubUrlResolver
 import kotlinx.coroutines.Dispatchers
@@ -11,6 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.cancellation.CancellationException
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -63,7 +65,9 @@ class AiLicenseManager(context: Context) {
         }
         require(AI_FEATURE in license.features) { "授权不包含 AI 助手功能" }
         require(license.expiresAt > license.issuedAt) { "授权有效期无效" }
-        prefs.edit().putString(KEY_LICENSE, AiLicenseCrypto.canonicalLicenseDocument(license)).apply()
+        prefs.edit {
+            putString(KEY_LICENSE, AiLicenseCrypto.canonicalLicenseDocument(license))
+        }
         clearVerificationCache()
         val state = currentState().copy(
             status = AiLicenseStatus.NEEDS_ONLINE,
@@ -75,7 +79,9 @@ class AiLicenseManager(context: Context) {
     }
 
     fun clearLicense() {
-        prefs.edit().remove(KEY_LICENSE).apply()
+        prefs.edit {
+            remove(KEY_LICENSE)
+        }
         clearVerificationCache()
         _state.value = initialState()
     }
@@ -126,6 +132,8 @@ class AiLicenseManager(context: Context) {
                     hardwareBacked = identity.hardwareBacked,
                 ),
             )
+        } catch (error: CancellationException) {
+            throw error
         } catch (error: Exception) {
             publish(evaluateOffline(license, identity, error.message ?: "GitHub 不可访问"))
         }
@@ -284,21 +292,21 @@ class AiLicenseManager(context: Context) {
 
     private fun saveVerification(serverMs: Long) {
         val nowElapsed = SystemClock.elapsedRealtime()
-        prefs.edit()
-            .putLong(KEY_LAST_VERIFIED_SERVER_MS, serverMs)
-            .putLong(KEY_LAST_VERIFIED_ELAPSED_MS, nowElapsed)
-            .putLong(KEY_LAST_VERIFIED_WALL_MS, System.currentTimeMillis())
-            .putString(KEY_LAST_VERIFIED_BOOT, bootMarker())
-            .apply()
+        prefs.edit {
+            putLong(KEY_LAST_VERIFIED_SERVER_MS, serverMs)
+            putLong(KEY_LAST_VERIFIED_ELAPSED_MS, nowElapsed)
+            putLong(KEY_LAST_VERIFIED_WALL_MS, System.currentTimeMillis())
+            putString(KEY_LAST_VERIFIED_BOOT, bootMarker())
+        }
     }
 
     private fun clearVerificationCache() {
-        prefs.edit()
-            .remove(KEY_LAST_VERIFIED_SERVER_MS)
-            .remove(KEY_LAST_VERIFIED_ELAPSED_MS)
-            .remove(KEY_LAST_VERIFIED_WALL_MS)
-            .remove(KEY_LAST_VERIFIED_BOOT)
-            .apply()
+        prefs.edit {
+            remove(KEY_LAST_VERIFIED_SERVER_MS)
+            remove(KEY_LAST_VERIFIED_ELAPSED_MS)
+            remove(KEY_LAST_VERIFIED_WALL_MS)
+            remove(KEY_LAST_VERIFIED_BOOT)
+        }
     }
 
     private fun bootMarker(): String {

@@ -1,5 +1,7 @@
 package com.shell.liangyi.model
 
+import java.net.URI
+
 data class ChatMessage(
     val id: String,
     val role: String, // "user" | "assistant" | "exec"
@@ -26,7 +28,20 @@ data class AgentApiConfig(
     val token: String = "",
     val model: String = ""
 ) {
-    val isConfigured: Boolean get() = baseUrl.isNotBlank() && model.isNotBlank()
+    val normalizedBaseUrl: String get() = normalizeBaseUrl(baseUrl)
+    val isConfigured: Boolean get() = normalizedBaseUrl.isNotBlank() && model.isNotBlank()
+
+    companion object {
+        fun normalizeBaseUrl(value: String): String {
+            val trimmed = value.trim().trimEnd('/')
+            if (trimmed.isBlank()) return ""
+            val uri = runCatching { URI(trimmed) }.getOrNull() ?: return ""
+            val scheme = uri.scheme?.lowercase() ?: return ""
+            if (scheme != "https" && scheme != "http") return ""
+            if (uri.host.isNullOrBlank()) return ""
+            return trimmed
+        }
+    }
 }
 
 data class ExecResult(

@@ -2,17 +2,11 @@
     <string name="restart_onboarding">重新开始引导</string>
     <string name="restart_onboarding_summary">重新查看首次进入应用时的欢迎与代理设置流程</string>
     <string name="preview_mode_setting_message">预览模式下不会修改真实设置</string>
-    <string name="onboarding_skip">跳过</string>
-    <string name="onboarding_start">开始</string>
-    <string name="onboarding_next">下一步</string>
-    <string name="onboarding_enter_app">进入 Shell++</string>
     <string name="onboarding_title">欢迎使用 Shell++</string>
     <string name="onboarding_subtitle">先花几步把体验准备好，再开始同步和管理你的设备内容。</string>
     <string name="onboarding_proxy_title">选择 GitHub 代理源</string>
-    <string name="onboarding_proxy_subtitle">我们会自动测速并推荐当前最快的代理源，你也可以随时手动改选。</string>
     <string name="onboarding_proxy_fastest">最快</string>
     <string name="onboarding_proxy_retest">重新测速</string>
-    <string name="onboarding_proxy_retest_summary">重新测试代理源，并自动推荐当前最快节点</string>
     <string name="onboarding_proxy_testing">正在测速…</string>
     <string name="onboarding_proxy_testing_summary">正在测量当前可用代理源的连接延迟</string>
     <string name="onboarding_proxy_test_failed">当前没有测速成功的代理源，你仍然可以手动继续。</string>
@@ -29,10 +23,6 @@
     <string name="onboarding_page_summary_settings">你可以在此对软件进行个性化调整</string>
     <string name="onboarding_page_summary_about">查看制作本软件的人员及开源组件</string>
     <string name="onboarding_page_summary_end">准备完成，进入应用开始使用</string>
-    <string name="onboarding_settings_title">这是设置页</string>
-    <string name="onboarding_settings_subtitle">这里可以查看更新、调整偏好，也可以随时重新打开这套引导。</string>
-    <string name="onboarding_about_title">这是关于页</string>
-    <string name="onboarding_about_subtitle">这里展示版本、开发者与开源组件信息，方便快速了解应用背景。</string>
     <string name="onboarding_end_title">The end</string>
     <string name="onboarding_end_subtitle">Have a good time.</string>
 </resources>

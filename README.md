@@ -8,16 +8,15 @@ Shell++ Android 是 Shell++ / Vela 手表的 Android 端配套应用，负责把
 - 内置轻量 HTTP 服务，支持同局域网下的 PNG 截图直传与分片上传
 - 截图详情页支持预览、保存到系统相册、生成带机型边框版本、删除本地缓存
 - 首页集中展示手表连接状态、截图缓存数量、LAN 服务状态与最近传输进度
+- 远程终端支持向手表端发送单条命令，并保留最近命令与收藏命令
 - 设置页支持手动检查更新、跳过非强制更新提醒
 - 关于页展示开发者信息与开源组件说明
-- 通过 `website/update.json` 提供的更新元数据驱动应用内更新提示
-
-说明：首页中的“远程终端”入口目前仍是占位页，尚未完成实现。
+- 通过 GitHub Release 元数据驱动应用内更新提示
 
 ## 技术栈
 
 - Kotlin `2.3.20`
-- Android Gradle Plugin `8.9.1`
+- Android Gradle Plugin `8.13.2`
 - Jetpack Compose + Navigation Compose
 - Material 3 + MIUIX / HyperOS 风格组件
 - Kotlin Coroutines + Coil
@@ -51,20 +50,21 @@ Shell++ Android 是 Shell++ / Vela 手表的 Android 端配套应用，负责把
 │     │  │  ├─ model/             数据模型
 │     │  │  ├─ ui/
 │     │  │  │  ├─ about/          关于页
+│     │  │  │  ├─ ai/             AI 助手授权页
 │     │  │  │  ├─ bluetooth/      蓝牙 / 穿戴通道截图同步页
 │     │  │  │  ├─ components/     通用 Compose 组件
 │     │  │  │  ├─ fetch/          LAN / HTTP 直传页
 │     │  │  │  ├─ index/          首页状态面板
+│     │  │  │  ├─ remote/         手表远程文件浏览页
 │     │  │  │  ├─ screenshot/     截图详情页
 │     │  │  │  ├─ settings/       设置与日志入口
+│     │  │  │  ├─ terminal/       远程终端页
 │     │  │  │  └─ theme/          主题与配色
 │     │  │  └─ util/              相册保存、图片处理
 │     │  └─ res/                  图片、字符串、主题、设备边框素材
 │     └─ test/                    单元测试
 ├─ gradle/                        Gradle Wrapper 与版本目录
 ├─ sign/                          本地签名文件目录
-├─ website/                       更新接口静态资源（`update.json`、`api.php`）
-├─ webhook/                       GitHub Actions -> QQ 群通知服务（Go）
 ├─ build.gradle.kts               根构建脚本
 ├─ settings.gradle.kts            Gradle 模块配置
 ├─ gradle.properties              Gradle 全局参数
@@ -162,28 +162,10 @@ http://154.12.85.206:3040/api/ai-license/registry
 应用内更新检查默认请求：
 
 ```text
-https://shellupdate.rth1.xyz/api.php
+https://api.github.com/repos/DefateStar/public-shellpp/releases/latest
 ```
 
-仓库中对应的静态更新源位于：
-
-- `website/update.json`
-- `website/api.php`
-
-当前 `update.json` 需要至少包含以下字段：
-
-```json
-{
-  "latest_version": "beta1",
-  "latest_version_code": 1,
-  "download_url": "https://example.com/app-release.apk",
-  "changelog": "更新说明",
-  "min_supported_version_code": 1,
-  "release_date": "2026-06-28"
-}
-```
-
-如果你要自托管更新服务，可以部署 `website/` 目录内容，并同步修改 `UpdateChecker.kt` 中的 `UPDATE_URL`。
+`UpdateChecker.kt` 会读取最新 GitHub Release，优先选择 `app-release.apk` 作为下载资产。Release `tag_name` 需要包含版本号，例如 `beta20`；Release 正文可用 `min_supported_version_code: 18` 声明强制更新的最低支持版本，剩余正文会作为更新日志展示。
 
 ## CI / 发布链路
 
@@ -195,9 +177,6 @@ https://shellupdate.rth1.xyz/api.php
   - 构建 release APK
   - 上传 artifact
   - 默认向公开仓库 `DefateStar/public-shellpp` 创建或更新 GitHub Release
-  - 可选调用 `webhook/` 服务发送 QQ 群通知
 - 手动触发时可通过 `release_repository` 输入临时覆盖发布目标仓库。
 - 如果需要覆盖默认公开仓库，可配置仓库变量 `PUBLIC_RELEASE_REPOSITORY`。
 - 当发布目标不是当前仓库时，必须配置 `PUBLIC_SHELLPP_TOKEN`，并确保该 token 对目标仓库具备 `Contents: Read and write` 权限。
-
-`webhook/` 目录下是一个 Go `1.22` 服务，用于接收 GitHub Actions 的 POST 数据并转发给 NapCat / OneBot HTTP API。详细部署说明见 `webhook/README.md`。

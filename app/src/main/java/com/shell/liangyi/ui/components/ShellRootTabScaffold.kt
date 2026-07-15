@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import com.shell.liangyi.ui.theme.ShellTheme
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.TopAppBar
+import top.yukonga.miuix.kmp.utils.MiuixPopupUtils
 
 @Composable
 fun ShellRootTabScaffold(
@@ -33,7 +34,9 @@ fun ShellRootTabScaffold(
                 actions = actions,
             )
         },
-        popupHost = {},
+        popupHost = {
+            MiuixPopupUtils.Companion.MiuixPopupHost()
+        },
         containerColor = shellColors.pageBackground,
         contentWindowInsets = WindowInsets.systemBars
             .add(WindowInsets.displayCutout)

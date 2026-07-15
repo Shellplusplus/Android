@@ -1,5 +1,7 @@
 package com.shell.liangyi.ui.terminal
 
+import android.annotation.SuppressLint
+
 enum class RemoteTerminalResultKind {
     Idle,
     Waiting,
@@ -38,6 +40,7 @@ data class RemoteTerminalUiState(
 )
 
 object RemoteTerminalGuard {
+    @SuppressLint("SdCardPath")
     private val protectedPatterns = listOf(
         "cmd_request.json",
         "cmd_result.json",
@@ -98,6 +101,25 @@ object RemoteTerminalGuard {
         ". ",
     )
 
+    private val nestedCommands = setOf(
+        "sh",
+        "bash",
+        "lua",
+        "luac",
+        "python",
+        "python3",
+        "node",
+        "perl",
+        "ruby",
+        "php",
+        "nohup",
+        "setsid",
+        "eval",
+        "exec",
+        "source",
+        ".",
+    )
+
     fun validate(command: String): RemoteTerminalValidationError? {
         val trimmed = command.trim()
         if (trimmed.isEmpty()) {
@@ -112,6 +134,7 @@ object RemoteTerminalGuard {
         if (
             trimmed.contains('\n') ||
             trimmed.contains('\r') ||
+            lower in nestedCommands ||
             nestedPrefixes.any { lower.startsWith(it) } ||
             lower.startsWith("./") ||
             trimmed.contains('&') ||
@@ -192,4 +215,3 @@ object RemoteTerminalCatalog {
         ),
     )
 }
-

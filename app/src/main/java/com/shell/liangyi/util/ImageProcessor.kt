@@ -7,68 +7,79 @@ import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
 import android.graphics.RectF
-import java.io.FileOutputStream
+import androidx.core.graphics.createBitmap
+import java.io.File
 
 object ImageProcessor {
 
     private const val CORNER_RADIUS_PX = 48f
 
     fun addRoundedCorners(inputPath: String, outputPath: String): Boolean {
+        var src: Bitmap? = null
+        var result: Bitmap? = null
         return try {
-            val src = BitmapFactory.decodeFile(inputPath) ?: return false
-            val result = addRoundedCornersToBitmap(src, CORNER_RADIUS_PX)
-            src.recycle()
-            val out = FileOutputStream(outputPath)
-            result.compress(Bitmap.CompressFormat.PNG, 100, out)
-            out.flush()
-            out.close()
-            result.recycle()
+            src = BitmapFactory.decodeFile(inputPath) ?: return false
+            val roundedResult = addRoundedCornersToBitmap(src, CORNER_RADIUS_PX)
+            result = roundedResult
+            AtomicFileWriter.write(File(outputPath)) { out ->
+                if (!roundedResult.compress(Bitmap.CompressFormat.PNG, 100, out)) {
+                    throw IllegalStateException("Failed to encode rounded image")
+                }
+            }
             true
         } catch (e: Exception) {
             false
+        } finally {
+            src?.recycle()
+            result?.recycle()
         }
     }
 
     fun compositeWithFrame(screenshotPath: String, framePath: String, outputPath: String): Boolean {
+        var src: Bitmap? = null
+        var frame: Bitmap? = null
+        var rounded: Bitmap? = null
+        var result: Bitmap? = null
         return try {
-            val src = BitmapFactory.decodeFile(screenshotPath) ?: return false
-            val frame = BitmapFactory.decodeFile(framePath) ?: run {
-                src.recycle()
-                return false
-            }
+            src = BitmapFactory.decodeFile(screenshotPath) ?: return false
+            frame = BitmapFactory.decodeFile(framePath) ?: return false
 
             val canvasW = frame.width
             val canvasH = frame.height
 
-            val result = Bitmap.createBitmap(canvasW, canvasH, Bitmap.Config.ARGB_8888)
-            val canvas = Canvas(result)
+            val composited = createBitmap(canvasW, canvasH)
+            result = composited
+            val canvas = Canvas(composited)
 
-            val rounded = addRoundedCornersToBitmap(src, CORNER_RADIUS_PX)
-            src.recycle()
+            val roundedScreenshot = addRoundedCornersToBitmap(src, CORNER_RADIUS_PX)
+            rounded = roundedScreenshot
 
             canvas.drawBitmap(frame, 0f, 0f, null)
-            frame.recycle()
 
-            val offsetX = (canvasW - rounded.width) / 2f
-            val offsetY = (canvasH - rounded.height) / 2f
-            canvas.drawBitmap(rounded, offsetX, offsetY, null)
-            rounded.recycle()
+            val offsetX = (canvasW - roundedScreenshot.width) / 2f
+            val offsetY = (canvasH - roundedScreenshot.height) / 2f
+            canvas.drawBitmap(roundedScreenshot, offsetX, offsetY, null)
 
-            val out = FileOutputStream(outputPath)
-            result.compress(Bitmap.CompressFormat.PNG, 100, out)
-            out.flush()
-            out.close()
-            result.recycle()
+            AtomicFileWriter.write(File(outputPath)) { out ->
+                if (!composited.compress(Bitmap.CompressFormat.PNG, 100, out)) {
+                    throw IllegalStateException("Failed to encode framed image")
+                }
+            }
             true
         } catch (e: Exception) {
             false
+        } finally {
+            src?.recycle()
+            frame?.recycle()
+            rounded?.recycle()
+            result?.recycle()
         }
     }
 
     private fun addRoundedCornersToBitmap(src: Bitmap, radiusPx: Float): Bitmap {
         val w = src.width
         val h = src.height
-        val result = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val result = createBitmap(w, h)
         val canvas = Canvas(result)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         canvas.drawRoundRect(RectF(0f, 0f, w.toFloat(), h.toFloat()), radiusPx, radiusPx, paint)

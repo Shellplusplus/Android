@@ -5,6 +5,7 @@
 
 package com.shell.liangyi.ui.glassport.internal
 
+import android.annotation.SuppressLint
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.RenderEffect
 import androidx.compose.ui.graphics.asAndroidColorFilter
@@ -12,6 +13,7 @@ import androidx.compose.ui.graphics.asComposeRenderEffect
 import com.shell.liangyi.ui.glassport.RuntimeShader
 import com.shell.liangyi.ui.glassport.asAndroidRuntimeShader
 
+@SuppressLint("NewApi")
 internal fun RenderEffect?.chain(other: RenderEffect): RenderEffect {
     return if (this != null) {
         android.graphics.RenderEffect.createChainEffect(
@@ -23,6 +25,7 @@ internal fun RenderEffect?.chain(other: RenderEffect): RenderEffect {
     }
 }
 
+@SuppressLint("NewApi")
 internal fun RuntimeShaderEffect(
     runtimeShader: RuntimeShader,
     uniformShaderName: String,
@@ -33,6 +36,7 @@ internal fun RuntimeShaderEffect(
     ).asComposeRenderEffect()
 }
 
+@SuppressLint("NewApi")
 internal fun ColorFilterEffect(
     renderEffect: RenderEffect? = null,
     colorFilter: ColorFilter,

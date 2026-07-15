@@ -28,7 +28,6 @@ import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -46,6 +45,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -55,6 +55,7 @@ import com.shell.liangyi.ui.ShellViewModel
 import com.shell.liangyi.ui.components.ShellBackScaffold
 import com.shell.liangyi.ui.theme.ShellColors
 import com.shell.liangyi.ui.theme.ShellTheme
+import com.shell.liangyi.util.FileCacheTrimmer
 import com.shell.liangyi.util.GallerySaver
 import com.shell.liangyi.util.ImageProcessor
 import kotlinx.coroutines.Dispatchers
@@ -67,6 +68,9 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import java.io.File
+import kotlin.coroutines.cancellation.CancellationException
+
+private const val PROCESSED_IMAGE_CACHE_LIMIT = 32
 
 @Composable
 fun ScreenshotDetailScreen(
@@ -74,7 +78,7 @@ fun ScreenshotDetailScreen(
     navController: NavHostController,
     shellViewModel: ShellViewModel,
 ) {
-    val screenshots by shellViewModel.screenshots.collectAsState()
+    val screenshots by shellViewModel.screenshots.collectAsStateWithLifecycle()
     val shot = screenshots.find { it.shotId == shotId }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -83,13 +87,17 @@ fun ScreenshotDetailScreen(
     val resolvedPath = remember(shot?.localFilePath, shotId) {
         shot?.localFilePath?.takeIf { it.isNotBlank() } ?: shellViewModel.getScreenshotFilePath(shotId)
     }
-    val hasLocalFile = remember(resolvedPath) {
-        resolvedPath?.let { File(it).exists() } == true
+    val hasLocalFile = resolvedPath?.let { File(it).exists() } == true
+    val transferRevision = shot?.let {
+        "${it.isComplete}-${it.receivedChunks}-${it.receivedBytes}-${it.localFilePath}"
     }
     val cacheDir = remember {
-        File(shellViewModel.appContext().cacheDir, "processed").apply { mkdirs() }
+        File(shellViewModel.appContext().cacheDir, "processed").apply {
+            mkdirs()
+            FileCacheTrimmer.trim(this, PROCESSED_IMAGE_CACHE_LIMIT)
+        }
     }
-    val roundedPath by produceState<String?>(initialValue = null, resolvedPath, cacheDir) {
+    val roundedPath by produceState<String?>(initialValue = null, resolvedPath, transferRevision, cacheDir) {
         value = null
         val inputPath = resolvedPath ?: return@produceState
         val inputFile = File(inputPath)
@@ -105,6 +113,7 @@ fun ScreenshotDetailScreen(
             if (shouldRegenerate && !ImageProcessor.addRoundedCorners(inputPath, out.absolutePath)) {
                 return@withContext null
             }
+            FileCacheTrimmer.trim(cacheDir, PROCESSED_IMAGE_CACHE_LIMIT)
             out.absolutePath
         }
     }
@@ -118,6 +127,9 @@ fun ScreenshotDetailScreen(
         hasLocalFile = hasLocalFile,
         shellColors = ShellTheme.colors,
     )
+    val screenshotSavedText = stringResource(R.string.screenshot_saved)
+    val compositeFailedText = stringResource(R.string.composite_failed)
+    val saveFailedText = stringResource(R.string.save_failed)
 
     ShellBackScaffold(
         title = displayTitle,
@@ -141,47 +153,66 @@ fun ScreenshotDetailScreen(
                     hasLocalFile = hasLocalFile,
                     actionInProgress = actionInProgress,
                     onFrameClick = {
+                        if (actionInProgress) return@PreviewActionCard
                         val inputPath = resolvedPath ?: return@PreviewActionCard
                         actionInProgress = true
                         scope.launch {
-                            val result = withContext(Dispatchers.IO) {
-                                val deviceFile = prepareDevice(context, cacheDir)
-                                    ?: return@withContext SaveResult.CompositeFailed
-                                val out = File(cacheDir, "framed_${File(inputPath).name}")
-                                if (!ImageProcessor.compositeWithFrame(inputPath, deviceFile.absolutePath, out.absolutePath)) {
-                                    return@withContext SaveResult.CompositeFailed
+                            val result = try {
+                                withContext(Dispatchers.IO) {
+                                    val deviceFile = prepareDevice(context, cacheDir)
+                                        ?: return@withContext SaveResult.CompositeFailed
+                                    val out = File(cacheDir, "framed_${File(inputPath).name}")
+                                    if (!ImageProcessor.compositeWithFrame(inputPath, deviceFile.absolutePath, out.absolutePath)) {
+                                        return@withContext SaveResult.CompositeFailed
+                                    }
+                                    FileCacheTrimmer.trim(cacheDir, PROCESSED_IMAGE_CACHE_LIMIT)
+                                    val fileName = "Shell++_framed_${shot?.index ?: System.currentTimeMillis()}"
+                                    if (gallerySaver.saveFileToGallery(out.absolutePath, fileName)) {
+                                        SaveResult.Success
+                                    } else {
+                                        SaveResult.SaveFailed
+                                    }
                                 }
-                                val fileName = "Shell++_framed_${shot?.index ?: System.currentTimeMillis()}"
-                                if (gallerySaver.saveFileToGallery(out.absolutePath, fileName)) {
-                                    SaveResult.Success
-                                } else {
-                                    SaveResult.SaveFailed
+                            } catch (error: Exception) {
+                                if (error is CancellationException) {
+                                    throw error
                                 }
+                                SaveResult.CompositeFailed
+                            } finally {
+                                actionInProgress = false
                             }
-                            actionInProgress = false
                             Toast.makeText(
                                 context,
                                 when (result) {
-                                    SaveResult.Success -> context.getString(R.string.screenshot_saved)
-                                    SaveResult.CompositeFailed -> context.getString(R.string.composite_failed)
-                                    SaveResult.SaveFailed -> context.getString(R.string.save_failed)
+                                    SaveResult.Success -> screenshotSavedText
+                                    SaveResult.CompositeFailed -> compositeFailedText
+                                    SaveResult.SaveFailed -> saveFailedText
                                 },
                                 Toast.LENGTH_SHORT
                             ).show()
                         }
                     },
                     onSaveClick = {
+                        if (actionInProgress) return@PreviewActionCard
                         val inputPath = resolvedPath ?: return@PreviewActionCard
                         actionInProgress = true
                         scope.launch {
-                            val ok = withContext(Dispatchers.IO) {
-                                val fileName = "Shell++_${shot?.index ?: System.currentTimeMillis()}"
-                                gallerySaver.saveFileToGallery(inputPath, fileName)
+                            val ok = try {
+                                withContext(Dispatchers.IO) {
+                                    val fileName = "Shell++_${shot?.index ?: System.currentTimeMillis()}"
+                                    gallerySaver.saveFileToGallery(inputPath, fileName)
+                                }
+                            } catch (error: Exception) {
+                                if (error is CancellationException) {
+                                    throw error
+                                }
+                                false
+                            } finally {
+                                actionInProgress = false
                             }
-                            actionInProgress = false
                             Toast.makeText(
                                 context,
-                                if (ok) context.getString(R.string.screenshot_saved) else context.getString(R.string.save_failed),
+                                if (ok) screenshotSavedText else saveFailedText,
                                 Toast.LENGTH_SHORT
                             ).show()
                         }

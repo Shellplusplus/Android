@@ -21,7 +21,8 @@ object OpenAIClient {
 
     suspend fun chatCompletion(config: AgentApiConfig, history: List<ChatMessage>): String =
         withContext(Dispatchers.IO) {
-            val base = config.baseUrl.trimEnd('/')
+            val base = config.normalizedBaseUrl
+                .ifBlank { throw ApiException("API 地址必须是有效的 http/https URL") }
             val url = URL("$base/chat/completions")
             val conn = url.openConnection() as HttpURLConnection
             try {
@@ -48,7 +49,10 @@ object OpenAIClient {
 
                 val code = conn.responseCode
                 val stream = if (code in 200..299) conn.inputStream else conn.errorStream
-                val text = stream?.bufferedReader(StandardCharsets.UTF_8)?.readText().orEmpty()
+                val text = stream
+                    ?.bufferedReader(StandardCharsets.UTF_8)
+                    ?.use { it.readText() }
+                    .orEmpty()
 
                 if (code !in 200..299) {
                     throw ApiException("HTTP $code: ${text.take(300)}")

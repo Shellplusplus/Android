@@ -7,6 +7,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
 import java.net.URL
+import kotlin.coroutines.cancellation.CancellationException
 
 data class GitHubProxyBenchmarkResult(
     val sourceId: String,
@@ -58,7 +59,7 @@ object GitHubProxyBenchmarker {
             originalUrl = probeUrl,
         )
         val startedAt = System.nanoTime()
-        return runCatching {
+        return try {
             requester(targetUrl)
             val latencyMs = (System.nanoTime() - startedAt) / 1_000_000
             GitHubProxyBenchmarkResult(
@@ -66,7 +67,9 @@ object GitHubProxyBenchmarker {
                 latencyMs = latencyMs,
                 success = true,
             )
-        }.getOrElse { throwable ->
+        } catch (error: CancellationException) {
+            throw error
+        } catch (throwable: Exception) {
             GitHubProxyBenchmarkResult(
                 sourceId = source.id,
                 latencyMs = null,

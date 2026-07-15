@@ -4,6 +4,7 @@ import android.content.Context
 import com.shell.liangyi.model.ChatMessage
 import com.shell.liangyi.model.Conversation
 import com.shell.liangyi.model.ExecState
+import com.shell.liangyi.util.AtomicFileWriter
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -19,7 +20,7 @@ class AgentConversationStore(context: Context) {
     fun loadAll(): List<Conversation> {
         if (!storeFile.exists()) return emptyList()
         return try {
-            val arr = JSONArray(storeFile.readText())
+            val arr = JSONArray(storeFile.readText(Charsets.UTF_8))
             (0 until arr.length()).mapNotNull { i ->
                 runCatching { conversationFromJson(arr.getJSONObject(i)) }.getOrNull()
             }
@@ -31,7 +32,9 @@ class AgentConversationStore(context: Context) {
     fun saveAll(conversations: List<Conversation>) {
         val arr = JSONArray()
         conversations.forEach { arr.put(conversationToJson(it)) }
-        storeFile.writeText(arr.toString())
+        runCatching {
+            AtomicFileWriter.writeText(storeFile, arr.toString())
+        }
     }
 
     private fun conversationToJson(c: Conversation): JSONObject = JSONObject().apply {

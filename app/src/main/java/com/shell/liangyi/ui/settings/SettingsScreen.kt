@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -30,6 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.shell.liangyi.R
 import com.shell.liangyi.core.LogEntry
@@ -53,7 +53,7 @@ fun SettingsScreen(
     val colors = MiuixTheme.colorScheme
     val shellColors = ShellTheme.colors
     val context = LocalContext.current
-    val logs by shellViewModel.logs.collectAsState(initial = emptyList())
+    val logs by shellViewModel.logs.collectAsStateWithLifecycle(initialValue = emptyList())
 
     ShellBackScaffold(
         title = stringResource(R.string.logs),

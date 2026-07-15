@@ -13,7 +13,6 @@ import android.util.Log
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileInputStream
-import java.io.IOException
 
 /**
  * 保存图片到系统相册
@@ -44,8 +43,11 @@ class GallerySaver(private val context: Context) {
                 return false
             }
 
-            // 保存到相册
-            saveBitmapToGallery(bitmap, fileName)
+            try {
+                saveBitmapToGallery(bitmap, fileName)
+            } finally {
+                bitmap.recycle()
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error saving image", e)
             false
@@ -60,24 +62,7 @@ class GallerySaver(private val context: Context) {
                 return false
             }
 
-            val contentValues = ContentValues().apply {
-                put(MediaStore.Images.Media.DISPLAY_NAME, "$fileName.png")
-                put(MediaStore.Images.Media.MIME_TYPE, "image/png")
-
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    put(
-                        MediaStore.Images.Media.RELATIVE_PATH,
-                        "${Environment.DIRECTORY_PICTURES}/$ALBUM_NAME"
-                    )
-                    put(MediaStore.Images.Media.IS_PENDING, 1)
-                } else {
-                    put(
-                        MediaStore.Images.Media.DATA,
-                        Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
-                            .toString() + "/$ALBUM_NAME/$fileName.png"
-                    )
-                }
-            }
+            val contentValues = imageContentValues(fileName)
 
             val resolver = context.contentResolver
             var uri: Uri? = null
@@ -89,9 +74,16 @@ class GallerySaver(private val context: Context) {
                     return false
                 }
 
+                val targetUri = uri
                 FileInputStream(file).use { input ->
-                    resolver.openOutputStream(uri)?.use { output ->
+                    val wrote = resolver.openOutputStream(targetUri)?.use { output ->
                         input.copyTo(output)
+                        true
+                    } ?: false
+                    if (!wrote) {
+                        Log.e(TAG, "Failed to open output stream for file")
+                        resolver.delete(targetUri, null, null)
+                        return false
                     }
                 }
 
@@ -103,7 +95,7 @@ class GallerySaver(private val context: Context) {
 
                 Log.d(TAG, "Image file saved to gallery: $uri")
                 true
-            } catch (e: IOException) {
+            } catch (e: Exception) {
                 Log.e(TAG, "Error saving image file", e)
                 uri?.let { resolver.delete(it, null, null) }
                 false
@@ -118,25 +110,7 @@ class GallerySaver(private val context: Context) {
      * 保存 Bitmap 到相册
      */
     private fun saveBitmapToGallery(bitmap: Bitmap, fileName: String): Boolean {
-        val contentValues = ContentValues().apply {
-            put(MediaStore.Images.Media.DISPLAY_NAME, "$fileName.png")
-            put(MediaStore.Images.Media.MIME_TYPE, "image/png")
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                // 必须放在 Pictures/ 下，系统相册才会扫描收录
-                put(
-                    MediaStore.Images.Media.RELATIVE_PATH,
-                    "${Environment.DIRECTORY_PICTURES}/$ALBUM_NAME"
-                )
-                put(MediaStore.Images.Media.IS_PENDING, 1)
-            } else {
-                put(
-                    MediaStore.Images.Media.DATA,
-                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
-                        .toString() + "/$ALBUM_NAME/$fileName.png"
-                )
-            }
-        }
+        val contentValues = imageContentValues(fileName)
 
         val resolver = context.contentResolver
         var uri: Uri? = null
@@ -150,8 +124,19 @@ class GallerySaver(private val context: Context) {
             }
 
             // 写入图片数据
-            resolver.openOutputStream(uri)?.use { outputStream ->
-                bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
+            val targetUri = uri
+            val wrote = resolver.openOutputStream(targetUri)?.use { stream ->
+                if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)) {
+                    Log.e(TAG, "Failed to encode bitmap")
+                    resolver.delete(targetUri, null, null)
+                    return false
+                }
+                true
+            } ?: false
+            if (!wrote) {
+                Log.e(TAG, "Failed to open output stream")
+                resolver.delete(targetUri, null, null)
+                return false
             }
 
             // 更新 pending 状态
@@ -164,11 +149,37 @@ class GallerySaver(private val context: Context) {
             Log.d(TAG, "Image saved to gallery: $uri")
             return true
 
-        } catch (e: IOException) {
+        } catch (e: Exception) {
             Log.e(TAG, "Error saving image", e)
             // 清理失败的条目
             uri?.let { resolver.delete(it, null, null) }
             return false
+        }
+    }
+
+    private fun imageContentValues(fileName: String): ContentValues {
+        val displayName = "$fileName.png"
+        return ContentValues().apply {
+            put(MediaStore.Images.Media.DISPLAY_NAME, displayName)
+            put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                // 必须放在 Pictures/ 下，系统相册才会扫描收录
+                put(
+                    MediaStore.Images.Media.RELATIVE_PATH,
+                    "${Environment.DIRECTORY_PICTURES}/$ALBUM_NAME"
+                )
+                put(MediaStore.Images.Media.IS_PENDING, 1)
+            } else {
+                val albumDir = File(
+                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
+                    ALBUM_NAME,
+                )
+                if (!albumDir.exists()) {
+                    albumDir.mkdirs()
+                }
+                put(MediaStore.Images.Media.DATA, File(albumDir, displayName).absolutePath)
+            }
         }
     }
 

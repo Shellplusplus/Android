@@ -1,6 +1,7 @@
 package com.shell.liangyi.ui.theme
 
 import android.app.Activity
+import android.view.Window
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
@@ -91,8 +92,7 @@ fun ShellAppTheme(
         SideEffect {
             val window = (view.context as? Activity)?.window ?: return@SideEffect
             val backgroundColor = shellColors.pageBackground.toArgb()
-            window.statusBarColor = backgroundColor
-            window.navigationBarColor = backgroundColor
+            window.setShellSystemBarColors(backgroundColor)
             WindowCompat.getInsetsController(window, view).apply {
                 isAppearanceLightStatusBars = !isDark
                 isAppearanceLightNavigationBars = !isDark
@@ -107,6 +107,12 @@ fun ShellAppTheme(
             content = content
         )
     }
+}
+
+@Suppress("DEPRECATION")
+private fun Window.setShellSystemBarColors(color: Int) {
+    statusBarColor = color
+    navigationBarColor = color
 }
 
 private fun shellColorScheme(colors: Colors, isDark: Boolean): ShellColors = ShellColors(

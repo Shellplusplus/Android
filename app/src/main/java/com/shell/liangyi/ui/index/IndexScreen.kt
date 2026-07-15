@@ -40,7 +40,6 @@ import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,6 +54,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.shell.liangyi.R
 import com.shell.liangyi.core.ConnectionState
 import com.shell.liangyi.core.ScreenshotReceiver
@@ -82,15 +82,19 @@ fun IndexScreen(
     bottomContentPadding: Dp = 0.dp,
     onOpenLogs: () -> Unit = { navController.navigate(Routes.LOGS) },
 ) {
-    val connectionState by shellViewModel.connectionState.collectAsState(initial = ConnectionState.DISCONNECTED)
-    val watchProductCode by shellViewModel.watchProductCode.collectAsState()
-    val screenshots by shellViewModel.screenshots.collectAsState()
-    val syncState by shellViewModel.syncState.collectAsState(initial = ScreenshotReceiver.SyncState.Idle)
-    val receiveProgress by shellViewModel.receiveProgress.collectAsState(initial = "")
-    val httpRunning by shellViewModel.httpServerRunning.collectAsState()
-    val httpIp by shellViewModel.httpServerIp.collectAsState()
-    val httpPort by shellViewModel.httpServerPort.collectAsState()
-    val aiLicenseState by shellViewModel.aiLicenseState.collectAsState()
+    val connectionState by shellViewModel.connectionState.collectAsStateWithLifecycle(
+        initialValue = ConnectionState.DISCONNECTED,
+    )
+    val watchProductCode by shellViewModel.watchProductCode.collectAsStateWithLifecycle()
+    val screenshots by shellViewModel.screenshots.collectAsStateWithLifecycle()
+    val syncState by shellViewModel.syncState.collectAsStateWithLifecycle(
+        initialValue = ScreenshotReceiver.SyncState.Idle,
+    )
+    val receiveProgress by shellViewModel.receiveProgress.collectAsStateWithLifecycle(initialValue = "")
+    val httpRunning by shellViewModel.httpServerRunning.collectAsStateWithLifecycle()
+    val httpIp by shellViewModel.httpServerIp.collectAsStateWithLifecycle()
+    val httpPort by shellViewModel.httpServerPort.collectAsStateWithLifecycle()
+    val aiLicenseState by shellViewModel.aiLicenseState.collectAsStateWithLifecycle()
     val openAiByDefault = AgentEntryPointProvider.entryPoint.isEnabled && aiLicenseState.canUse
     val scrollBehavior = MiuixScrollBehavior()
     val bottomInnerPadding = 16.dp + bottomContentPadding

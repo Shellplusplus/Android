@@ -60,6 +60,22 @@ class OnboardingStateStoreTest {
         assertEquals(GitHubProxySources.gitwarp.id, state.proxySelection.sourceId)
     }
 
+    @Test
+    fun storeDropsInvalidCustomProxyBaseUrl() {
+        val store = OnboardingStateStore(InMemorySharedPreferences())
+
+        store.saveProxySelection(
+            selection = GitHubProxySelection(
+                sourceId = GitHubProxySources.custom.id,
+                customBaseUrl = "file:///tmp/proxy",
+            ),
+        )
+
+        val state = store.readState()
+        assertEquals(GitHubProxySources.custom.id, state.proxySelection.sourceId)
+        assertEquals("", state.proxySelection.customBaseUrl)
+    }
+
     private class InMemorySharedPreferences : SharedPreferences {
         private val values = linkedMapOf<String, Any?>()
 

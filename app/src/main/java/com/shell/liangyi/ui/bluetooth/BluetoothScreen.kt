@@ -24,7 +24,6 @@ import androidx.compose.material.icons.rounded.Bluetooth
 import androidx.compose.material.icons.rounded.Downloading
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -41,6 +40,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -67,10 +67,14 @@ fun BluetoothScreen(
     isRootDestination: Boolean = false,
     bottomContentPadding: Dp = 0.dp,
 ) {
-    val connectionState by shellViewModel.connectionState.collectAsState(initial = ConnectionState.DISCONNECTED)
-    val screenshots by shellViewModel.screenshots.collectAsState()
-    val syncState by shellViewModel.syncState.collectAsState(initial = ScreenshotReceiver.SyncState.Idle)
-    val progress by shellViewModel.receiveProgress.collectAsState(initial = "")
+    val connectionState by shellViewModel.connectionState.collectAsStateWithLifecycle(
+        initialValue = ConnectionState.DISCONNECTED,
+    )
+    val screenshots by shellViewModel.screenshots.collectAsStateWithLifecycle()
+    val syncState by shellViewModel.syncState.collectAsStateWithLifecycle(
+        initialValue = ScreenshotReceiver.SyncState.Idle,
+    )
+    val progress by shellViewModel.receiveProgress.collectAsStateWithLifecycle(initialValue = "")
     val isConnected = connectionState == ConnectionState.CONNECTED
     val scrollBehavior = MiuixScrollBehavior()
     val isBusy = syncState is ScreenshotReceiver.SyncState.Receiving ||

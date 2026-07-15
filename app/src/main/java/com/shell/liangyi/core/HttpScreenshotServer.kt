@@ -5,6 +5,7 @@ import android.util.Base64
 import android.util.Log
 import androidx.annotation.StringRes
 import com.shell.liangyi.R
+import com.shell.liangyi.util.AtomicFileWriter
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -17,7 +18,9 @@ import java.net.Socket
 import java.security.SecureRandom
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.Semaphore
+import java.util.concurrent.TimeUnit
 
 /**
  * 轻量级 HTTP 服务器（ServerSocket + 最小 HTTP/1.1 解析），零外部依赖。
@@ -64,7 +67,7 @@ class HttpScreenshotServer(
     private var serverThread: Thread? = null
     private var serverSocket: ServerSocket? = null
     private val chunkSessions = ConcurrentHashMap<String, ChunkSession>()
-    private val workerPool = Executors.newFixedThreadPool(MAX_CONCURRENT_WORKERS)
+    private var workerPool = Executors.newFixedThreadPool(MAX_CONCURRENT_WORKERS)
     private val workerSemaphore = Semaphore(MAX_CONCURRENT_WORKERS, true)
     private val authToken: String = generateAuthToken()
     var port: Int = DEFAULT_PORT
@@ -112,6 +115,9 @@ class HttpScreenshotServer(
         if (isRunning) return true
         return try {
             screenshotsDir.mkdirs()
+            if (workerPool.isShutdown || workerPool.isTerminated) {
+                workerPool = Executors.newFixedThreadPool(MAX_CONCURRENT_WORKERS)
+            }
             val bindAddr = getWifiIp()?.let { InetSocketAddress(it, port) } ?: InetSocketAddress(port)
             serverSocket = ServerSocket()
             serverSocket!!.reuseAddress = true
@@ -127,12 +133,18 @@ class HttpScreenshotServer(
                             try { client.close() } catch (_: Exception) {}
                             continue
                         }
-                        workerPool.submit {
-                            try {
-                                handleClient(client)
-                            } finally {
-                                workerSemaphore.release()
+                        try {
+                            workerPool.submit {
+                                try {
+                                    handleClient(client)
+                                } finally {
+                                    workerSemaphore.release()
+                                }
                             }
+                        } catch (e: RejectedExecutionException) {
+                            workerSemaphore.release()
+                            try { client.close() } catch (_: Exception) {}
+                            if (isRunning) Log.w(TAG, "Worker pool rejected HTTP client", e)
                         }
                     } catch (e: Exception) {
                         if (isRunning) Log.w(TAG, "Accept error", e)
@@ -141,7 +153,7 @@ class HttpScreenshotServer(
             }, "http-server")
             serverThread!!.isDaemon = true
             serverThread!!.start()
-            Log.i(TAG, "HTTP server started on port $port, IP: ${getWifiIp() ?: "unknown"}, auth: ${authToken.take(4)}...")
+            Log.i(TAG, "HTTP server started on port $port, IP: ${getWifiIp() ?: "unknown"}, auth: ${authToken.take(4)}…")
             true
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start on port $port", e)
@@ -157,7 +169,6 @@ class HttpScreenshotServer(
 
     fun stop() {
         isRunning = false
-        chunkSessions.clear()
         try {
             serverSocket?.close()
             serverSocket = null
@@ -167,7 +178,35 @@ class HttpScreenshotServer(
             serverThread = null
         } catch (_: Exception) {}
         workerPool.shutdownNow()
+        runCatching {
+            workerPool.awaitTermination(500, TimeUnit.MILLISECONDS)
+        }
+        clearChunkSessions(deleteTempFiles = true)
         Log.i(TAG, "HTTP server stopped")
+    }
+
+    private fun clearChunkSessions(deleteTempFiles: Boolean) {
+        val sessions = chunkSessions.values.toList()
+        chunkSessions.clear()
+        if (!deleteTempFiles) {
+            return
+        }
+        sessions.forEach { session ->
+            deleteIncompleteTempFile(session.tempFile)
+        }
+    }
+
+    private fun deleteIncompleteTempFile(file: File) {
+        if (!file.exists()) {
+            return
+        }
+        runCatching {
+            if (!file.delete()) {
+                Log.w(TAG, "Failed to delete incomplete HTTP chunk temp file: ${file.absolutePath}")
+            }
+        }.onFailure { error ->
+            Log.w(TAG, "Failed to delete incomplete HTTP chunk temp file: ${file.absolutePath}", error)
+        }
     }
 
     private fun handleClient(socket: Socket) {
@@ -352,7 +391,7 @@ class HttpScreenshotServer(
             session.tempFile.delete()
         }
         val sidecar = """{"shotId":"${escapeJson(session.shotId)}","timeText":"${escapeJson(session.timeText)}","size":${session.receivedBytes},"receivedVia":"http-chunk"}"""
-        session.sidecarFile.writeText(sidecar)
+        AtomicFileWriter.writeText(session.sidecarFile, sidecar)
         Log.i(TAG, "Received screenshot via HTTP chunks: ${session.shotId} (${session.receivedBytes} bytes)")
         onTransferLog(tr(R.string.http_chunk_receive_completed, session.shotId, session.receivedBytes))
     }
@@ -397,13 +436,11 @@ class HttpScreenshotServer(
 
             val fileName = "${finalShotId}.png"
             val destFile = File(screenshotsDir, fileName)
-            FileOutputStream(destFile).use { fos ->
-                fos.write(pngBytes, 0, pngBytes.size)
-            }
+            AtomicFileWriter.writeBytes(destFile, pngBytes)
 
             val sidecarFile = File(screenshotsDir, "$fileName.json")
             val sidecar = """{"shotId":"${escapeJson(finalShotId)}","timeText":"${escapeJson(finalTimeText)}","size":${pngBytes.size},"receivedVia":"http"}"""
-            sidecarFile.writeText(sidecar)
+            AtomicFileWriter.writeText(sidecarFile, sidecar)
 
             Log.i(TAG, "Received screenshot via HTTP: $finalShotId (${pngBytes.size} bytes)")
             onTransferLog(tr(R.string.http_compat_receive_completed, finalShotId, pngBytes.size))

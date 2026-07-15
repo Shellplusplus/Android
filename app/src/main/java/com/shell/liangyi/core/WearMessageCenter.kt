@@ -1,5 +1,6 @@
 package com.shell.liangyi.core
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Handler
@@ -23,8 +24,6 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
-import java.util.Timer
-import java.util.TimerTask
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -104,8 +103,8 @@ class WearMessageCenter private constructor(private val context: Context) {
     companion object {
         private const val TAG = "WearMessageCenter"
         private const val CHUNK_SIZE = 4096
-        private const val MAX_CHUNK_TOTAL = 1024
         private const val MAX_CONCURRENT_CHUNKS = 16
+        private const val CHUNK_BUFFER_TTL_MS = 60_000L
         private const val WEAR_APP_ENTRY_URI = "/pages/index"
         private const val HANDSHAKE_TIMEOUT_MS = 3000L
         private const val HEARTBEAT_INTERVAL_MS = 5000L
@@ -113,6 +112,7 @@ class WearMessageCenter private constructor(private val context: Context) {
         private const val RECONNECT_DELAY_MS = 5000L
         private val TYPE_PREVIEW_REGEX = Regex(""""type"\s*:\s*"([^"]+)"""")
 
+        @SuppressLint("StaticFieldLeak")
         @Volatile
         private var instance: WearMessageCenter? = null
 
@@ -151,6 +151,7 @@ class WearMessageCenter private constructor(private val context: Context) {
     private var currentNode: Node? = null
     private var hasDevicePermission = false
     private var listenerRegistered = false
+    private var listenerNodeId: String? = null
 
     @Volatile
     private var currentState: ConnectionState = ConnectionState.DISCONNECTED
@@ -159,7 +160,7 @@ class WearMessageCenter private constructor(private val context: Context) {
     @Volatile
     private var handshakeInProgress = false
 
-    private var heartbeatTimer: Timer? = null
+    private var heartbeatRunnable: Runnable? = null
     private var lastHeartbeatAck: Long = 0
     private var handshakeTimeoutRunnable: Runnable? = null
     private var reconnectRunnable: Runnable? = null
@@ -167,7 +168,8 @@ class WearMessageCenter private constructor(private val context: Context) {
     private class ChunkBuffer(
         val total: Int,
         val parts: Array<ByteArray?>,
-        var count: Int = 0
+        var count: Int = 0,
+        var updatedAt: Long = System.currentTimeMillis(),
     )
 
     private val messageListener = OnMessageReceivedListener { nodeId, bytes ->
@@ -249,9 +251,11 @@ class WearMessageCenter private constructor(private val context: Context) {
         api.connectedNodes
             .addOnSuccessListener { nodes ->
                 if (nodes.isNullOrEmpty()) {
+                    unregisterCurrentListener()
                     currentNode = null
                     hasDevicePermission = false
                     listenerRegistered = false
+                    listenerNodeId = null
                     updateWatchProductCode("")
                     markDisconnected(ConnectionState.DISCONNECTED, tr(R.string.no_connected_devices))
                     return@addOnSuccessListener
@@ -259,6 +263,7 @@ class WearMessageCenter private constructor(private val context: Context) {
 
                 val node = nodes[0]
                 if (currentNode?.id != node.id) {
+                    unregisterCurrentListener()
                     addLog("SYSTEM", "device", tr(R.string.device_found, node.name, node.id))
                     hasDevicePermission = false
                     listenerRegistered = false
@@ -292,6 +297,9 @@ class WearMessageCenter private constructor(private val context: Context) {
         addLog("SYSTEM", "permission", tr(R.string.checking_wear_permissions))
         api.checkPermissions(node.id, permissions)
             .addOnSuccessListener { results ->
+                if (!isCurrentNode(node.id)) {
+                    return@addOnSuccessListener
+                }
                 val allGranted = results != null && results.all { it == true }
                 if (allGranted) {
                     hasDevicePermission = true
@@ -302,6 +310,9 @@ class WearMessageCenter private constructor(private val context: Context) {
                 }
             }
             .addOnFailureListener {
+                if (!isCurrentNode(node.id)) {
+                    return@addOnFailureListener
+                }
                 requestPermission(node, force)
             }
     }
@@ -314,6 +325,9 @@ class WearMessageCenter private constructor(private val context: Context) {
 
         api.requestPermission(node.id, Permission.DEVICE_MANAGER, Permission.NOTIFY)
             .addOnSuccessListener { granted ->
+                if (!isCurrentNode(node.id)) {
+                    return@addOnSuccessListener
+                }
                 if (granted != null && granted.isNotEmpty()) {
                     hasDevicePermission = true
                     addLog("SYSTEM", "permission", tr(R.string.permission_request_success))
@@ -323,6 +337,9 @@ class WearMessageCenter private constructor(private val context: Context) {
                 }
             }
             .addOnFailureListener { e ->
+                if (!isCurrentNode(node.id)) {
+                    return@addOnFailureListener
+                }
                 Log.e(TAG, "Failed to request permissions", e)
                 markDisconnected(ConnectionState.ERROR, e.message ?: tr(R.string.request_permission_failed))
             }
@@ -341,11 +358,6 @@ class WearMessageCenter private constructor(private val context: Context) {
     }
 
     private fun registerListenerIfNeeded(force: Boolean, onDone: (Boolean) -> Unit) {
-        if (listenerRegistered && !force) {
-            onDone(true)
-            return
-        }
-
         val node = currentNode
         val api = messageApi
         if (node == null || api == null) {
@@ -353,20 +365,36 @@ class WearMessageCenter private constructor(private val context: Context) {
             return
         }
 
+        if (listenerRegistered && listenerNodeId == node.id && !force) {
+            onDone(true)
+            return
+        }
+
         val doRegister = {
             api.addListener(node.id, messageListener)
                 .addOnSuccessListener {
+                    if (!isCurrentNode(node.id)) {
+                        return@addOnSuccessListener
+                    }
                     listenerRegistered = true
+                    listenerNodeId = node.id
                     addLog("SYSTEM", "listener", tr(R.string.message_listener_registered, node.id))
                     onDone(true)
                 }
                 .addOnFailureListener { e ->
+                    if (!isCurrentNode(node.id)) {
+                        return@addOnFailureListener
+                    }
                     if (e.message?.contains("registered") == true) {
                         listenerRegistered = true
+                        listenerNodeId = node.id
                         addLog("SYSTEM", "listener", tr(R.string.message_listener_already_exists))
                         onDone(true)
                     } else {
                         listenerRegistered = false
+                        if (listenerNodeId == node.id) {
+                            listenerNodeId = null
+                        }
                         addLog("ERROR", "listener", e.message ?: tr(R.string.message_listener_registration_failed))
                         onDone(false)
                     }
@@ -374,8 +402,35 @@ class WearMessageCenter private constructor(private val context: Context) {
         }
 
         api.removeListener(node.id)
-            .addOnSuccessListener { doRegister() }
-            .addOnFailureListener { doRegister() }
+            .addOnSuccessListener {
+                if (isCurrentNode(node.id)) {
+                    doRegister()
+                }
+            }
+            .addOnFailureListener {
+                if (isCurrentNode(node.id)) {
+                    doRegister()
+                }
+            }
+    }
+
+    private fun unregisterCurrentListener() {
+        val nodeId = listenerNodeId ?: currentNode?.id ?: return
+        val api = messageApi ?: return
+        try {
+            api.removeListener(nodeId)
+                .addOnSuccessListener {
+                    if (listenerNodeId == nodeId) {
+                        listenerRegistered = false
+                        listenerNodeId = null
+                    }
+                }
+                .addOnFailureListener { e ->
+                    Log.w(TAG, "Failed to remove listener for node $nodeId", e)
+                }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to remove listener for node $nodeId", e)
+        }
     }
 
     private fun launchWearApp(onComplete: () -> Unit) {
@@ -388,14 +443,22 @@ class WearMessageCenter private constructor(private val context: Context) {
 
         api.launchWearApp(node.id, WEAR_APP_ENTRY_URI)
             .addOnSuccessListener {
+                if (!isCurrentNode(node.id)) {
+                    return@addOnSuccessListener
+                }
                 addLog("SYSTEM", "launch", tr(R.string.watch_app_launched))
                 onComplete()
             }
             .addOnFailureListener { e ->
+                if (!isCurrentNode(node.id)) {
+                    return@addOnFailureListener
+                }
                 addLog("SYSTEM", "launch", tr(R.string.watch_app_launch_failed_continue, e.message ?: "unknown"))
                 onComplete()
             }
     }
+
+    private fun isCurrentNode(nodeId: String): Boolean = currentNode?.id == nodeId
 
     private fun startHandshake() {
         clearHandshakeTimeout()
@@ -531,9 +594,11 @@ class WearMessageCenter private constructor(private val context: Context) {
 
     private fun startHeartbeatMonitor() {
         stopHeartbeat()
-        heartbeatTimer = Timer()
-        heartbeatTimer?.schedule(object : TimerTask() {
+        val runnable = object : Runnable {
             override fun run() {
+                if (heartbeatRunnable !== this) {
+                    return
+                }
                 val now = System.currentTimeMillis()
                 if (handshaked && lastHeartbeatAck > 0 && now - lastHeartbeatAck > HEARTBEAT_TIMEOUT_MS) {
                     addLog("ERROR", "heartbeat", tr(R.string.heartbeat_timeout))
@@ -544,13 +609,18 @@ class WearMessageCenter private constructor(private val context: Context) {
                     put("timestamp", now / 1000)
                 }
                 sendDirect(MessageType.HEARTBEAT, payload, logTraffic = false)
+                if (handshaked && currentState == ConnectionState.CONNECTED) {
+                    mainHandler.postDelayed(this, HEARTBEAT_INTERVAL_MS)
+                }
             }
-        }, HEARTBEAT_INTERVAL_MS, HEARTBEAT_INTERVAL_MS)
+        }
+        heartbeatRunnable = runnable
+        mainHandler.postDelayed(runnable, HEARTBEAT_INTERVAL_MS)
     }
 
     fun stopHeartbeat() {
-        heartbeatTimer?.cancel()
-        heartbeatTimer = null
+        heartbeatRunnable?.let { mainHandler.removeCallbacks(it) }
+        heartbeatRunnable = null
     }
 
     fun sendHeartbeat() {
@@ -789,16 +859,12 @@ class WearMessageCenter private constructor(private val context: Context) {
             val total = json.optInt("t", -1)
             val data = json.optString("d")
 
-            if (id.isEmpty() || index < 0 || total <= 0 || index >= total || data.isEmpty()) {
+            if (!MessageChunkGuard.isValidMetadata(id, index, total, data.isNotEmpty())) {
                 addLog("ERROR", "chunk", tr(R.string.invalid_chunk, id, index, total))
                 return
             }
-            // 终端输出可能非常长；这里不再用 MAX_CHUNK_TOTAL 限制分片总数。
-            // if (total > MAX_CHUNK_TOTAL) {
-            //     addLog("ERROR", "chunk", tr(R.string.invalid_chunk, id, index, total))
-            //     return
-            // }
 
+            pruneStaleChunkBuffers()
             if (chunkBuffers.size >= MAX_CONCURRENT_CHUNKS && !chunkBuffers.containsKey(id)) {
                 addLog("ERROR", "chunk", "Too many concurrent chunk sessions, rejecting $id")
                 return
@@ -813,8 +879,14 @@ class WearMessageCenter private constructor(private val context: Context) {
             val buffer = chunkBuffers.getOrPut(id) {
                 ChunkBuffer(total = total, parts = arrayOfNulls(total))
             }
+            if (buffer.total != total) {
+                chunkBuffers.remove(id)
+                addLog("ERROR", "chunk", "Chunk total mismatch for $id")
+                return
+            }
 
             synchronized(buffer) {
+                buffer.updatedAt = System.currentTimeMillis()
                 if (buffer.parts[index] == null) {
                     buffer.parts[index] = partBytes
                     buffer.count++
@@ -835,6 +907,21 @@ class WearMessageCenter private constructor(private val context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "Failed to process chunk message", e)
             addLog("ERROR", "chunk", e.message ?: tr(R.string.chunk_processing_failed))
+        }
+    }
+
+    private fun pruneStaleChunkBuffers() {
+        val now = System.currentTimeMillis()
+        var removed = 0
+        chunkBuffers.entries.removeIf { (_, buffer) ->
+            val stale = now - buffer.updatedAt > CHUNK_BUFFER_TTL_MS
+            if (stale) {
+                removed++
+            }
+            stale
+        }
+        if (removed > 0) {
+            addLog("SYSTEM", "chunk", "Pruned $removed stale chunk session(s)")
         }
     }
 
@@ -970,22 +1057,26 @@ class WearMessageCenter private constructor(private val context: Context) {
     fun destroy() {
         clearHandshakeTimeout()
         stopHeartbeat()
+        cancelReconnect()
         chunkBuffers.clear()
         handshaked = false
         handshakeInProgress = false
         lastHeartbeatAck = 0
         finishPendingReady(false)
 
-        val node = currentNode
+        val nodeId = listenerNodeId ?: currentNode?.id
         val api = messageApi
-        if (node != null && api != null) {
+        if (nodeId != null && api != null) {
             try {
-                api.removeListener(node.id)
+                api.removeListener(nodeId)
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to remove listener", e)
             }
         }
         listenerRegistered = false
+        listenerNodeId = null
+        hasDevicePermission = false
+        currentNode = null
         updateState(ConnectionState.DISCONNECTED)
         addLog("SYSTEM", "destroy", tr(R.string.message_center_destroyed))
     }

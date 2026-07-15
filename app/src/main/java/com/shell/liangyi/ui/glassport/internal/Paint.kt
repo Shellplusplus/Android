@@ -11,10 +11,12 @@ import com.shell.liangyi.ui.glassport.RuntimeShader
 import com.shell.liangyi.ui.glassport.asAndroidRuntimeShader
 
 internal fun Paint.blur(radius: Float) {
+    @Suppress("DEPRECATION")
     asFrameworkPaint().maskFilter =
         if (radius > 0f) BlurMaskFilter(radius, BlurMaskFilter.Blur.NORMAL) else null
 }
 
 internal fun Paint.setRuntimeShader(runtimeShader: RuntimeShader?) {
+    @Suppress("DEPRECATION")
     asFrameworkPaint().shader = runtimeShader?.asAndroidRuntimeShader()
 }

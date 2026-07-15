@@ -15,13 +15,9 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
@@ -32,24 +28,24 @@ import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.shell.liangyi.R
 import com.shell.liangyi.core.update.UpdateInstaller
 import com.shell.liangyi.feature.AgentEntryPointProvider
@@ -62,7 +58,6 @@ import com.shell.liangyi.ui.components.LiquidGlassInfoDialog
 import com.shell.liangyi.ui.components.LiquidGlassTabItem
 import com.shell.liangyi.ui.components.LiquidGlassUpdateDialog
 import com.shell.liangyi.ui.components.LiquidGlassUpdateProgressDialog
-import com.shell.liangyi.ui.components.ShellBackScaffold
 import com.shell.liangyi.ui.components.rememberShellBlurBackdrop
 import com.shell.liangyi.ui.fetch.FetchScreen
 import com.shell.liangyi.ui.glassport.rememberCatalogDialogBackdrop
@@ -77,12 +72,8 @@ import com.shell.liangyi.ui.terminal.RemoteTerminalScreen
 import com.shell.liangyi.ui.theme.ShellTheme
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardColors
-import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlin.math.abs
 import com.shell.liangyi.ui.glassport.backdrops.layerBackdrop as catalogLayerBackdrop
 
@@ -121,19 +112,16 @@ private fun rootTabItems(): List<LiquidGlassTabItem> = listOf(
 fun ShellScreen(shellViewModel: ShellViewModel) {
     val navController = rememberNavController()
     val context = LocalContext.current
-    val configuration = LocalConfiguration.current
-    val density = LocalDensity.current
-    val windowWidth = remember(configuration.screenWidthDp, density.density) {
-        (configuration.screenWidthDp * density.density).toInt()
-    }
+    val windowWidth = LocalWindowInfo.current.containerSize.width
     val rootBackdrop = rememberShellBlurBackdrop(enableBlur = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S_V2)
     val catalogDialogBackdrop = rememberCatalogDialogBackdrop()
-    val showOnboarding by shellViewModel.showOnboarding.collectAsState()
-    val aiLicenseState by shellViewModel.aiLicenseState.collectAsState()
-    val updatePrompt by shellViewModel.updatePrompt.collectAsState()
-    val updateDownloadState by shellViewModel.updateDownloadState.collectAsState()
-    val skipOptionalUpdateInfoDialogVisible by shellViewModel.skipOptionalUpdateInfoDialogVisible.collectAsState()
-    val deleteScreenshotConfirmShotId by shellViewModel.deleteScreenshotConfirmShotId.collectAsState()
+    val showOnboarding by shellViewModel.showOnboarding.collectAsStateWithLifecycle()
+    val aiLicenseState by shellViewModel.aiLicenseState.collectAsStateWithLifecycle()
+    val updatePrompt by shellViewModel.updatePrompt.collectAsStateWithLifecycle()
+    val updateDownloadState by shellViewModel.updateDownloadState.collectAsStateWithLifecycle()
+    val skipOptionalUpdateInfoDialogVisible by shellViewModel.skipOptionalUpdateInfoDialogVisible.collectAsStateWithLifecycle()
+    val deleteScreenshotConfirmShotId by shellViewModel.deleteScreenshotConfirmShotId.collectAsStateWithLifecycle()
+    val updateInstallLaunchFailedDefault = stringResource(R.string.update_install_launch_failed_default)
     var displayedUpdatePrompt by remember { mutableStateOf(updatePrompt) }
     var updateDialogVisible by remember { mutableStateOf(updatePrompt != null) }
     var displayedUpdateDownloadState by remember { mutableStateOf(updateDownloadState) }
@@ -172,7 +160,7 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
                 shellViewModel.onUpdateInstallerLaunched()
             }.onFailure { throwable ->
                 shellViewModel.onUpdateInstallerLaunchFailed(
-                    throwable.message ?: context.getString(R.string.update_install_launch_failed_default),
+                    throwable.message ?: updateInstallLaunchFailedDefault,
                 )
             }
         }
@@ -435,14 +423,17 @@ private fun MainPagerScreen(
     )
     val scope = rememberCoroutineScope()
     var pageAnimationJob by remember { mutableStateOf<Job?>(null) }
+    var targetTabIndex by remember(rootTabItems.size) { mutableIntStateOf(0) }
     val navigationBarPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val rootBottomPadding = 88.dp + navigationBarPadding
     val blurSupported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S_V2
     val pageBackground = ShellTheme.colors.pageBackground
-    val selectedTabIndex = if (pagerState.currentPageOffsetFraction == 0f) {
-        pagerState.currentPage
-    } else {
-        pagerState.targetPage
+    val selectedTabIndex = targetTabIndex
+    val tabIndicatorPosition by remember(pagerState, rootTabItems.size) {
+        derivedStateOf {
+            (pagerState.currentPage + pagerState.currentPageOffsetFraction)
+                .coerceIn(0f, rootTabItems.lastIndex.toFloat())
+        }
     }
     val liquidGlassBackdrop = if (blurSupported) {
         rememberLayerBackdrop {
@@ -451,6 +442,14 @@ private fun MainPagerScreen(
         }
     } else {
         null
+    }
+
+    LaunchedEffect(pagerState.isScrollInProgress, pagerState.targetPage, pagerState.settledPage, rootTabItems.size) {
+        targetTabIndex = if (pagerState.isScrollInProgress) {
+            pagerState.targetPage
+        } else {
+            pagerState.settledPage
+        }.coerceIn(0, rootTabItems.lastIndex)
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -489,19 +488,27 @@ private fun MainPagerScreen(
         LiquidGlassBottomBar(
             items = rootTabItems,
             selectedIndex = selectedTabIndex,
+            indicatorPosition = tabIndicatorPosition,
             onSelectedIndexChange = { index ->
-                if (index == selectedTabIndex && pagerState.currentPageOffsetFraction == 0f) {
+                val coercedIndex = index.coerceIn(0, rootTabItems.lastIndex)
+                if (coercedIndex == targetTabIndex && pageAnimationJob?.isActive == true) {
+                    return@LiquidGlassBottomBar
+                }
+                targetTabIndex = coercedIndex
+                if (coercedIndex == pagerState.settledPage && !pagerState.isScrollInProgress) {
                     return@LiquidGlassBottomBar
                 }
                 pageAnimationJob?.cancel()
                 pageAnimationJob = scope.launch {
-                    if (index == pagerState.currentPage && index == pagerState.targetPage) {
+                    if (coercedIndex == pagerState.settledPage && !pagerState.isScrollInProgress) {
                         return@launch
                     }
+                    val currentPosition = pagerState.currentPage + pagerState.currentPageOffsetFraction
+                    val pageDistance = abs(coercedIndex - currentPosition)
                     pagerState.animateScrollToPage(
-                        page = index,
+                        page = coercedIndex,
                         animationSpec = tween(
-                            durationMillis = 280 + abs(index - pagerState.currentPage) * 60,
+                            durationMillis = (240 + pageDistance * 80).toInt().coerceIn(220, 420),
                             easing = FastOutSlowInEasing,
                         ),
                     )
@@ -520,36 +527,3 @@ private fun MainPagerScreen(
     }
 }
 
-@Composable
-private fun PlaceholderScreen(title: String, subtitle: String, navController: NavHostController) {
-    val colors = MiuixTheme.colorScheme
-    val shellColors = ShellTheme.colors
-    ShellBackScaffold(
-        title = title,
-        onBack = { navController.popBackStack() },
-    ) { innerPadding ->
-        Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-            Spacer(modifier = Modifier.height(13.dp))
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 11.dp)
-                    .height(56.dp),
-                colors = CardColors(
-                    color = shellColors.cardBackground,
-                    contentColor = colors.onSurface,
-                ),
-                cornerRadius = 15.dp,
-            ) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(
-                        text = subtitle,
-                        fontSize = 16.sp,
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
-                        color = shellColors.secondaryText,
-                    )
-                }
-            }
-        }
-    }
-}

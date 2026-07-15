@@ -24,7 +24,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Downloading
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -38,6 +37,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -65,7 +65,7 @@ fun ScreenshotTimelineScreen(
     navController: NavHostController,
     shellViewModel: ShellViewModel,
 ) {
-    val screenshots by shellViewModel.screenshots.collectAsState()
+    val screenshots by shellViewModel.screenshots.collectAsStateWithLifecycle()
     val groupedTimeline = remember(screenshots) { screenshots.toTimelineGroups() }
     val scrollBehavior = MiuixScrollBehavior()
 

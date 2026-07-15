@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.os.SystemClock
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import com.shell.liangyi.R
 import com.shell.liangyi.ui.theme.ShellTheme
 import top.yukonga.miuix.kmp.basic.Card
@@ -72,6 +73,7 @@ fun AboutScreen(
     val colors = MiuixTheme.colorScheme
     val title = stringResource(R.string.about)
     val effectiveShowBackButton = showBackButton && !previewMode
+    val backDispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
     var secretTapCount by remember { mutableIntStateOf(0) }
     var lastSecretTapAt by remember { mutableLongStateOf(0L) }
 
@@ -94,7 +96,7 @@ fun AboutScreen(
                     title = title,
                     color = shellColors.pageBackground,
                     navigationIcon = {
-                        IconButton(onClick = {}) {
+                        IconButton(onClick = { backDispatcher?.onBackPressed() }) {
                             val layoutDirection = LocalLayoutDirection.current
                             Icon(
                                 modifier = Modifier.graphicsLayer {

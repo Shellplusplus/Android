@@ -2,6 +2,7 @@ package com.shell.liangyi.ui.agent
 
 import android.app.Application
 import android.content.Context
+import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.shell.liangyi.ai.AgentPrompts
@@ -13,10 +14,14 @@ import com.shell.liangyi.model.ChatMessage
 import com.shell.liangyi.model.Conversation
 import com.shell.liangyi.model.ExecState
 import com.shell.liangyi.security.ai.AiLicenseManager
+import com.shell.liangyi.ui.terminal.RemoteTerminalGuard
+import com.shell.liangyi.ui.terminal.RemoteTerminalValidationError
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlin.coroutines.cancellation.CancellationException
 
 class AgentViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -31,6 +36,7 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
     private val store = AgentConversationStore(application)
     private val bridge = AgentCommandBridge(application, viewModelScope)
     private val licenseManager = AiLicenseManager(application)
+    private var assistantReplyJob: Job? = null
 
     private val _apiConfig = MutableStateFlow(loadApiConfig())
     val apiConfig: StateFlow<AgentApiConfig> = _apiConfig.asStateFlow()
@@ -60,12 +66,13 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
     )
 
     fun updateApiConfig(baseUrl: String, token: String, model: String) {
-        prefs.edit()
-            .putString(KEY_BASE_URL, baseUrl)
-            .putString(KEY_TOKEN, token)
-            .putString(KEY_MODEL, model)
-            .apply()
-        _apiConfig.value = AgentApiConfig(baseUrl, token, model)
+        val normalizedBaseUrl = AgentApiConfig.normalizeBaseUrl(baseUrl)
+        prefs.edit {
+            putString(KEY_BASE_URL, normalizedBaseUrl)
+            putString(KEY_TOKEN, token)
+            putString(KEY_MODEL, model)
+        }
+        _apiConfig.value = AgentApiConfig(normalizedBaseUrl, token, model)
     }
 
     fun newConversation() {
@@ -95,7 +102,10 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun mutateCurrent(transform: (Conversation) -> Conversation) {
-        val id = _currentConversationId.value ?: return
+        mutateConversation(_currentConversationId.value ?: return, transform)
+    }
+
+    private fun mutateConversation(id: String, transform: (Conversation) -> Conversation) {
         _conversations.value = _conversations.value.map { conversation ->
             if (conversation.id == id) transform(conversation) else conversation
         }
@@ -117,6 +127,7 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
             _errorMessage.value = "请先在设置里填写 API 地址和模型名称"
             return
         }
+        if (assistantReplyJob?.isActive == true) return
         if (_currentConversationId.value == null) {
             newConversation()
         }
@@ -139,15 +150,17 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
         requestAssistantReply()
     }
 
-    private fun requestAssistantReply() {
+    private fun requestAssistantReply(conversationId: String? = _currentConversationId.value) {
+        if (assistantReplyJob?.isActive == true) return
         if (!licenseManager.hasAccess()) {
             _errorMessage.value = "AI 助手授权已失效，请重新验证"
             return
         }
-        val history = currentConversationValue()?.messages ?: return
+        val targetConversationId = conversationId ?: return
+        val history = _conversations.value.find { it.id == targetConversationId }?.messages ?: return
         _isSending.value = true
         _errorMessage.value = null
-        viewModelScope.launch {
+        assistantReplyJob = viewModelScope.launch {
             try {
                 val reply = OpenAIClient.chatCompletion(_apiConfig.value, history)
                 val execCommand = AgentPrompts.parseExecCommand(reply)
@@ -159,52 +172,80 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
                     execCommand = execCommand,
                     execState = if (execCommand != null) ExecState.PENDING_CONFIRM else ExecState.NONE,
                 )
-                mutateCurrent { it.copy(messages = it.messages + assistantMessage) }
+                mutateConversation(targetConversationId) { it.copy(messages = it.messages + assistantMessage) }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _errorMessage.value = "请求模型失败：${e.message ?: "未知错误"}"
             } finally {
+                assistantReplyJob = null
                 _isSending.value = false
             }
         }
     }
 
     fun confirmExec(assistantMessageId: String) {
+        if (assistantReplyJob?.isActive == true) return
         if (!licenseManager.hasAccess()) {
             _errorMessage.value = "AI 助手授权已失效，请重新验证"
             return
         }
-        val command = currentConversationValue()
+        val conversationId = _currentConversationId.value ?: return
+        val message = _conversations.value
+            .find { it.id == conversationId }
             ?.messages
             ?.find { it.id == assistantMessageId }
-            ?.execCommand
+            ?.takeIf { it.execState == ExecState.PENDING_CONFIRM }
             ?: return
+        val command = message.execCommand ?: return
+        val validationError = RemoteTerminalGuard.validate(command)
+        if (validationError != null) {
+            updateExecResult(
+                conversationId = conversationId,
+                assistantMessageId = assistantMessageId,
+                state = ExecState.FAILED,
+                stdout = "",
+                stderr = agentValidationMessage(validationError),
+            )
+            appendExecTurnAndContinue(conversationId, assistantMessageId)
+            return
+        }
 
-        setExecState(assistantMessageId, ExecState.RUNNING)
+        setExecState(conversationId, assistantMessageId, ExecState.RUNNING)
         viewModelScope.launch {
             try {
                 val result = bridge.runCommand(command)
                 val state = if (result.timedOut) ExecState.FAILED else ExecState.DONE
-                updateExecResult(assistantMessageId, state, result.stdout, result.stderr)
-                appendExecTurnAndContinue(assistantMessageId)
+                updateExecResult(conversationId, assistantMessageId, state, result.stdout, result.stderr)
+                appendExecTurnAndContinue(conversationId, assistantMessageId)
             } catch (e: AgentCommandBridge.BridgeException) {
                 updateExecResult(
+                    conversationId = conversationId,
                     assistantMessageId = assistantMessageId,
                     state = ExecState.FAILED,
                     stdout = "",
                     stderr = e.message ?: "执行失败",
                 )
-                appendExecTurnAndContinue(assistantMessageId)
+                appendExecTurnAndContinue(conversationId, assistantMessageId)
             }
         }
     }
 
     fun rejectExec(assistantMessageId: String) {
-        setExecState(assistantMessageId, ExecState.REJECTED)
-        appendExecTurnAndContinue(assistantMessageId)
+        if (assistantReplyJob?.isActive == true) return
+        val conversationId = _currentConversationId.value ?: return
+        _conversations.value
+            .find { it.id == conversationId }
+            ?.messages
+            ?.find { it.id == assistantMessageId }
+            ?.takeIf { it.execState == ExecState.PENDING_CONFIRM }
+            ?: return
+        setExecState(conversationId, assistantMessageId, ExecState.REJECTED)
+        appendExecTurnAndContinue(conversationId, assistantMessageId)
     }
 
-    private fun setExecState(assistantMessageId: String, state: ExecState) {
-        mutateCurrent { conversation ->
+    private fun setExecState(conversationId: String, assistantMessageId: String, state: ExecState) {
+        mutateConversation(conversationId) { conversation ->
             conversation.copy(
                 messages = conversation.messages.map { message ->
                     if (message.id == assistantMessageId) {
@@ -218,12 +259,13 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun updateExecResult(
+        conversationId: String,
         assistantMessageId: String,
         state: ExecState,
         stdout: String,
         stderr: String,
     ) {
-        mutateCurrent { conversation ->
+        mutateConversation(conversationId) { conversation ->
             conversation.copy(
                 messages = conversation.messages.map { message ->
                     if (message.id == assistantMessageId) {
@@ -240,8 +282,12 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun appendExecTurnAndContinue(assistantMessageId: String) {
-        val message = currentConversationValue()?.messages?.find { it.id == assistantMessageId } ?: return
+    private fun appendExecTurnAndContinue(conversationId: String, assistantMessageId: String) {
+        val message = _conversations.value
+            .find { it.id == conversationId }
+            ?.messages
+            ?.find { it.id == assistantMessageId }
+            ?: return
         val execTurn = ChatMessage(
             id = "msg-${System.currentTimeMillis()}",
             role = "exec",
@@ -252,11 +298,17 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
             execStdout = message.execStdout,
             execStderr = message.execStderr,
         )
-        mutateCurrent { it.copy(messages = it.messages + execTurn) }
-        requestAssistantReply()
+        mutateConversation(conversationId) { it.copy(messages = it.messages + execTurn) }
+        requestAssistantReply(conversationId)
     }
 
     fun clearError() {
         _errorMessage.value = null
+    }
+
+    private fun agentValidationMessage(error: RemoteTerminalValidationError): String = when (error) {
+        RemoteTerminalValidationError.Empty -> "AI 提议的命令为空，已拒绝执行"
+        RemoteTerminalValidationError.ProtectedIpc -> "AI 提议的命令涉及受保护的 IPC 文件，已拒绝执行"
+        RemoteTerminalValidationError.NestedScript -> "AI 提议的命令包含脚本链路或后台执行特征，已拒绝执行"
     }
 }

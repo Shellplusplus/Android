@@ -132,6 +132,16 @@ class DampedDragAnimation(
         }
     }
 
+    fun snapToValue(value: Float) {
+        animationScope.launch {
+            mutatorMutex.mutate {
+                val targetValue = value.coerceIn(valueRange)
+                valueAnimation.snapTo(targetValue)
+                velocityAnimation.snapTo(0f)
+            }
+        }
+    }
+
     private fun updateVelocity() {
         velocityTracker.addPosition(
             Clock.System.now().toEpochMilliseconds(),

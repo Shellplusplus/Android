@@ -1,13 +1,18 @@
 package com.shell.liangyi.core
 
+import android.util.Log
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.random.Random
+
+private const val REMOTE_TERMINAL_BRIDGE_TAG = "RemoteTerminalBridge"
 
 data class RemoteExecResult(
     val stdout: String,
@@ -29,11 +34,32 @@ class RemoteTerminalBridge(
     class BridgeException(message: String) : Exception(message)
 
     private val pendingByReqId = ConcurrentHashMap<String, Pending>()
+    private var collectorJob: Job? = null
 
     init {
-        scope.launch(Dispatchers.IO) {
-            messageCenter.messageFlow.collect { json -> handleMessage(json) }
+        collectorJob = scope.launch(Dispatchers.IO) {
+            messageCenter.messageFlow.collect { json ->
+                try {
+                    handleMessage(json)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.e(REMOTE_TERMINAL_BRIDGE_TAG, "Failed to handle remote terminal message", e)
+                }
+            }
         }
+    }
+
+    fun destroy() {
+        collectorJob?.cancel()
+        collectorJob = null
+        val exception = BridgeException("destroyed")
+        pendingByReqId.values.forEach { pending ->
+            pending.rejectReason = exception.message
+            pending.ack.complete(false)
+            pending.result.completeExceptionally(exception)
+        }
+        pendingByReqId.clear()
     }
 
     private fun handleMessage(json: JSONObject) {
@@ -86,27 +112,29 @@ class RemoteTerminalBridge(
         )
         pendingByReqId[reqId] = pending
 
-        val payload = JSONObject().apply {
-            put("reqId", reqId)
-            put("cmd", command)
-            put("source", "shell-plus-plus-android")
-        }
-        messageCenter.send("execCommand", payload) { success, error ->
-            if (!success) {
-                pending.rejectReason = error?.message ?: "send_failed"
-                pending.ack.complete(false)
+        try {
+            val payload = JSONObject().apply {
+                put("reqId", reqId)
+                put("cmd", command)
+                put("source", "shell-plus-plus-android")
             }
-        }
+            messageCenter.send("execCommand", payload) { success, error ->
+                if (!success) {
+                    pending.rejectReason = error?.message ?: "send_failed"
+                    pending.ack.complete(false)
+                }
+            }
 
-        val accepted = withTimeoutOrNull(timeoutMs) { pending.ack.await() }
-        if (accepted != true) {
+            val accepted = withTimeoutOrNull(timeoutMs) { pending.ack.await() }
+            if (accepted != true) {
+                throw BridgeException(pending.rejectReason ?: "no_ack")
+            }
+
+            val result = withTimeoutOrNull(timeoutMs) { pending.result.await() }
+            return result ?: throw BridgeException("timeout")
+        } finally {
             pendingByReqId.remove(reqId)
-            throw BridgeException(pending.rejectReason ?: "no_ack")
         }
-
-        val result = withTimeoutOrNull(timeoutMs) { pending.result.await() }
-        pendingByReqId.remove(reqId)
-        return result ?: throw BridgeException("timeout")
     }
 
     suspend fun runCommand(command: String, timeoutMs: Long = 15_000L): RemoteExecResult {

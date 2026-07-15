@@ -5,10 +5,12 @@
 
 package com.shell.liangyi.ui.glassport
 
+import android.annotation.SuppressLint
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shader
 import androidx.compose.ui.graphics.toArgb
 
+@SuppressLint("NewApi")
 fun RuntimeShader(shaderString: String): RuntimeShader {
     return AndroidRuntimeShader(android.graphics.RuntimeShader(shaderString))
 }
@@ -30,6 +32,7 @@ interface RuntimeShader {
     fun setColorUniform(name: String, color: Color)
 }
 
+@SuppressLint("NewApi")
 private class AndroidRuntimeShader(
     val shader: android.graphics.RuntimeShader,
 ) : RuntimeShader {
