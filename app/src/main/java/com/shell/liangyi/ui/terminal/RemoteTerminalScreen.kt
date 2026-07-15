@@ -150,7 +150,6 @@ fun RemoteTerminalScreen(
                 InputCard(
                     uiState = uiState,
                     onInputChange = shellViewModel::updateRemoteTerminalInput,
-                    onSend = shellViewModel::sendRemoteTerminalCommand,
                 )
             }
             if (uiState.hasResult) {
@@ -498,7 +497,6 @@ private fun SectionHeader(
 private fun InputCard(
     uiState: RemoteTerminalUiState,
     onInputChange: (String) -> Unit,
-    onSend: () -> Unit,
 ) {
     val colors = MiuixTheme.colorScheme
     val shellColors = ShellTheme.colors
@@ -536,14 +534,6 @@ private fun InputCard(
                 text = "支持点击下方模板命令快速回填，再根据需要微调后发送。",
                 fontSize = 12.sp,
                 color = colors.onSurfaceVariantSummary,
-            )
-            ActionButton(
-                modifier = Modifier.fillMaxWidth(),
-                text = if (uiState.isRunning) "等待手表返回中…" else "发送这条命令",
-                icon = Icons.AutoMirrored.Rounded.Send,
-                enabled = !uiState.isRunning,
-                filled = true,
-                onClick = onSend,
             )
         }
     }

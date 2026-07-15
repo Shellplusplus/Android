@@ -171,6 +171,7 @@ fun SettingsTabScreen(
                         summary = skipOptionalUpdateHint,
                         checked = effectiveSkipOptionalUpdatePrompts,
                         enabled = effectiveSkipOptionalUpdateAvailable,
+                        cornerRadius = 18.dp,
                         onClick = {
                             if (previewMode) {
                                 previewSkipOptionalUpdatePrompts = !effectiveSkipOptionalUpdatePrompts
@@ -202,6 +203,7 @@ fun SettingsTabScreen(
                     SettingsActionRow(
                         title = stringResource(R.string.check_updates),
                         summary = stringResource(R.string.check_updates_summary),
+                        cornerRadius = 18.dp,
                         onClick = {
                             if (previewMode) {
                                 Toast.makeText(
@@ -237,6 +239,7 @@ fun SettingsTabScreen(
                         SettingsActionRow(
                             title = stringResource(R.string.restart_onboarding),
                             summary = stringResource(R.string.restart_onboarding_summary),
+                            cornerRadius = 18.dp,
                             onClick = {
                                 if (previewMode) {
                                     Toast.makeText(
@@ -366,6 +369,7 @@ private fun SettingsSwitchRow(
     summary: String,
     checked: Boolean,
     enabled: Boolean,
+    cornerRadius: Dp = 0.dp,
     onClick: () -> Unit,
     onCheckedChange: (Boolean) -> Unit,
 ) {
@@ -380,7 +384,7 @@ private fun SettingsSwitchRow(
             color = shellColors.cardBackground,
             contentColor = colors.onSurface,
         ),
-        cornerRadius = 0.dp,
+        cornerRadius = cornerRadius,
         onClick = onClick,
         showIndication = true,
         pressFeedbackType = PressFeedbackType.Sink,
@@ -427,6 +431,7 @@ private fun SettingsSwitchRow(
 private fun SettingsActionRow(
     title: String,
     summary: String,
+    cornerRadius: Dp = 0.dp,
     onClick: () -> Unit,
 ) {
     val colors = MiuixTheme.colorScheme
@@ -438,7 +443,7 @@ private fun SettingsActionRow(
             color = shellColors.cardBackground,
             contentColor = colors.onSurface,
         ),
-        cornerRadius = 0.dp,
+        cornerRadius = cornerRadius,
         onClick = onClick,
         showIndication = true,
         pressFeedbackType = PressFeedbackType.Sink,

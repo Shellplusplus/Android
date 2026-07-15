@@ -242,6 +242,7 @@ fun LiquidGlassBottomBar(
             },
             onDragStopped = {
                 val targetIndex = targetValue.fastRoundToInt().fastCoerceIn(0, items.lastIndex)
+                animateToValue(targetIndex.toFloat())
                 onSelectedIndexChange(targetIndex)
                 animationScope.launch {
                     offsetAnimation.animateTo(0f, spring(1f, 300f, 0.5f))
