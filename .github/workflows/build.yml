@@ -173,12 +173,18 @@ jobs:
           fi
 
           if gh release view "$RELEASE_TAG" --repo "$TARGET_REPOSITORY" >/dev/null 2>&1; then
+            LATEST_ARGS=(--latest)
+            if [ "$(gh release view "$RELEASE_TAG" --repo "$TARGET_REPOSITORY" --json isDraft,isPrerelease --jq '.isDraft or .isPrerelease')" = "true" ]; then
+              LATEST_ARGS=()
+              echo "::notice::Release '$RELEASE_TAG' is draft or prerelease; skip marking it as latest."
+            fi
+
             gh release upload "$RELEASE_TAG" "${APK_FILES[@]}" --repo "$TARGET_REPOSITORY" --clobber
             gh release edit "$RELEASE_TAG" \
               --repo "$TARGET_REPOSITORY" \
               --title "$RELEASE_NAME" \
               --notes-file "$RELEASE_BODY_PATH" \
-              --latest
+              "${LATEST_ARGS[@]}"
           else
             gh release create "$RELEASE_TAG" \
               "${APK_FILES[@]}" \
