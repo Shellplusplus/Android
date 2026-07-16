@@ -142,6 +142,16 @@ class RemoteToolController(
     fun listFilePath(path: String, forceRefresh: Boolean = false) {
         val normalizedPath = normalizeRemotePath(path)
         val cachedItems = if (forceRefresh) null else directoryListingCache[normalizedPath]
+        if (cachedItems != null) {
+            _fileViewerState.value = _fileViewerState.value.copy(
+                isLoading = false,
+                currentPath = normalizedPath,
+                items = cachedItems,
+                viewerErrorMessage = "",
+                viewMode = RemoteFileViewMode.LIST,
+            )
+            return
+        }
         if (!startRequest(
                 feature = FEATURE_FILE_VIEWER,
                 action = "list",
@@ -154,7 +164,7 @@ class RemoteToolController(
         _fileViewerState.value = _fileViewerState.value.copy(
             isLoading = true,
             currentPath = normalizedPath,
-            items = cachedItems ?: if (_fileViewerState.value.currentPath == normalizedPath) {
+            items = if (_fileViewerState.value.currentPath == normalizedPath) {
                 _fileViewerState.value.items
             } else {
                 emptyList()
@@ -259,6 +269,7 @@ class RemoteToolController(
             put("requestId", requestId)
             put("feature", feature)
             put("action", action)
+            put("source", "shell-plus-plus-android")
         }
         scheduleTimeout()
         messageCenter.send(MessageType.REMOTE_TOOL_REQUEST, request) { success, error ->
