@@ -59,17 +59,23 @@ class DampedDragAnimation(
         get() = velocityAnimation.value
 
     val modifier: Modifier = Modifier.pointerInput(Unit) {
+        var hasDragged = false
         inspectDragGestures(
             onDragStart = { down ->
+                hasDragged = false
                 onDragStarted(down.position)
                 press()
             },
             onDragEnd = {
-                onDragStopped()
+                if (hasDragged) {
+                    onDragStopped()
+                }
                 release()
             },
             onDragCancel = {
-                onDragStopped()
+                if (hasDragged) {
+                    onDragStopped()
+                }
                 release()
             },
         ) { change, dragAmount ->
@@ -78,6 +84,9 @@ class DampedDragAnimation(
             val isInside = canDrag(position)
             val wasInside = canDrag(previousPosition)
             if (isInside && wasInside) {
+                if (dragAmount != Offset.Zero) {
+                    hasDragged = true
+                }
                 onDrag(size, dragAmount)
             }
         }

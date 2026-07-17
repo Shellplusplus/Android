@@ -23,10 +23,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
@@ -196,6 +198,9 @@ fun LiquidGlassBottomBar(
     var totalWidthPx by remember { mutableFloatStateOf(0f) }
     val coercedIndicatorPosition = indicatorPosition.fastCoerceIn(0f, items.lastIndex.toFloat())
     val latestIndicatorPosition = rememberUpdatedState(coercedIndicatorPosition)
+    var currentIndex by remember(items.size) {
+        mutableIntStateOf(selectedIndex.fastCoerceIn(0, items.lastIndex))
+    }
 
     val offsetAnimation = remember { Animatable(0f) }
     val rubberBandPx = with(density) { 4.dp.toPx() }
@@ -219,7 +224,7 @@ fun LiquidGlassBottomBar(
     val dampedDragAnimation = remember(animationScope, items.size, density, isLtr) {
         DampedDragAnimation(
             animationScope = animationScope,
-            initialValue = coercedIndicatorPosition,
+            initialValue = currentIndex.toFloat(),
             valueRange = 0f..items.lastIndex.toFloat(),
             visibilityThreshold = 0.001f,
             initialScale = 1f,
@@ -242,6 +247,7 @@ fun LiquidGlassBottomBar(
             },
             onDragStopped = {
                 val targetIndex = targetValue.fastRoundToInt().fastCoerceIn(0, items.lastIndex)
+                currentIndex = targetIndex
                 animateToValue(targetIndex.toFloat())
                 onSelectedIndexChange(targetIndex)
                 animationScope.launch {
@@ -260,6 +266,14 @@ fun LiquidGlassBottomBar(
                 }
             },
         ).also { holder.instance = it }
+    }
+
+    LaunchedEffect(selectedIndex, items.size) {
+        val nextIndex = selectedIndex.fastCoerceIn(0, items.lastIndex)
+        currentIndex = nextIndex
+        if (dampedDragAnimation.pressProgress <= 0.001f) {
+            dampedDragAnimation.snapToValue(nextIndex.toFloat())
+        }
     }
 
     val visualIndicatorPosition = if (dampedDragAnimation.pressProgress > 0.001f) {
