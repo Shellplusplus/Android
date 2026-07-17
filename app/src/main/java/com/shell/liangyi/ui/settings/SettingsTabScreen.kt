@@ -1,5 +1,7 @@
 package com.shell.liangyi.ui.settings
 
+import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -51,6 +53,7 @@ fun SettingsTabScreen(
     showRestartOnboardingEntry: Boolean = true,
     onRestartOnboarding: (() -> Unit)? = null,
 ) {
+    val qqGroupUrl = "https://qm.qq.com/q/OopppLfV28"
     val colors = MiuixTheme.colorScheme
     val shellColors = ShellTheme.colors
     val context = LocalContext.current
@@ -218,24 +221,54 @@ fun SettingsTabScreen(
                     )
                 }
             }
-            if (showRestartOnboardingEntry) {
-                item {
-                    SettingsSectionHeader(
-                        title = stringResource(R.string.settings_section_guidance),
+            item {
+                SettingsSectionHeader(
+                    title = stringResource(R.string.settings_section_guidance),
+                )
+            }
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp),
+                    colors = CardColors(
+                        color = shellColors.cardBackground,
+                        contentColor = colors.onSurface,
+                    ),
+                    cornerRadius = 18.dp,
+                    insideMargin = PaddingValues(0.dp),
+                ) {
+                    SettingsActionRow(
+                        title = stringResource(R.string.join_qq_group),
+                        summary = stringResource(R.string.join_qq_group_summary),
+                        cornerRadius = if (showRestartOnboardingEntry) 0.dp else 18.dp,
+                        onClick = {
+                            if (previewMode) {
+                                Toast.makeText(
+                                    context,
+                                    previewModeSettingMessage,
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                            } else {
+                                runCatching {
+                                    context.startActivity(
+                                        Intent(
+                                            Intent.ACTION_VIEW,
+                                            Uri.parse(qqGroupUrl),
+                                        ),
+                                    )
+                                }.onFailure {
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(R.string.join_qq_group_failed),
+                                        Toast.LENGTH_SHORT,
+                                    ).show()
+                                }
+                            }
+                        },
                     )
-                }
-                item {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp),
-                        colors = CardColors(
-                            color = shellColors.cardBackground,
-                            contentColor = colors.onSurface,
-                        ),
-                        cornerRadius = 18.dp,
-                        insideMargin = PaddingValues(0.dp),
-                    ) {
+                    if (showRestartOnboardingEntry) {
+                        SettingsRowDivider()
                         SettingsActionRow(
                             title = stringResource(R.string.restart_onboarding),
                             summary = stringResource(R.string.restart_onboarding_summary),

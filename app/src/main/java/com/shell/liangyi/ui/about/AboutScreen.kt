@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.os.SystemClock
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
+import com.shell.liangyi.BuildConfig
 import com.shell.liangyi.R
 import com.shell.liangyi.ui.theme.ShellTheme
 import top.yukonga.miuix.kmp.basic.Card
@@ -72,6 +73,7 @@ fun AboutScreen(
     val shellColors = ShellTheme.colors
     val colors = MiuixTheme.colorScheme
     val title = stringResource(R.string.about)
+    val versionLabel = BuildConfig.VERSION_NAME
     val effectiveShowBackButton = showBackButton && !previewMode
     val backDispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
     var secretTapCount by remember { mutableIntStateOf(0) }
@@ -128,6 +130,7 @@ fun AboutScreen(
             innerPadding = innerPadding,
             bottomContentPadding = bottomContentPadding,
             title = title,
+            versionLabel = versionLabel,
             scrollBehavior = scrollBehavior,
             onSecretAreaClick = onSecretAreaClick,
         )
@@ -139,6 +142,7 @@ private fun AboutContent(
     innerPadding: PaddingValues,
     bottomContentPadding: Dp,
     title: String,
+    versionLabel: String,
     scrollBehavior: ScrollBehavior,
     onSecretAreaClick: () -> Unit,
 ) {
@@ -167,7 +171,7 @@ private fun AboutContent(
                         .padding(start = 9.dp, bottom = 9.dp),
                 ) {
                     Text(
-                        text = "Beta 1",
+                        text = versionLabel,
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Medium,
                         fontFamily = FontFamily.Default,

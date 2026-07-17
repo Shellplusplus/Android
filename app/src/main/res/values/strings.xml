@@ -31,6 +31,9 @@
     <string name="settings_section_appearance">外观</string>
     <string name="settings_section_updates">更新</string>
     <string name="settings_section_guidance">引导与帮助</string>
+    <string name="join_qq_group">加入 QQ 交流群</string>
+    <string name="join_qq_group_summary">与网友分享玩环经验及反馈 BUG</string>
+    <string name="join_qq_group_failed">无法打开 QQ 群链接</string>
     <string name="settings_status_theme">当前主题</string>
     <string name="settings_status_updates">提醒模式</string>
     <string name="settings_status_update_muted">仅强制更新</string>

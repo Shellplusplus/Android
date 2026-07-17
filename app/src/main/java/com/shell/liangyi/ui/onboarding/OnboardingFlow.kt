@@ -2,6 +2,7 @@ package com.shell.liangyi.ui.onboarding
 
 import android.graphics.PathMeasure
 import android.graphics.RectF
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.add
@@ -74,6 +76,7 @@ import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
@@ -111,7 +114,7 @@ import kotlin.math.absoluteValue
 import android.graphics.Paint as AndroidPaint
 import android.graphics.Path as AndroidPath
 
-private const val OnboardingPageCount = 5
+private const val OnboardingPageCount = 6
 private val FloatingPagePillWidth = 69.dp
 private val FloatingSummaryHorizontalPadding = 18.dp
 private val FloatingSummaryVerticalPadding = 13.dp
@@ -123,6 +126,7 @@ private val FloatingSummaryMaxWidth = 360.dp
 fun OnboardingFlow(
     shellViewModel: ShellViewModel,
 ) {
+    val context = LocalContext.current
     val shellColors = ShellTheme.colors
     val selectedSourceId by shellViewModel.selectedGitHubProxySourceId.collectAsStateWithLifecycle()
     val customBaseUrl by shellViewModel.customGitHubProxyBaseUrl.collectAsStateWithLifecycle()
@@ -134,6 +138,8 @@ fun OnboardingFlow(
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
     val isCustomSelected = selectedSourceId == GitHubProxySources.custom.id
+    var declarationReadProgress by remember { mutableFloatStateOf(0f) }
+    val canContinueFromDeclarationPage = declarationReadProgress >= 0.999f
     val canContinueFromProxyPage = !isCustomSelected ||
         GitHubUrlResolver.normalizeCustomBaseUrl(customBaseUrl).isNotBlank()
     val canNavigateBack = pagerState.currentPage > 0
@@ -146,9 +152,10 @@ fun OnboardingFlow(
     )
     val pageSummary = when (pagerState.currentPage) {
         0 -> stringResource(R.string.onboarding_page_summary_welcome)
-        1 -> stringResource(R.string.onboarding_page_summary_proxy)
-        2 -> stringResource(R.string.onboarding_page_summary_settings)
-        3 -> stringResource(R.string.onboarding_page_summary_about)
+        1 -> stringResource(R.string.onboarding_page_summary_declaration)
+        2 -> stringResource(R.string.onboarding_page_summary_proxy)
+        3 -> stringResource(R.string.onboarding_page_summary_settings)
+        4 -> stringResource(R.string.onboarding_page_summary_about)
         else -> stringResource(R.string.onboarding_page_summary_end)
     }
 
@@ -181,7 +188,7 @@ fun OnboardingFlow(
 
     LaunchedEffect(pagerState.currentPage, benchmarkState.results, benchmarkState.isRunning) {
         if (
-            pagerState.currentPage == 1 &&
+            pagerState.currentPage == 2 &&
             benchmarkState.results.isEmpty() &&
             !benchmarkState.isRunning
         ) {
@@ -237,7 +244,12 @@ fun OnboardingFlow(
             ) {
                 when (page) {
                     0 -> WelcomePage()
-                    1 -> ProxySelectionPage(
+                    1 -> DeclarationPage(
+                        onReadProgressChange = { progress ->
+                            declarationReadProgress = progress
+                        },
+                    )
+                    2 -> ProxySelectionPage(
                         selectedSourceId = selectedSourceId,
                         customBaseUrl = customBaseUrl,
                         benchmarkState = benchmarkState,
@@ -251,13 +263,13 @@ fun OnboardingFlow(
                             shellViewModel.runGitHubProxyBenchmark(resetManualSelection = true)
                         },
                     )
-                    2 -> SettingsTabScreen(
+                    3 -> SettingsTabScreen(
                         shellViewModel = shellViewModel,
                         bottomContentPadding = 154.dp,
                         previewMode = false,
                         showRestartOnboardingEntry = false,
                     )
-                    3 -> AboutScreen(
+                    4 -> AboutScreen(
                         showBackButton = false,
                         bottomContentPadding = 154.dp,
                         previewMode = false,
@@ -272,12 +284,25 @@ fun OnboardingFlow(
             totalPages = OnboardingPageCount,
             progress = animatedPageProgress,
             summary = pageSummary,
+            nextButtonProgress = if (pagerState.currentPage == 1) {
+                declarationReadProgress
+            } else {
+                1f
+            },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(end = 18.dp, bottom = 18.dp)
                 .navigationBarsPadding(),
             onNext = {
-                if (pagerState.currentPage == 1 && !canContinueFromProxyPage) {
+                if (pagerState.currentPage == 1 && !canContinueFromDeclarationPage) {
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.onboarding_declaration_toast),
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                    return@FloatingOnboardingBar
+                }
+                if (pagerState.currentPage == 2 && !canContinueFromProxyPage) {
                     return@FloatingOnboardingBar
                 }
                 if (pagerState.currentPage >= OnboardingPageCount - 1) {
@@ -316,6 +341,143 @@ private fun WelcomePage() {
             color = shellColors.secondaryText,
         )
         Spacer(modifier = Modifier.height(160.dp))
+    }
+}
+
+@Composable
+private fun DeclarationPage(
+    onReadProgressChange: (Float) -> Unit,
+) {
+    val shellColors = ShellTheme.colors
+    val colors = MiuixTheme.colorScheme
+    val scrollBehavior = MiuixScrollBehavior()
+    val scrollState = rememberScrollState()
+    val title = stringResource(R.string.onboarding_declaration_title)
+    val sections = listOf(
+        OnboardingDeclarationSection(
+            title = stringResource(R.string.onboarding_declaration_section_1_title),
+            body = stringResource(R.string.onboarding_declaration_section_1_body),
+        ),
+        OnboardingDeclarationSection(
+            title = stringResource(R.string.onboarding_declaration_section_2_title),
+            body = stringResource(R.string.onboarding_declaration_section_2_body),
+        ),
+        OnboardingDeclarationSection(
+            title = stringResource(R.string.onboarding_declaration_section_3_title),
+            body = stringResource(R.string.onboarding_declaration_section_3_body),
+        ),
+        OnboardingDeclarationSection(
+            title = stringResource(R.string.onboarding_declaration_section_4_title),
+            body = stringResource(R.string.onboarding_declaration_section_4_body),
+        ),
+        OnboardingDeclarationSection(
+            title = stringResource(R.string.onboarding_declaration_section_5_title),
+            body = stringResource(R.string.onboarding_declaration_section_5_body),
+        ),
+        OnboardingDeclarationSection(
+            title = stringResource(R.string.onboarding_declaration_section_6_title),
+            body = stringResource(R.string.onboarding_declaration_section_6_body),
+        ),
+    )
+
+    LaunchedEffect(scrollState) {
+        snapshotFlow {
+            val maxValue = scrollState.maxValue
+            when {
+                maxValue <= 0 -> 0f
+                scrollState.value >= maxValue -> 1f
+                else -> scrollState.value.toFloat() / maxValue.toFloat()
+            }.coerceIn(0f, 1f)
+        }.collect { progress ->
+            onReadProgressChange(progress)
+        }
+    }
+
+    Scaffold(
+        modifier = Modifier.background(shellColors.pageBackground),
+        topBar = {
+            TopAppBar(
+                color = shellColors.pageBackground,
+                title = title,
+                scrollBehavior = scrollBehavior,
+            )
+        },
+        popupHost = {},
+        containerColor = shellColors.pageBackground,
+        contentWindowInsets = WindowInsets.systemBars
+            .add(WindowInsets.displayCutout)
+            .only(WindowInsetsSides.Horizontal),
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .nestedScroll(scrollBehavior.nestedScrollConnection)
+                .verticalScroll(scrollState)
+                .padding(
+                    start = 12.dp,
+                    top = innerPadding.calculateTopPadding() + 12.dp,
+                    end = 12.dp,
+                    bottom = 160.dp,
+                ),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardColors(
+                    color = shellColors.cardBackground,
+                    contentColor = colors.onSurface,
+                ),
+                cornerRadius = 22.dp,
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 18.dp, vertical = 18.dp),
+                ) {
+                    sections.forEachIndexed { index, section ->
+                        if (index > 0) {
+                            Spacer(modifier = Modifier.height(14.dp))
+                        }
+                        if (index > 0) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(1.dp)
+                                    .background(colors.onSurface.copy(alpha = 0.06f)),
+                            )
+                            Spacer(modifier = Modifier.height(14.dp))
+                        }
+                        DeclarationSectionCard(section = section)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DeclarationSectionCard(
+    section: OnboardingDeclarationSection,
+) {
+    val colors = MiuixTheme.colorScheme
+    val shellColors = ShellTheme.colors
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(
+            text = section.title,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = colors.onSurface,
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = section.body,
+            fontSize = 13.sp,
+            lineHeight = 20.sp,
+            color = shellColors.secondaryText,
+        )
     }
 }
 
@@ -824,6 +986,7 @@ private fun FloatingOnboardingBar(
     totalPages: Int,
     progress: Float,
     summary: String,
+    nextButtonProgress: Float,
     modifier: Modifier = Modifier,
     onNext: () -> Unit,
 ) {
@@ -867,6 +1030,11 @@ private fun FloatingOnboardingBar(
         targetValue = summaryPillWidth,
         animationSpec = tween(durationMillis = 260, easing = FastOutSlowInEasing),
         label = "onboarding_summary_pill_width",
+    )
+    val animatedNextButtonProgress by animateFloatAsState(
+        targetValue = nextButtonProgress.coerceIn(0f, 1f),
+        animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
+        label = "onboarding_next_button_progress",
     )
     val transitionOffsetPx = with(density) { 10.dp.toPx() }
     val maxBlur = 7.dp
@@ -919,10 +1087,21 @@ private fun FloatingOnboardingBar(
                     )
                     .size(FloatingSharedControlHeight)
                     .clip(CircleShape)
-                    .background(shellColors.primaryAction)
+                    .background(shellColors.destructiveAction)
                     .clickable(onClick = onNext),
                 contentAlignment = Alignment.Center,
             ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(animatedNextButtonProgress)
+                            .background(shellColors.primaryAction)
+                            .align(Alignment.CenterStart),
+                    )
+                }
                 Text(
                     text = "→",
                     fontSize = 18.sp,
@@ -989,6 +1168,11 @@ private fun FloatingOnboardingBar(
         }
     }
 }
+
+private data class OnboardingDeclarationSection(
+    val title: String,
+    val body: String,
+)
 
 @Composable
 private fun ProgressOutlinePill(
