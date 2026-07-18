@@ -9,6 +9,15 @@ internal object GitHubReleaseParser {
         """(?im)^\s*(?:<!--\s*)?min_supported_version_code\s*[:=]\s*(\d+)\s*(?:-->)?\s*$"""
     )
     private val versionCodePattern = Regex("""(\d+)""")
+    private val androidVersionCodePattern = Regex(
+        """(?im)^\s*(?:<!--\s*)?android_version_code\s*[:=]\s*(\d+)\s*(?:-->)?\s*$"""
+    )
+    private val androidVersionPattern = Regex(
+        """(?im)^\s*(?:<!--\s*)?android_version\s*[:=]\s*([^\s<]+)\s*(?:-->)?\s*$"""
+    )
+    private val minSupportedVersionNamePattern = Regex(
+        """(?im)^\s*(?:<!--\s*)?min_supported_version\s*[:=]\s*([^\s<]+)\s*(?:-->)?\s*$"""
+    )
 
     fun preferredAssetName(): String = "app-release.apk"
 
@@ -27,8 +36,9 @@ internal object GitHubReleaseParser {
         requireValidDownloadUrl(downloadUrl)
 
         return AppUpdateInfo(
-            latestVersion = releaseName,
-            latestVersionCode = extractVersionCode(tagName, releaseName),
+            latestVersion = extractAndroidVersion(releaseBody) ?: releaseName,
+            latestVersionCode = extractAndroidVersionCode(releaseBody)
+                ?: extractVersionCode(tagName, releaseName),
             downloadUrl = downloadUrl,
             changelog = stripMetadataLines(releaseBody),
             minSupportedVersionCode = extractMinSupportedVersionCode(releaseBody),
@@ -75,12 +85,21 @@ internal object GitHubReleaseParser {
             ?: 0L
     }
 
+    private fun extractAndroidVersionCode(releaseBody: String): Long? =
+        androidVersionCodePattern.find(releaseBody)?.groupValues?.getOrNull(1)?.toLongOrNull()
+
+    private fun extractAndroidVersion(releaseBody: String): String? =
+        androidVersionPattern.find(releaseBody)?.groupValues?.getOrNull(1)
+
     private fun stripMetadataLines(releaseBody: String): String {
-        return releaseBody
-            .lineSequence()
-            .filterNot { minSupportedVersionPattern.matches(it) }
-            .joinToString("\n")
-            .trim()
+        return releaseBody.lineSequence()
+            .filterNot { line ->
+                minSupportedVersionPattern.matches(line) ||
+                    androidVersionCodePattern.matches(line) ||
+                    androidVersionPattern.matches(line) ||
+                    minSupportedVersionNamePattern.matches(line)
+            }
+            .joinToString("\n").trim()
     }
 
     private fun extractReleaseDate(json: JSONObject): String {

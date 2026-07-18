@@ -12,7 +12,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 object UpdateChecker {
-    private const val UPDATE_URL = "https://api.github.com/repos/DefateStar/public-shellpp/releases/latest"
+    private const val UPDATE_URL = "https://api.github.com/repos/Shellplusplus/Shellplusplus/releases/latest"
     private const val PREFS_NAME = "shell_update_state"
     private const val KEY_SKIP_OPTIONAL_PROMPTS = "skip_optional_prompts"
     private const val KEY_OPTIONAL_PROMPT_COUNT_VERSION_CODE = "optional_prompt_count_version_code"

@@ -52,10 +52,28 @@ jobs:
           echo "shell.keyPassword=${{ secrets.KEY_PASSWORD }}" >> local.properties
           echo "shell.aiIssuerPublicKey=${{ secrets.AI_LICENSE_ISSUER_PUBLIC_KEY }}" >> local.properties
       - run: chmod +x gradlew
+      - name: Calculate Android version code
+        shell: bash
+        run: |
+          IFS='.' read -r major minor patch <<< "${{ inputs.app_version }}"
+          patch="${patch%%[-+]*}"
+          if ! [[ "$major" =~ ^[0-9]+$ && "$minor" =~ ^[0-9]+$ && "$patch" =~ ^[0-9]+$ ]]; then
+            echo "app_version must use x.y.z format" >&2
+            exit 1
+          fi
+          if (( minor > 99 || patch > 99 )); then
+            echo "minor and patch must be between 0 and 99" >&2
+            exit 1
+          fi
+          version_code=$((major * 10000 + minor * 100 + patch))
+          if (( version_code > 2147483647 )); then
+            echo "calculated versionCode exceeds Android's limit" >&2
+            exit 1
+          fi
+          echo "VERSION_CODE=$version_code" >> "$GITHUB_ENV"
       - name: Build release APK
         run: ./gradlew assembleRelease
         env:
-          VERSION_CODE: ${{ github.run_number }}
           VERSION_NAME: ${{ inputs.app_version }}
       - name: Upload Release Center artifact
         uses: actions/upload-artifact@v6

@@ -1,5 +1,6 @@
 package com.shell.liangyi.ui.components
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -61,6 +62,7 @@ fun LiquidGlassUpdateDialog(
     onExitFinished: () -> Unit,
     backdrop: Backdrop? = null,
 ) {
+    BackHandler(enabled = prompt.mandatory && visible) {}
     val isLightTheme = !ShellTheme.isDarkTheme
     val contentColor = if (isLightTheme) Color.Black else Color.White
     val accentColor = if (isLightTheme) Color(0xFF0088FF) else Color(0xFF0091FF)

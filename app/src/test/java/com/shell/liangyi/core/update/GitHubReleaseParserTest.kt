@@ -44,6 +44,33 @@ class GitHubReleaseParserTest {
     }
 
     @Test
+    fun parseReleasePrefersStructuredAndroidVersionMetadata() {
+        val json = JSONObject(
+            """
+            {
+              "tag_name": "release-2026-07-18",
+              "name": "Shell++ unified release",
+              "body": "<!-- android_version: 1.2.3 -->\n<!-- android_version_code: 10203 -->\n<!-- min_supported_version: 1.1.0 -->\n<!-- min_supported_version_code: 10100 -->\n\n- 修复更新检查",
+              "assets": [{
+                "name": "apk-app-release.apk",
+                "browser_download_url": "https://example.com/app.apk"
+              }]
+            }
+            """.trimIndent()
+        )
+
+        val info = GitHubReleaseParser.parseRelease(
+            json = json,
+            preferredAssetName = GitHubReleaseParser.preferredAssetName(),
+        )
+
+        assertEquals("1.2.3", info.latestVersion)
+        assertEquals(10203L, info.latestVersionCode)
+        assertEquals(10100L, info.minSupportedVersionCode)
+        assertEquals("- 修复更新检查", info.changelog)
+    }
+
+    @Test
     fun parseReleaseFallsBackToFirstApkWhenPreferredAssetMissing() {
         val json = JSONObject(
             """
