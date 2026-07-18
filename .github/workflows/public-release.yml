@@ -16,6 +16,10 @@ on:
         description: Unified public Release title
         required: true
         type: string
+      app_version:
+        description: Android version name (x.y.z)
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -52,7 +56,7 @@ jobs:
         run: ./gradlew assembleRelease
         env:
           VERSION_CODE: ${{ github.run_number }}
-          VERSION_NAME: ${{ inputs.public_release_title }}
+          VERSION_NAME: ${{ inputs.app_version }}
       - name: Upload Release Center artifact
         uses: actions/upload-artifact@v6
         with:
