@@ -103,12 +103,24 @@ fun RemoteFileViewerScreen(
     val animatedContentState = remember(displayState) {
         RemoteViewerAnimatedState(displayState)
     }
+    var hasTriggeredInitialLoad by remember { mutableStateOf(false) }
 
-    LaunchedEffect(connectionState, hasRemoteState) {
-        if (connectionState == ConnectionState.CONNECTED) {
-            shellViewModel.showRemoteFileList()
-            if (!hasRemoteState) {
-                shellViewModel.refreshRemoteFileViewerRoot()
+    LaunchedEffect(connectionState) {
+        when (connectionState) {
+            ConnectionState.CONNECTED -> {
+                if (!hasTriggeredInitialLoad) {
+                    hasTriggeredInitialLoad = true
+                    if (!hasRemoteState) {
+                        shellViewModel.refreshRemoteFileViewerRoot()
+                    }
+                }
+            }
+
+            ConnectionState.DISCONNECTED,
+            ConnectionState.CONNECTING,
+            ConnectionState.ERROR,
+            -> {
+                hasTriggeredInitialLoad = false
             }
         }
     }
@@ -233,6 +245,9 @@ private fun RemoteFileModeContent(
     onNextHexPage: (RemoteFileViewerState) -> Unit,
 ) {
     val fileTooLarge = state.selectedSizeBytes > 3L * 1024L * 1024L
+    val isWaitingForInitialDirectory = state.viewMode == RemoteFileViewMode.LIST &&
+        !state.hasLoadedCurrentPath &&
+        state.items.isEmpty()
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -242,8 +257,12 @@ private fun RemoteFileModeContent(
             RemoteFileViewMode.LIST -> {
                 if (state.items.isEmpty()) {
                     FileEmptyCard(
-                        title = stringResource(R.string.remote_file_empty),
-                        summary = if (state.isLoading) {
+                        title = if (isWaitingForInitialDirectory) {
+                            stringResource(R.string.remote_file_status_loading)
+                        } else {
+                            stringResource(R.string.remote_file_empty)
+                        },
+                        summary = if (state.isLoading || isWaitingForInitialDirectory) {
                             stringResource(R.string.remote_file_loading)
                         } else {
                             stringResource(R.string.remote_file_empty_desc)

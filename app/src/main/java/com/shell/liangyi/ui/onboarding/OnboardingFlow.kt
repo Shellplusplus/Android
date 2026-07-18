@@ -44,6 +44,8 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -61,6 +63,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -81,9 +84,13 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -105,12 +112,17 @@ import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextButton as MiuixTextButton
+import top.yukonga.miuix.kmp.basic.TextField as MiuixTextField
+import top.yukonga.miuix.kmp.basic.TextFieldDefaults as MiuixTextFieldDefaults
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.absoluteValue
+import kotlin.random.Random
 import android.graphics.Paint as AndroidPaint
 import android.graphics.Path as AndroidPath
 
@@ -138,7 +150,12 @@ fun OnboardingFlow(
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
     val isCustomSelected = selectedSourceId == GitHubProxySources.custom.id
+    val declarationVerificationCode = remember { generateOnboardingVerificationCode() }
     var declarationReadProgress by remember { mutableFloatStateOf(0f) }
+    var declarationVerificationInput by remember { mutableStateOf("") }
+    var declarationVerificationDialogVisible by remember { mutableStateOf(false) }
+    var declarationVerificationError by remember { mutableStateOf(false) }
+    var declarationVerificationPassed by remember { mutableStateOf(false) }
     val canContinueFromDeclarationPage = declarationReadProgress >= 0.999f
     val canContinueFromProxyPage = !isCustomSelected ||
         GitHubUrlResolver.normalizeCustomBaseUrl(customBaseUrl).isNotBlank()
@@ -184,6 +201,23 @@ fun OnboardingFlow(
     fun navigateToPreviousPage() {
         if (!canNavigateBack) return
         navigateToPage((pagerState.currentPage - 1).coerceAtLeast(0))
+    }
+
+    fun openDeclarationVerificationDialog() {
+        declarationVerificationInput = ""
+        declarationVerificationError = false
+        declarationVerificationDialogVisible = true
+    }
+
+    fun verifyDeclarationAndContinue() {
+        if (declarationVerificationInput == declarationVerificationCode) {
+            declarationVerificationPassed = true
+            declarationVerificationError = false
+            declarationVerificationDialogVisible = false
+            navigateToPage((pagerState.currentPage + 1).coerceAtMost(OnboardingPageCount - 1))
+        } else {
+            declarationVerificationError = true
+        }
     }
 
     LaunchedEffect(pagerState.currentPage, benchmarkState.results, benchmarkState.isRunning) {
@@ -245,6 +279,19 @@ fun OnboardingFlow(
                 when (page) {
                     0 -> WelcomePage()
                     1 -> DeclarationPage(
+                        verificationCode = declarationVerificationCode,
+                        showVerificationDialog = declarationVerificationDialogVisible,
+                        verificationCodeInput = declarationVerificationInput,
+                        verificationShowError = declarationVerificationError,
+                        onVerificationCodeInputChange = { value ->
+                            declarationVerificationInput = value.filter(Char::isDigit).take(6)
+                            declarationVerificationError = false
+                        },
+                        onVerificationDismissRequest = {
+                            declarationVerificationDialogVisible = false
+                            declarationVerificationError = false
+                        },
+                        onVerificationConfirm = ::verifyDeclarationAndContinue,
                         onReadProgressChange = { progress ->
                             declarationReadProgress = progress
                         },
@@ -302,6 +349,10 @@ fun OnboardingFlow(
                     ).show()
                     return@FloatingOnboardingBar
                 }
+                if (pagerState.currentPage == 1 && !declarationVerificationPassed) {
+                    openDeclarationVerificationDialog()
+                    return@FloatingOnboardingBar
+                }
                 if (pagerState.currentPage == 2 && !canContinueFromProxyPage) {
                     return@FloatingOnboardingBar
                 }
@@ -312,6 +363,7 @@ fun OnboardingFlow(
                 }
             },
         )
+
     }
 }
 
@@ -346,6 +398,13 @@ private fun WelcomePage() {
 
 @Composable
 private fun DeclarationPage(
+    verificationCode: String,
+    showVerificationDialog: Boolean,
+    verificationCodeInput: String,
+    verificationShowError: Boolean,
+    onVerificationCodeInputChange: (String) -> Unit,
+    onVerificationDismissRequest: () -> Unit,
+    onVerificationConfirm: () -> Unit,
     onReadProgressChange: (Float) -> Unit,
 ) {
     val shellColors = ShellTheme.colors
@@ -369,6 +428,13 @@ private fun DeclarationPage(
         OnboardingDeclarationSection(
             title = stringResource(R.string.onboarding_declaration_section_4_title),
             body = stringResource(R.string.onboarding_declaration_section_4_body),
+        ),
+        OnboardingDeclarationSection(
+            title = "",
+            body = stringResource(
+                R.string.onboarding_declaration_verification_body,
+                verificationCode,
+            ),
         ),
         OnboardingDeclarationSection(
             title = stringResource(R.string.onboarding_declaration_section_5_title),
@@ -402,7 +468,6 @@ private fun DeclarationPage(
                 scrollBehavior = scrollBehavior,
             )
         },
-        popupHost = {},
         containerColor = shellColors.pageBackground,
         contentWindowInsets = WindowInsets.systemBars
             .add(WindowInsets.displayCutout)
@@ -452,6 +517,16 @@ private fun DeclarationPage(
                 }
             }
         }
+
+        if (showVerificationDialog) {
+            DeclarationVerificationDialog(
+                codeInput = verificationCodeInput,
+                showError = verificationShowError,
+                onCodeInputChange = onVerificationCodeInputChange,
+                onDismissRequest = onVerificationDismissRequest,
+                onConfirm = onVerificationConfirm,
+            )
+        }
     }
 }
 
@@ -465,13 +540,15 @@ private fun DeclarationSectionCard(
     Column(
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Text(
-            text = section.title,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = colors.onSurface,
-        )
-        Spacer(modifier = Modifier.height(6.dp))
+        if (section.title.isNotBlank()) {
+            Text(
+                text = section.title,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = colors.onSurface,
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+        }
         Text(
             text = section.body,
             fontSize = 13.sp,
@@ -479,6 +556,112 @@ private fun DeclarationSectionCard(
             color = shellColors.secondaryText,
         )
     }
+}
+
+@Composable
+private fun DeclarationVerificationDialog(
+    codeInput: String,
+    showError: Boolean,
+    onCodeInputChange: (String) -> Unit,
+    onDismissRequest: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    val shellColors = ShellTheme.colors
+    val showDialogState = remember { mutableStateOf(true) }
+    var verificationFieldValue by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+        mutableStateOf(
+            TextFieldValue(
+                text = codeInput,
+                selection = TextRange(codeInput.length),
+            ),
+        )
+    }
+
+    LaunchedEffect(codeInput) {
+        if (verificationFieldValue.text != codeInput) {
+            verificationFieldValue = TextFieldValue(
+                text = codeInput,
+                selection = TextRange(codeInput.length),
+            )
+        }
+    }
+
+    OverlayDialog(
+        show = showDialogState.value,
+        title = stringResource(R.string.onboarding_declaration_dialog_title),
+        onDismissRequest = {
+            showDialogState.value = false
+            onDismissRequest()
+        },
+        content = {
+            Column {
+                MiuixTextField(
+                    value = verificationFieldValue,
+                    onValueChange = { newValue ->
+                        val filteredText = newValue.text.filter(Char::isDigit).take(6)
+                        val selectionEnd = minOf(newValue.selection.end, filteredText.length)
+                        verificationFieldValue = TextFieldValue(
+                            text = filteredText,
+                            selection = TextRange(selectionEnd),
+                        )
+                        onCodeInputChange(filteredText)
+                    },
+                    label = stringResource(R.string.onboarding_declaration_dialog_field_label),
+                    modifier = Modifier.fillMaxWidth(),
+                    useLabelAsPlaceholder = true,
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number,
+                        imeAction = ImeAction.Done,
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onDone = { onConfirm() },
+                    ),
+                    colors = MiuixTextFieldDefaults.textFieldColors(
+                        backgroundColor = shellColors.pageBackground,
+                        labelColor = shellColors.secondaryText,
+                        borderColor = shellColors.primaryAction,
+                    ),
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = stringResource(R.string.onboarding_declaration_dialog_summary),
+                    fontSize = 12.sp,
+                    lineHeight = 18.sp,
+                    color = if (showError) shellColors.danger else shellColors.secondaryText,
+                    modifier = Modifier.padding(start = 12.dp),
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    MiuixTextButton(
+                        text = stringResource(android.R.string.cancel),
+                        onClick = {
+                            showDialogState.value = false
+                            onDismissRequest()
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                    MiuixTextButton(
+                        text = stringResource(android.R.string.ok),
+                        onClick = {
+                            if (codeInput.isNotBlank()) {
+                                onConfirm()
+                            }
+                        },
+                        enabled = codeInput.isNotBlank(),
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+        }
+    )
 }
 
 @Composable
@@ -1249,4 +1432,8 @@ private fun ProgressOutlinePill(
 
 private fun lerpFloat(start: Float, stop: Float, fraction: Float): Float {
     return start + (stop - start) * fraction
+}
+
+private fun generateOnboardingVerificationCode(): String {
+    return Random.nextInt(100000, 1000000).toString()
 }

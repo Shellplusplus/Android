@@ -668,9 +668,13 @@ class ShellViewModel : ViewModel() {
     }
 
     private fun remoteTerminalFailureMessage(reason: String): String = when (reason) {
+        "backend_missing" -> "手表终端后端未就绪，请确认 Lua 后端正在运行"
         "blocked_ipc" -> "手表拒绝执行：命令涉及受保护的 IPC 文件"
         "blocked_nested" -> "手表拒绝执行：命令包含脚本链路或后台执行特征"
+        "busy" -> "手表终端当前正忙，请稍后重试"
         "guard_missing" -> "手表后端安全令牌未就绪，请确认 Lua 后端正在运行"
+        "write_failed" -> "手表写入执行请求失败，请稍后重试"
+        "unauthorized_source" -> "手表拒绝了当前来源的执行请求"
         "screenshot_busy" -> "手表当前正在处理截图任务，请稍后重试"
         "bridge_busy" -> "手表桥接通道正忙，请稍后重试"
         "timeout" -> "等待手表执行结果超时"

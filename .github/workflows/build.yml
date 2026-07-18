@@ -68,12 +68,13 @@ jobs:
             printf '%s' "$1" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//'
           }
 
-          TARGET_REPOSITORY="$(trim "${INPUT_RELEASE_REPOSITORY:-}")"
-          if [ -z "$TARGET_REPOSITORY" ]; then
-            TARGET_REPOSITORY="$(trim "${PUBLIC_RELEASE_REPOSITORY:-}")"
-          fi
-          if [ -z "$TARGET_REPOSITORY" ]; then
-            TARGET_REPOSITORY="$DEFAULT_PUBLIC_RELEASE_REPOSITORY"
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            TARGET_REPOSITORY="$GITHUB_REPOSITORY"
+          else
+            TARGET_REPOSITORY="$(trim "${INPUT_RELEASE_REPOSITORY:-}")"
+            if [ -z "$TARGET_REPOSITORY" ]; then
+              TARGET_REPOSITORY="$GITHUB_REPOSITORY"
+            fi
           fi
 
           if ! printf '%s' "$TARGET_REPOSITORY" | grep -Eq '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'; then

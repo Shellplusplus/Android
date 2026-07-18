@@ -46,6 +46,7 @@ data class RemoteFileItem(
 
 data class RemoteFileViewerState(
     val isLoading: Boolean = false,
+    val hasLoadedCurrentPath: Boolean = false,
     val currentPath: String = "/",
     val items: List<RemoteFileItem> = emptyList(),
     val selectedPath: String = "",
@@ -135,7 +136,10 @@ class RemoteToolController(
 
     fun refreshFileViewerRoot() {
         cancelActiveRequest()
-        _fileViewerState.value = RemoteFileViewerState(currentPath = "/")
+        _fileViewerState.value = RemoteFileViewerState(
+            currentPath = "/",
+            hasLoadedCurrentPath = false,
+        )
         listFilePath("/", forceRefresh = true)
     }
 
@@ -145,6 +149,7 @@ class RemoteToolController(
         if (cachedItems != null) {
             _fileViewerState.value = _fileViewerState.value.copy(
                 isLoading = false,
+                hasLoadedCurrentPath = true,
                 currentPath = normalizedPath,
                 items = cachedItems,
                 viewerErrorMessage = "",
@@ -163,6 +168,7 @@ class RemoteToolController(
         }
         _fileViewerState.value = _fileViewerState.value.copy(
             isLoading = true,
+            hasLoadedCurrentPath = false,
             currentPath = normalizedPath,
             items = if (_fileViewerState.value.currentPath == normalizedPath) {
                 _fileViewerState.value.items
@@ -361,6 +367,7 @@ class RemoteToolController(
                 cacheDirectoryListing(path, items)
                 _fileViewerState.value = _fileViewerState.value.copy(
                     isLoading = false,
+                    hasLoadedCurrentPath = true,
                     currentPath = path,
                     items = items,
                     viewMode = RemoteFileViewMode.LIST,
@@ -568,6 +575,7 @@ class RemoteToolController(
             FEATURE_FILE_VIEWER -> {
                 _fileViewerState.value = _fileViewerState.value.copy(
                     isLoading = false,
+                    hasLoadedCurrentPath = true,
                     viewerErrorMessage = message,
                 )
             }

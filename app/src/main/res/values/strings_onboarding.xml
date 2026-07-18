@@ -16,6 +16,12 @@
     <string name="onboarding_declaration_section_3_body">开发者、维护者、贡献者及相关团队不对您因使用本软件而产生的任何后果承担责任。无论该后果是否由误操作、不当使用、理解偏差、设备环境差异、软件缺陷或第三方组件引起，开发者均不承担任何形式的法律责任、赔偿责任、维修责任或数据恢复责任。</string>
     <string name="onboarding_declaration_section_4_title">四、用户责任</string>
     <string name="onboarding_declaration_section_4_body">请您在执行任何操作前自行判断风险，并确认您已理解该操作可能造成的影响。如您不具备相应技术能力，或无法承担设备损坏、数据丢失及其他后果，请勿使用除截图外的高风险功能。因您的操作导致设备出现任何问题，均由您自行承担全部责任。</string>
+    <string name="onboarding_declaration_verification_title">验证码确认</string>
+    <string name="onboarding_declaration_verification_body">您的验证码为：%1$s</string>
+    <string name="onboarding_declaration_dialog_title">请输入验证码</string>
+    <string name="onboarding_declaration_dialog_summary">验证码提示在声明中可以找到，输入正确后才会继续下一步。</string>
+    <string name="onboarding_declaration_dialog_field_label">六位验证码</string>
+    <string name="onboarding_declaration_dialog_error">验证码不正确，请回到声明内容中重新确认。</string>
     <string name="onboarding_declaration_section_5_title">五、无担保声明</string>
     <string name="onboarding_declaration_section_5_body">本软件按“现状”提供，不作任何明示或暗示的保证，包括但不限于稳定性、安全性、兼容性、适用于特定用途、不会造成设备异常或不会导致数据损失等保证。</string>
     <string name="onboarding_declaration_section_6_title">六、继续使用</string>
