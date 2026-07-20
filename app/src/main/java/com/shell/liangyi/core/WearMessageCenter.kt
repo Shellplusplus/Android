@@ -351,7 +351,7 @@ class WearMessageCenter private constructor(private val context: Context) {
                 markDisconnected(ConnectionState.ERROR, tr(R.string.message_listener_registration_failed))
                 return@registerListenerIfNeeded
             }
-            launchWearApp {
+            maybeLaunchWearApp {
                 startHandshake()
             }
         }
@@ -433,7 +433,12 @@ class WearMessageCenter private constructor(private val context: Context) {
         }
     }
 
-    private fun launchWearApp(onComplete: () -> Unit) {
+    private fun maybeLaunchWearApp(onComplete: () -> Unit) {
+        if (!WearConnectionPreferences.isAutoLaunchWearAppEnabled(context)) {
+            addLog("SYSTEM", "launch", tr(R.string.watch_app_launch_skipped))
+            onComplete()
+            return
+        }
         val node = currentNode
         val api = nodeApi
         if (node == null || api == null) {

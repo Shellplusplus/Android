@@ -29,6 +29,7 @@
     <string name="settings_overview_title">偏好与更新</string>
     <string name="settings_overview_summary">把常用外观、更新提醒和引导入口整理在一起，调整起来更顺手。</string>
     <string name="settings_section_appearance">外观</string>
+    <string name="settings_section_connection">连接</string>
     <string name="settings_section_updates">更新</string>
     <string name="settings_section_guidance">引导与帮助</string>
     <string name="join_qq_group">加入 QQ 交流群</string>
@@ -43,6 +44,8 @@
     <string name="app_theme_follow_system">跟随系统</string>
     <string name="app_theme_light">浅色模式</string>
     <string name="app_theme_dark">深色模式</string>
+    <string name="auto_launch_wear_app_title">自动拉起手表快应用</string>
+    <string name="auto_launch_wear_app_summary">关闭后，安卓端建立连接时不再主动拉起手表快应用；如需连接，请先在手表端手动打开。</string>
     <string name="skip_optional_updates">非强制更新不提醒</string>
     <string name="skip_optional_updates_summary">开启后，仅强制更新会自动提醒，手动检查不受影响</string>
     <string name="skip_optional_updates_locked_summary">同一可选更新弹窗出现 3 次后可用（当前 %1$d/3）</string>
@@ -133,6 +136,7 @@
     <string name="message_listener_registered">消息监听器注册成功 (node=%1$s)</string>
     <string name="message_listener_already_exists">监听器已存在（忽略报错）</string>
     <string name="watch_app_launched">已拉起手表快应用</string>
+    <string name="watch_app_launch_skipped">已按设置跳过自动拉起手表快应用</string>
     <string name="watch_app_launch_failed_continue">拉起手表快应用失败，继续尝试握手: %1$s</string>
     <string name="handshake_timeout">握手超时</string>
     <string name="watch_app_no_handshake_response">手表快应用未响应握手</string>

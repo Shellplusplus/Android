@@ -12,6 +12,7 @@ import com.shell.liangyi.core.RemoteTerminalBridge
 import com.shell.liangyi.core.RemoteToolController
 import com.shell.liangyi.core.ScreenshotReceiver
 import com.shell.liangyi.core.WearMessageCenter
+import com.shell.liangyi.core.WearConnectionPreferences
 import com.shell.liangyi.core.onboarding.GitHubProxyBenchmarkUiState
 import com.shell.liangyi.core.onboarding.GitHubProxyBenchmarker
 import com.shell.liangyi.core.onboarding.GitHubProxySelection
@@ -104,6 +105,8 @@ class ShellViewModel : ViewModel() {
     val aiLicenseState: StateFlow<AiLicenseState> = _aiLicenseState.asStateFlow()
     private val _themeMode = MutableStateFlow(ShellThemeMode.FOLLOW_SYSTEM)
     val themeMode = _themeMode.asStateFlow()
+    private val _autoLaunchWearApp = MutableStateFlow(true)
+    val autoLaunchWearApp = _autoLaunchWearApp.asStateFlow()
 
     private val _updateMessages = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val updateMessages = _updateMessages.asSharedFlow()
@@ -136,6 +139,7 @@ class ShellViewModel : ViewModel() {
         remoteToolController = RemoteToolController(appContext, scope, wearMessageCenter)
         loadRemoteTerminalPreferences(appContext)
         loadThemePreferences(appContext)
+        loadWearConnectionPreferences(appContext)
         initialized = true
     }
     fun refreshAiLicense() {
@@ -234,6 +238,12 @@ class ShellViewModel : ViewModel() {
         context.getSharedPreferences(APP_UI_PREFS, Context.MODE_PRIVATE).edit {
             putString(APP_THEME_MODE_KEY, mode.storageValue)
         }
+    }
+
+    fun setAutoLaunchWearApp(enabled: Boolean) {
+        val context = appCtx ?: return
+        _autoLaunchWearApp.value = enabled
+        WearConnectionPreferences.setAutoLaunchWearAppEnabled(context, enabled)
     }
 
     fun isLanTransferBlocked(productCode: String = watchProductCode.value): Boolean {
@@ -614,6 +624,10 @@ class ShellViewModel : ViewModel() {
         _themeMode.value = ShellThemeMode.fromStorage(
             prefs.getString(APP_THEME_MODE_KEY, ShellThemeMode.FOLLOW_SYSTEM.storageValue),
         )
+    }
+
+    private fun loadWearConnectionPreferences(context: Context) {
+        _autoLaunchWearApp.value = WearConnectionPreferences.isAutoLaunchWearAppEnabled(context)
     }
 
     private fun saveRemoteTerminalList(
