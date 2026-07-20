@@ -73,7 +73,7 @@ fun LiquidGlassUpdateProgressDialog(
         foregroundColor = MiuixTheme.colorScheme.primary,
         backgroundColor = MiuixTheme.colorScheme.primary.copy(alpha = 0.16f),
     )
-    var animatedVisible by remember(state.versionLabel, state.statusText, state.detailText) {
+    var animatedVisible by remember {
         mutableStateOf(false)
     }
     val overlayAlpha by animateFloatAsState(
@@ -125,11 +125,11 @@ fun LiquidGlassUpdateProgressDialog(
         label = "update_progress_dialog_tilt_x",
     )
 
-    LaunchedEffect(state.versionLabel, state.statusText, state.detailText, visible) {
+    LaunchedEffect(visible) {
         animatedVisible = visible
     }
 
-    LaunchedEffect(visible, state.versionLabel, state.statusText, state.detailText) {
+    LaunchedEffect(visible) {
         if (!visible) {
             delay(UPDATE_PROGRESS_DIALOG_EXIT_DURATION_MS.toLong())
             onExitFinished()

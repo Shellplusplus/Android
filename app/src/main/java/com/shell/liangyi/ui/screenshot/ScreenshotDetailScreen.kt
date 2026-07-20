@@ -16,8 +16,11 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.AutoAwesome
@@ -36,6 +39,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -45,6 +49,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
@@ -79,10 +84,15 @@ fun ScreenshotDetailScreen(
     shellViewModel: ShellViewModel,
 ) {
     val screenshots by shellViewModel.screenshots.collectAsStateWithLifecycle()
+    val watchProductCode by shellViewModel.watchProductCode.collectAsStateWithLifecycle()
     val shot = screenshots.find { it.shotId == shotId }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var actionInProgress by remember { mutableStateOf(false) }
+    var showFramePicker by remember { mutableStateOf(false) }
+    val frameSet = remember(watchProductCode) {
+        DeviceFrameCatalog.resolve(watchProductCode)
+    }
 
     val resolvedPath = remember(shot?.localFilePath, shotId) {
         shot?.localFilePath?.takeIf { it.isNotBlank() } ?: shellViewModel.getScreenshotFilePath(shotId)
@@ -131,6 +141,61 @@ fun ScreenshotDetailScreen(
     val compositeFailedText = stringResource(R.string.composite_failed)
     val saveFailedText = stringResource(R.string.save_failed)
 
+    fun saveFramedScreenshot(
+        selectedFrameSet: DeviceFrameSet,
+        variant: DeviceFrameVariant,
+    ) {
+        if (actionInProgress) return
+        val inputPath = resolvedPath ?: return
+        actionInProgress = true
+        scope.launch {
+            val result = try {
+                withContext(Dispatchers.IO) {
+                    val deviceFile = prepareDevice(context, cacheDir, variant)
+                        ?: return@withContext SaveResult.CompositeFailed
+                    val out = File(
+                        cacheDir,
+                        "framed_${variant.id}_${File(inputPath).name}",
+                    )
+                    if (
+                        !ImageProcessor.compositeWithFrame(
+                            screenshotPath = inputPath,
+                            framePath = deviceFile.absolutePath,
+                            outputPath = out.absolutePath,
+                            placement = selectedFrameSet.placement,
+                        )
+                    ) {
+                        return@withContext SaveResult.CompositeFailed
+                    }
+                    FileCacheTrimmer.trim(cacheDir, PROCESSED_IMAGE_CACHE_LIMIT)
+                    val suffix = shot?.index ?: System.currentTimeMillis()
+                    val fileName = "Shell++_framed_${variant.id}_$suffix"
+                    if (gallerySaver.saveFileToGallery(out.absolutePath, fileName)) {
+                        SaveResult.Success
+                    } else {
+                        SaveResult.SaveFailed
+                    }
+                }
+            } catch (error: Exception) {
+                if (error is CancellationException) {
+                    throw error
+                }
+                SaveResult.CompositeFailed
+            } finally {
+                actionInProgress = false
+            }
+            Toast.makeText(
+                context,
+                when (result) {
+                    SaveResult.Success -> screenshotSavedText
+                    SaveResult.CompositeFailed -> compositeFailedText
+                    SaveResult.SaveFailed -> saveFailedText
+                },
+                Toast.LENGTH_SHORT,
+            ).show()
+        }
+    }
+
     ShellBackScaffold(
         title = displayTitle,
         onBack = { navController.popBackStack() }
@@ -154,42 +219,24 @@ fun ScreenshotDetailScreen(
                     actionInProgress = actionInProgress,
                     onFrameClick = {
                         if (actionInProgress) return@PreviewActionCard
-                        val inputPath = resolvedPath ?: return@PreviewActionCard
-                        actionInProgress = true
-                        scope.launch {
-                            val result = try {
-                                withContext(Dispatchers.IO) {
-                                    val deviceFile = prepareDevice(context, cacheDir)
-                                        ?: return@withContext SaveResult.CompositeFailed
-                                    val out = File(cacheDir, "framed_${File(inputPath).name}")
-                                    if (!ImageProcessor.compositeWithFrame(inputPath, deviceFile.absolutePath, out.absolutePath)) {
-                                        return@withContext SaveResult.CompositeFailed
-                                    }
-                                    FileCacheTrimmer.trim(cacheDir, PROCESSED_IMAGE_CACHE_LIMIT)
-                                    val fileName = "Shell++_framed_${shot?.index ?: System.currentTimeMillis()}"
-                                    if (gallerySaver.saveFileToGallery(out.absolutePath, fileName)) {
-                                        SaveResult.Success
-                                    } else {
-                                        SaveResult.SaveFailed
-                                    }
-                                }
-                            } catch (error: Exception) {
-                                if (error is CancellationException) {
-                                    throw error
-                                }
-                                SaveResult.CompositeFailed
-                            } finally {
-                                actionInProgress = false
+                        val selectedFrameSet = frameSet
+                        if (selectedFrameSet == null) {
+                            val message = if (watchProductCode.isBlank()) {
+                                context.getString(R.string.frame_device_unknown)
+                            } else {
+                                context.getString(R.string.frame_unsupported, watchProductCode)
                             }
                             Toast.makeText(
                                 context,
-                                when (result) {
-                                    SaveResult.Success -> screenshotSavedText
-                                    SaveResult.CompositeFailed -> compositeFailedText
-                                    SaveResult.SaveFailed -> saveFailedText
-                                },
-                                Toast.LENGTH_SHORT
+                                message,
+                                Toast.LENGTH_SHORT,
                             ).show()
+                            return@PreviewActionCard
+                        }
+                        if (selectedFrameSet.variants.size == 1) {
+                            saveFramedScreenshot(selectedFrameSet, selectedFrameSet.variants.first())
+                        } else {
+                            showFramePicker = true
                         }
                     },
                     onSaveClick = {
@@ -230,6 +277,163 @@ fun ScreenshotDetailScreen(
                     status = statusVisual,
                 )
             }
+        }
+    }
+
+    if (showFramePicker && frameSet != null) {
+        DeviceFramePickerDialog(
+            frameSet = frameSet,
+            onDismissRequest = { showFramePicker = false },
+            onSelect = { variant ->
+                showFramePicker = false
+                saveFramedScreenshot(frameSet, variant)
+            },
+        )
+    }
+}
+
+@Composable
+private fun DeviceFramePickerDialog(
+    frameSet: DeviceFrameSet,
+    onDismissRequest: () -> Unit,
+    onSelect: (DeviceFrameVariant) -> Unit,
+) {
+    val colors = MiuixTheme.colorScheme
+    val modelName = stringResource(frameSet.modelNameRes)
+
+    Dialog(onDismissRequest = onDismissRequest) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .widthIn(max = 420.dp),
+            colors = CardColors(
+                color = ShellTheme.colors.cardBackground,
+                contentColor = colors.onSurface,
+            ),
+            cornerRadius = 32.dp,
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.frame_picker_title),
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.onSurface,
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = stringResource(
+                        R.string.frame_picker_summary,
+                        modelName,
+                        frameSet.variants.size,
+                    ),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = colors.onSurfaceVariantSummary,
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                LazyColumn(
+                    modifier = Modifier.heightIn(max = 420.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(frameSet.variants, key = { it.id }) { variant ->
+                        DeviceFrameVariantCard(
+                            variant = variant,
+                            onClick = { onSelect(variant) },
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    colors = CardColors(
+                        color = colors.secondaryContainer,
+                        contentColor = colors.onSecondaryContainer,
+                    ),
+                    cornerRadius = 999.dp,
+                    onClick = onDismissRequest,
+                    showIndication = true,
+                    pressFeedbackType = PressFeedbackType.Sink,
+                ) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = stringResource(R.string.close),
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = colors.onSecondaryContainer,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DeviceFrameVariantCard(
+    variant: DeviceFrameVariant,
+    onClick: () -> Unit,
+) {
+    val colors = MiuixTheme.colorScheme
+    val context = LocalContext.current
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(76.dp),
+        colors = CardColors(
+            color = colors.secondaryContainer.copy(alpha = 0.72f),
+            contentColor = colors.onSecondaryContainer,
+        ),
+        cornerRadius = 18.dp,
+        onClick = onClick,
+        showIndication = true,
+        pressFeedbackType = PressFeedbackType.Sink,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(60.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(ShellTheme.colors.pageBackground),
+                contentAlignment = Alignment.Center,
+            ) {
+                AsyncImage(
+                    model = ImageRequest.Builder(context)
+                        .data(variant.resourceId)
+                        .build(),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Fit,
+                )
+            }
+            Spacer(modifier = Modifier.width(14.dp))
+            Text(
+                modifier = Modifier.weight(1f),
+                text = stringResource(variant.labelRes),
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = colors.onSecondaryContainer,
+            )
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = colors.onSurfaceVariantSummary,
+            )
         }
     }
 }
@@ -655,10 +859,14 @@ private enum class SaveResult {
     SaveFailed,
 }
 
-private fun prepareDevice(context: Context, cacheDir: File): File? {
-    val out = File(cacheDir, "device_9pro.png")
-    if (!out.exists()) {
-        context.resources.openRawResource(R.raw.device_9pro).use { input ->
+private fun prepareDevice(
+    context: Context,
+    cacheDir: File,
+    variant: DeviceFrameVariant,
+): File? {
+    val out = File(cacheDir, "device_${variant.id}.webp")
+    if (!out.exists() || out.length() == 0L) {
+        context.resources.openRawResource(variant.resourceId).use { input ->
             out.outputStream().use { output -> input.copyTo(output) }
         }
     }

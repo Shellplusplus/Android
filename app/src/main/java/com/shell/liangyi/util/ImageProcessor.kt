@@ -14,6 +14,14 @@ object ImageProcessor {
 
     private const val CORNER_RADIUS_PX = 48f
 
+    data class FramePlacement(
+        val left: Int,
+        val top: Int,
+        val width: Int,
+        val height: Int,
+        val cornerRadiusPx: Float,
+    )
+
     fun addRoundedCorners(inputPath: String, outputPath: String): Boolean {
         var src: Bitmap? = null
         var result: Bitmap? = null
@@ -35,9 +43,15 @@ object ImageProcessor {
         }
     }
 
-    fun compositeWithFrame(screenshotPath: String, framePath: String, outputPath: String): Boolean {
+    fun compositeWithFrame(
+        screenshotPath: String,
+        framePath: String,
+        outputPath: String,
+        placement: FramePlacement? = null,
+    ): Boolean {
         var src: Bitmap? = null
         var frame: Bitmap? = null
+        var scaled: Bitmap? = null
         var rounded: Bitmap? = null
         var result: Bitmap? = null
         return try {
@@ -51,13 +65,24 @@ object ImageProcessor {
             result = composited
             val canvas = Canvas(composited)
 
-            val roundedScreenshot = addRoundedCornersToBitmap(src, CORNER_RADIUS_PX)
+            val targetWidth = placement?.width ?: src.width
+            val targetHeight = placement?.height ?: src.height
+            val scaledScreenshot = Bitmap.createScaledBitmap(src, targetWidth, targetHeight, true)
+            if (scaledScreenshot !== src) {
+                scaled = scaledScreenshot
+            }
+            val roundedScreenshot = addRoundedCornersToBitmap(
+                scaledScreenshot,
+                placement?.cornerRadiusPx ?: CORNER_RADIUS_PX,
+            )
             rounded = roundedScreenshot
 
             canvas.drawBitmap(frame, 0f, 0f, null)
 
-            val offsetX = (canvasW - roundedScreenshot.width) / 2f
-            val offsetY = (canvasH - roundedScreenshot.height) / 2f
+            val offsetX = placement?.left?.toFloat()
+                ?: (canvasW - roundedScreenshot.width) / 2f
+            val offsetY = placement?.top?.toFloat()
+                ?: (canvasH - roundedScreenshot.height) / 2f
             canvas.drawBitmap(roundedScreenshot, offsetX, offsetY, null)
 
             AtomicFileWriter.write(File(outputPath)) { out ->
@@ -71,6 +96,7 @@ object ImageProcessor {
         } finally {
             src?.recycle()
             frame?.recycle()
+            scaled?.recycle()
             rounded?.recycle()
             result?.recycle()
         }

@@ -58,17 +58,15 @@ object InAppUpdateDownloader {
 
             connection.inputStream.use { input ->
                 FileOutputStream(tempFile).use { fileOutput ->
-                    fileOutput.buffered().use { output ->
-                        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                        while (true) {
-                            val read = input.read(buffer)
-                            if (read <= 0) break
-                            output.write(buffer, 0, read)
-                            downloadedBytes += read
-                            onProgress(downloadedBytes, totalBytes)
-                        }
-                        output.flush()
+                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                    while (true) {
+                        val read = input.read(buffer)
+                        if (read <= 0) break
+                        fileOutput.write(buffer, 0, read)
+                        downloadedBytes += read
+                        onProgress(downloadedBytes, totalBytes)
                     }
+                    fileOutput.flush()
                     fileOutput.fd.sync()
                 }
             }
