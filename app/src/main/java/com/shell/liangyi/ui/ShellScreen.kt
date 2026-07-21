@@ -1,7 +1,10 @@
 package com.shell.liangyi.ui
 
+import android.content.Context
 import android.net.Uri
 import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.CubicBezierEasing
@@ -34,6 +37,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -122,6 +126,24 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
     val skipOptionalUpdateInfoDialogVisible by shellViewModel.skipOptionalUpdateInfoDialogVisible.collectAsStateWithLifecycle()
     val deleteScreenshotConfirmShotId by shellViewModel.deleteScreenshotConfirmShotId.collectAsStateWithLifecycle()
     val updateInstallLaunchFailedDefault = stringResource(R.string.update_install_launch_failed_default)
+    val updateInstallPermissionRequired = stringResource(R.string.update_install_permission_required)
+    var pendingInstallApkFilePath by rememberSaveable { mutableStateOf<String?>(null) }
+    val installPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult(),
+    ) {
+        val apkFilePath = pendingInstallApkFilePath ?: return@rememberLauncherForActivityResult
+        pendingInstallApkFilePath = null
+        if (UpdateInstaller.canRequestPackageInstalls(context)) {
+            launchUpdateInstaller(
+                context = context,
+                shellViewModel = shellViewModel,
+                apkFilePath = apkFilePath,
+                defaultErrorMessage = updateInstallLaunchFailedDefault,
+            )
+        } else {
+            shellViewModel.onUpdateInstallerLaunchFailed(updateInstallPermissionRequired)
+        }
+    }
     var displayedUpdatePrompt by remember { mutableStateOf(updatePrompt) }
     var updateDialogVisible by remember { mutableStateOf(updatePrompt != null) }
     var displayedUpdateDownloadState by remember { mutableStateOf(updateDownloadState) }
@@ -154,14 +176,25 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
 
     LaunchedEffect(Unit) {
         shellViewModel.installUpdateRequests.collect { apkFilePath ->
-            runCatching {
-                UpdateInstaller.launchInstaller(context, apkFilePath)
-            }.onSuccess {
-                shellViewModel.onUpdateInstallerLaunched()
-            }.onFailure { throwable ->
-                shellViewModel.onUpdateInstallerLaunchFailed(
-                    throwable.message ?: updateInstallLaunchFailedDefault,
+            if (UpdateInstaller.canRequestPackageInstalls(context)) {
+                launchUpdateInstaller(
+                    context = context,
+                    shellViewModel = shellViewModel,
+                    apkFilePath = apkFilePath,
+                    defaultErrorMessage = updateInstallLaunchFailedDefault,
                 )
+            } else {
+                pendingInstallApkFilePath = apkFilePath
+                runCatching {
+                    installPermissionLauncher.launch(
+                        UpdateInstaller.createInstallPermissionIntent(context),
+                    )
+                }.onFailure { throwable ->
+                    pendingInstallApkFilePath = null
+                    shellViewModel.onUpdateInstallerLaunchFailed(
+                        throwable.message ?: updateInstallLaunchFailedDefault,
+                    )
+                }
             }
         }
     }
@@ -408,6 +441,23 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
                 backdrop = catalogDialogBackdrop,
             )
         }
+    }
+}
+
+private fun launchUpdateInstaller(
+    context: Context,
+    shellViewModel: ShellViewModel,
+    apkFilePath: String,
+    defaultErrorMessage: String,
+) {
+    runCatching {
+        UpdateInstaller.launchInstaller(context, apkFilePath)
+    }.onSuccess {
+        shellViewModel.onUpdateInstallerLaunched()
+    }.onFailure { throwable ->
+        shellViewModel.onUpdateInstallerLaunchFailed(
+            throwable.message ?: defaultErrorMessage,
+        )
     }
 }
 
