@@ -54,6 +54,7 @@ import com.shell.liangyi.R
 import com.shell.liangyi.core.update.UpdateInstaller
 import com.shell.liangyi.feature.AgentEntryPointProvider
 import com.shell.liangyi.ui.about.AboutScreen
+import com.shell.liangyi.ui.ai.AiAuthorizedFeatureMode
 import com.shell.liangyi.ui.ai.AiLicenseScreen
 import com.shell.liangyi.ui.bluetooth.BluetoothScreen
 import com.shell.liangyi.ui.components.LiquidGlassBottomBar
@@ -121,6 +122,7 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
     val catalogDialogBackdrop = rememberCatalogDialogBackdrop()
     val showOnboarding by shellViewModel.showOnboarding.collectAsStateWithLifecycle()
     val aiLicenseState by shellViewModel.aiLicenseState.collectAsStateWithLifecycle()
+    val aiAuthorizedFeatureMode by shellViewModel.aiAuthorizedFeatureMode.collectAsStateWithLifecycle()
     val updatePrompt by shellViewModel.updatePrompt.collectAsStateWithLifecycle()
     val updateDownloadState by shellViewModel.updateDownloadState.collectAsStateWithLifecycle()
     val skipOptionalUpdateInfoDialogVisible by shellViewModel.skipOptionalUpdateInfoDialogVisible.collectAsStateWithLifecycle()
@@ -345,7 +347,11 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
                         RemoteTerminalScreen(navController, shellViewModel)
                     }
                     composable(Routes.AI_ASSISTANT) {
-                        if (AgentEntryPointProvider.entryPoint.isEnabled && aiLicenseState.canUse) {
+                        if (
+                            AgentEntryPointProvider.entryPoint.isEnabled &&
+                            aiLicenseState.canUse &&
+                            aiAuthorizedFeatureMode == AiAuthorizedFeatureMode.AiAssistant
+                        ) {
                             AgentEntryPointProvider.entryPoint.Screen(navController, shellViewModel)
                         } else {
                             AiLicenseScreen(navController, shellViewModel)

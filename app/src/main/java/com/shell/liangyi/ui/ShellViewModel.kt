@@ -28,6 +28,7 @@ import com.shell.liangyi.core.update.UpdatePrompt
 import com.shell.liangyi.model.Screenshot
 import com.shell.liangyi.security.ai.AiLicenseManager
 import com.shell.liangyi.security.ai.AiLicenseState
+import com.shell.liangyi.ui.ai.AiAuthorizedFeatureMode
 import com.shell.liangyi.ui.terminal.RemoteTerminalGuard
 import com.shell.liangyi.ui.terminal.RemoteTerminalResultKind
 import com.shell.liangyi.ui.terminal.RemoteTerminalUiState
@@ -103,6 +104,8 @@ class ShellViewModel : ViewModel() {
     val deleteScreenshotConfirmShotId = _deleteScreenshotConfirmShotId.asStateFlow()
     private val _aiLicenseState = MutableStateFlow(AiLicenseState())
     val aiLicenseState: StateFlow<AiLicenseState> = _aiLicenseState.asStateFlow()
+    private val _aiAuthorizedFeatureMode = MutableStateFlow(AiAuthorizedFeatureMode.AiAssistant)
+    val aiAuthorizedFeatureMode = _aiAuthorizedFeatureMode.asStateFlow()
     private val _themeMode = MutableStateFlow(ShellThemeMode.FOLLOW_SYSTEM)
     val themeMode = _themeMode.asStateFlow()
     private val _autoLaunchWearApp = MutableStateFlow(true)
@@ -139,6 +142,7 @@ class ShellViewModel : ViewModel() {
         remoteToolController = RemoteToolController(appContext, scope, wearMessageCenter)
         loadRemoteTerminalPreferences(appContext)
         loadThemePreferences(appContext)
+        loadAiAuthorizedFeatureMode(appContext)
         loadWearConnectionPreferences(appContext)
         initialized = true
     }
@@ -174,6 +178,14 @@ class ShellViewModel : ViewModel() {
     }
 
     fun hasAiLicenseAccess(): Boolean = aiLicenseManager?.hasAccess() == true
+
+    fun setAiAuthorizedFeatureMode(mode: AiAuthorizedFeatureMode) {
+        val context = appCtx ?: return
+        _aiAuthorizedFeatureMode.value = mode
+        context.getSharedPreferences(APP_UI_PREFS, Context.MODE_PRIVATE).edit {
+            putString(AI_AUTHORIZED_FEATURE_MODE_KEY, mode.storageValue)
+        }
+    }
 
     val connectionState: SharedFlow<com.shell.liangyi.core.ConnectionState>
         get() = wearMessageCenter.connectionState
@@ -286,7 +298,15 @@ class ShellViewModel : ViewModel() {
 
     fun sendRemoteTerminalCommand() {
         val command = _remoteTerminalUiState.value.input.trim()
-        val validationError = RemoteTerminalGuard.validate(command)
+        val validationError = if (
+            command.isNotBlank() &&
+            _aiLicenseState.value.canUse &&
+            _aiAuthorizedFeatureMode.value == AiAuthorizedFeatureMode.RemoteTerminal
+        ) {
+            null
+        } else {
+            RemoteTerminalGuard.validate(command)
+        }
         if (validationError != null) {
             scope.launch {
                 _remoteTerminalMessages.emit(validationMessage(validationError))
@@ -626,6 +646,16 @@ class ShellViewModel : ViewModel() {
         )
     }
 
+    private fun loadAiAuthorizedFeatureMode(context: Context) {
+        val prefs = context.getSharedPreferences(APP_UI_PREFS, Context.MODE_PRIVATE)
+        _aiAuthorizedFeatureMode.value = AiAuthorizedFeatureMode.fromStorage(
+            prefs.getString(
+                AI_AUTHORIZED_FEATURE_MODE_KEY,
+                AiAuthorizedFeatureMode.AiAssistant.storageValue,
+            ),
+        )
+    }
+
     private fun loadWearConnectionPreferences(context: Context) {
         _autoLaunchWearApp.value = WearConnectionPreferences.isAutoLaunchWearAppEnabled(context)
     }
@@ -844,6 +874,7 @@ class ShellViewModel : ViewModel() {
     private companion object {
         const val APP_UI_PREFS = "app_ui_prefs"
         const val APP_THEME_MODE_KEY = "theme_mode"
+        const val AI_AUTHORIZED_FEATURE_MODE_KEY = "ai_authorized_feature_mode"
         const val REMOTE_TERMINAL_PREFS = "remote_terminal_prefs"
         const val REMOTE_TERMINAL_HISTORY_KEY = "history"
         const val REMOTE_TERMINAL_FAVORITES_KEY = "favorites"

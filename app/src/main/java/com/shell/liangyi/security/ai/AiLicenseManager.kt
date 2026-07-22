@@ -71,7 +71,7 @@ class AiLicenseManager(context: Context) {
         clearVerificationCache()
         val state = currentState().copy(
             status = AiLicenseStatus.NEEDS_ONLINE,
-            message = "授权已导入，请联网检查 GitHub 状态",
+            message = "授权已导入，请联网检查 GitHub 清单",
             deviceFingerprint = identity.fingerprint,
             hardwareBacked = identity.hardwareBacked,
         )
@@ -103,28 +103,31 @@ class AiLicenseManager(context: Context) {
             if (registry.issuerKeyId != license.issuerKeyId) {
                 return@withContext publish(invalidState(license, "授权与清单签发密钥不一致"))
             }
-            if (registry.generatedAt <= 0L) {
-                return@withContext publish(invalidState(license, "授权清单时间无效"))
-            }
-            if (registry.generatedAt < license.issuedAt) {
-                return@withContext publish(invalidState(license, "授权清单早于授权签发时间"))
+            val lastVerifiedServerMs = prefs.getLong(KEY_LAST_VERIFIED_SERVER_MS, 0L)
+            val registryError = AiLicenseRegistryPolicy.validateRegistryFreshness(
+                registry = registry,
+                license = license,
+                lastVerifiedServerMs = lastVerifiedServerMs,
+            )
+            if (registryError != null) {
+                return@withContext publishOnlineFailure(license, registryError)
             }
             val entry = registry.licenses.firstOrNull { it.licenseId == license.licenseId }
-                ?: return@withContext publish(revokedState(license, identity, "授权未在 GitHub 清单中"))
+                ?: return@withContext publishRevokedAndClear(license, identity, "授权未在 GitHub 清单中")
             if (entry.revoked) {
-                return@withContext publish(revokedState(license, identity, "授权已被撤销"))
+                return@withContext publishRevokedAndClear(license, identity, "授权已被撤销")
             }
             if (!entry.licenseSha256.equals(AiLicenseCrypto.licenseSha256(license), ignoreCase = true)) {
-                return@withContext publish(invalidState(license, "授权文件与清单哈希不一致"))
+                return@withContext publishOnlineFailure(license, "授权文件与清单哈希不一致")
             }
             if (license.expiresAt <= registry.generatedAt) {
-                return@withContext publish(expiredState(license, identity))
+                return@withContext publishExpiredAndClear(license, identity)
             }
             saveVerification(registry.generatedAt)
             publish(
                 AiLicenseState(
                     status = AiLicenseStatus.VALID,
-                    message = "授权有效，GitHub 状态已确认",
+                    message = "授权有效，GitHub 清单已确认",
                     licenseId = license.licenseId,
                     expiresAt = license.expiresAt,
                     lastVerifiedAt = registry.generatedAt,
@@ -142,7 +145,7 @@ class AiLicenseManager(context: Context) {
     private fun evaluateOffline(
         license: AiLicense,
         identity: AiDeviceIdentity,
-        failureMessage: String = "需要联网检查授权状态",
+        failureMessage: String = "需要联网检查 GitHub 清单",
     ): AiLicenseState {
         val verifiedServerMs = prefs.getLong(KEY_LAST_VERIFIED_SERVER_MS, 0L)
         val verifiedElapsedMs = prefs.getLong(KEY_LAST_VERIFIED_ELAPSED_MS, 0L)
@@ -182,7 +185,7 @@ class AiLicenseManager(context: Context) {
             AiLicenseStatus.EXPIRED -> expiredState(license, identity)
             else -> AiLicenseState(
                 status = decision.status,
-                message = if (decision.message == "需要联网检查授权状态") failureMessage else decision.message,
+                message = if (decision.message == "需要联网检查 GitHub 清单") failureMessage else decision.message,
                 licenseId = license.licenseId,
                 expiresAt = license.expiresAt,
                 lastVerifiedAt = verifiedServerMs,
@@ -275,6 +278,28 @@ class AiLicenseManager(context: Context) {
         deviceFingerprint = identity.fingerprint,
         hardwareBacked = identity.hardwareBacked,
     )
+
+    private fun publishOnlineFailure(license: AiLicense, message: String): AiLicenseState {
+        clearVerificationCache()
+        return publish(invalidState(license, message))
+    }
+
+    private fun publishRevokedAndClear(
+        license: AiLicense,
+        identity: AiDeviceIdentity,
+        message: String,
+    ): AiLicenseState {
+        clearVerificationCache()
+        return publish(revokedState(license, identity, message))
+    }
+
+    private fun publishExpiredAndClear(
+        license: AiLicense,
+        identity: AiDeviceIdentity,
+    ): AiLicenseState {
+        clearVerificationCache()
+        return publish(expiredState(license, identity))
+    }
 
     private fun expiredState(license: AiLicense, identity: AiDeviceIdentity): AiLicenseState = AiLicenseState(
         status = AiLicenseStatus.EXPIRED,

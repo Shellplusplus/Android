@@ -30,6 +30,7 @@
     <string name="settings_overview_summary">把常用外观、更新提醒和引导入口整理在一起，调整起来更顺手。</string>
     <string name="settings_section_appearance">外观</string>
     <string name="settings_section_connection">连接</string>
+    <string name="settings_section_authorized_features">授权功能</string>
     <string name="settings_section_updates">更新</string>
     <string name="settings_section_guidance">引导与帮助</string>
     <string name="join_qq_group">加入 QQ 交流群</string>
@@ -46,6 +47,10 @@
     <string name="app_theme_dark">深色模式</string>
     <string name="auto_launch_wear_app_title">自动拉起手表快应用</string>
     <string name="auto_launch_wear_app_summary">关闭后，安卓端建立连接时不再主动拉起手表快应用；如需连接，请先在手表端手动打开。</string>
+    <string name="ai_authorized_feature_title">AI 授权用途</string>
+    <string name="ai_authorized_feature_summary">选择 AI 助手，或将授权用于解除远程终端命令限制</string>
+    <string name="ai_authorized_feature_remote_terminal">远程终端</string>
+    <string name="ai_authorized_feature_assistant">AI 助手</string>
     <string name="skip_optional_updates">非强制更新不提醒</string>
     <string name="skip_optional_updates_summary">开启后，仅强制更新会自动提醒，手动检查不受影响</string>
     <string name="skip_optional_updates_locked_summary">同一可选更新弹窗出现 3 次后可用（当前 %1$d/3）</string>

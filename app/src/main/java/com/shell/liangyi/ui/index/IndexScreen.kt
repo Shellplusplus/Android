@@ -61,6 +61,7 @@ import com.shell.liangyi.core.ScreenshotReceiver
 import com.shell.liangyi.feature.AgentEntryPointProvider
 import com.shell.liangyi.ui.Routes
 import com.shell.liangyi.ui.ShellViewModel
+import com.shell.liangyi.ui.ai.AiAuthorizedFeatureMode
 import com.shell.liangyi.ui.theme.ShellTheme
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardColors
@@ -95,7 +96,10 @@ fun IndexScreen(
     val httpIp by shellViewModel.httpServerIp.collectAsStateWithLifecycle()
     val httpPort by shellViewModel.httpServerPort.collectAsStateWithLifecycle()
     val aiLicenseState by shellViewModel.aiLicenseState.collectAsStateWithLifecycle()
-    val openAiByDefault = AgentEntryPointProvider.entryPoint.isEnabled && aiLicenseState.canUse
+    val aiAuthorizedFeatureMode by shellViewModel.aiAuthorizedFeatureMode.collectAsStateWithLifecycle()
+    val openAiByDefault = AgentEntryPointProvider.entryPoint.isEnabled &&
+        aiLicenseState.canUse &&
+        aiAuthorizedFeatureMode == AiAuthorizedFeatureMode.AiAssistant
     val scrollBehavior = MiuixScrollBehavior()
     val bottomInnerPadding = 16.dp + bottomContentPadding
     val isBusy = syncState is ScreenshotReceiver.SyncState.Receiving ||

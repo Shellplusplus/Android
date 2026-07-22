@@ -47,20 +47,13 @@ val hasLocalSigningConfig = localSigningKeystore.exists() && hasSigningCredentia
 fun buildConfigString(value: String): String =
     "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
-val aiIssuerPublicKey = localProps.getProperty("shell.aiIssuerPublicKey")
-    ?: System.getenv("AI_LICENSE_ISSUER_PUBLIC_KEY")
-    ?: "0oWRuoah8jPFZ0XQ1WSlwqIOT9Hkttz04FGRjv0XMBk"
-val aiLicenseRegistryUrl = localProps.getProperty("shell.aiLicenseRegistryUrl")
-    ?: System.getenv("AI_LICENSE_REGISTRY_URL")
-    ?: "http://154.12.85.206:3040/api/ai-license/registry"
-val aiLicenseMailboxAddress = localProps.getProperty("shell.aiLicenseMailboxAddress")
-    ?: System.getenv("AI_LICENSE_MAILBOX_ADDRESS")
-    ?: ""
+val aiIssuerPublicKey = "DQiAZpfHiaT1rSx7EGStL0I0tYUiJO5wyvwoueJZ4fk"
+val aiLicenseRegistryUrl = "https://raw.githubusercontent.com/Shellplusplus/shellpplicense/main/registry.json"
 
 if (aiIssuerPublicKey.isBlank()) {
     logger.warn(
         "AI license issuer public key is not configured. " +
-            "Set shell.aiIssuerPublicKey in local.properties or AI_LICENSE_ISSUER_PUBLIC_KEY in the build environment."
+            "Update aiIssuerPublicKey in app/build.gradle.kts."
     )
 }
 
@@ -89,7 +82,6 @@ android {
 
         buildConfigField("String", "AI_LICENSE_ISSUER_PUBLIC_KEY", buildConfigString(aiIssuerPublicKey))
         buildConfigField("String", "AI_LICENSE_REGISTRY_URL", buildConfigString(aiLicenseRegistryUrl))
-        buildConfigField("String", "AI_LICENSE_MAILBOX_ADDRESS", buildConfigString(aiLicenseMailboxAddress))
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

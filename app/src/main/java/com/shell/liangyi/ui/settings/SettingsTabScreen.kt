@@ -22,7 +22,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.shell.liangyi.R
+import com.shell.liangyi.feature.AgentEntryPointProvider
 import com.shell.liangyi.ui.ShellViewModel
+import com.shell.liangyi.ui.ai.AiAuthorizedFeatureMode
 import com.shell.liangyi.ui.theme.ShellThemeMode
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
@@ -56,8 +58,12 @@ fun SettingsTabScreen(
     val skipOptionalUpdateHint by shellViewModel.skipOptionalUpdateHint.collectAsStateWithLifecycle()
     val themeMode by shellViewModel.themeMode.collectAsStateWithLifecycle()
     val autoLaunchWearApp by shellViewModel.autoLaunchWearApp.collectAsStateWithLifecycle()
+    val aiLicenseState by shellViewModel.aiLicenseState.collectAsStateWithLifecycle()
+    val aiAuthorizedFeatureMode by shellViewModel.aiAuthorizedFeatureMode.collectAsStateWithLifecycle()
 
     val effectiveSkipOptionalUpdateAvailable = previewMode || skipOptionalUpdateAvailable
+    val effectiveAiFeatureSelectionAvailable = previewMode ||
+        (AgentEntryPointProvider.entryPoint.isEnabled && aiLicenseState.canUse)
 
     var previewSkipOptionalUpdatePrompts by remember(previewMode, skipOptionalUpdatePrompts) {
         mutableStateOf(skipOptionalUpdatePrompts)
@@ -67,6 +73,9 @@ fun SettingsTabScreen(
     }
     var previewAutoLaunchWearApp by remember(previewMode, autoLaunchWearApp) {
         mutableStateOf(autoLaunchWearApp)
+    }
+    var previewAiAuthorizedFeatureMode by remember(previewMode, aiAuthorizedFeatureMode) {
+        mutableStateOf(aiAuthorizedFeatureMode)
     }
 
     val effectiveSkipOptionalUpdatePrompts = if (previewMode) {
@@ -84,6 +93,11 @@ fun SettingsTabScreen(
     } else {
         autoLaunchWearApp
     }
+    val effectiveAiAuthorizedFeatureMode = if (previewMode) {
+        previewAiAuthorizedFeatureMode
+    } else {
+        aiAuthorizedFeatureMode
+    }
 
     val themeItems = listOf(
         stringResource(R.string.app_theme_follow_system),
@@ -94,6 +108,14 @@ fun SettingsTabScreen(
         ShellThemeMode.FOLLOW_SYSTEM -> 0
         ShellThemeMode.LIGHT -> 1
         ShellThemeMode.DARK -> 2
+    }
+    val aiFeatureItems = listOf(
+        stringResource(R.string.ai_authorized_feature_remote_terminal),
+        stringResource(R.string.ai_authorized_feature_assistant),
+    )
+    val aiFeatureIndex = when (effectiveAiAuthorizedFeatureMode) {
+        AiAuthorizedFeatureMode.RemoteTerminal -> 0
+        AiAuthorizedFeatureMode.AiAssistant -> 1
     }
 
     fun showPreviewToast() {
@@ -189,6 +211,40 @@ fun SettingsTabScreen(
                             )
                         },
                     )
+                }
+            }
+
+            if (effectiveAiFeatureSelectionAvailable) {
+                item {
+                    SmallTitle(
+                        text = stringResource(R.string.settings_section_authorized_features),
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
+                    Card(
+                        modifier = Modifier.padding(horizontal = 12.dp),
+                        insideMargin = PaddingValues(0.dp),
+                    ) {
+                        OverlayDropdownPreference(
+                            title = stringResource(R.string.ai_authorized_feature_title),
+                            summary = stringResource(R.string.ai_authorized_feature_summary),
+                            items = aiFeatureItems,
+                            selectedIndex = aiFeatureIndex,
+                            renderInRootScaffold = false,
+                            onSelectedIndexChange = { index ->
+                                val nextMode = if (index == 0) {
+                                    AiAuthorizedFeatureMode.RemoteTerminal
+                                } else {
+                                    AiAuthorizedFeatureMode.AiAssistant
+                                }
+                                if (previewMode) {
+                                    previewAiAuthorizedFeatureMode = nextMode
+                                    showPreviewToast()
+                                } else {
+                                    shellViewModel.setAiAuthorizedFeatureMode(nextMode)
+                                }
+                            },
+                        )
+                    }
                 }
             }
 

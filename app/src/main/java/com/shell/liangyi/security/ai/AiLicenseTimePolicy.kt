@@ -29,7 +29,7 @@ object AiLicenseTimePolicy {
 
     fun evaluate(input: AiLicenseTimeInput): AiLicenseTimeDecision {
         if (input.verifiedServerMs <= 0L || input.verifiedElapsedMs <= 0L) {
-            return needsOnline("需要联网检查授权状态")
+            return needsOnline("需要联网检查 GitHub 清单")
         }
         if (input.currentBoot == input.verifiedBoot && clockWasChanged(input)) {
             return needsOnline("检测到系统时间异常，请联网重新验证")
@@ -72,7 +72,7 @@ object AiLicenseTimePolicy {
                 }
             }
         }
-        return needsOnline("需要联网检查授权状态")
+        return needsOnline("需要联网检查 GitHub 清单")
     }
 
     private fun needsOnline(message: String) = AiLicenseTimeDecision(

@@ -141,21 +141,22 @@ AI 授权文件和公开清单使用 Ed25519 签名。签发流程已迁移到�
 shell.aiIssuerPublicKey=网站“AI 授权签发”页面显示的 BASE64URL 公钥
 ```
 
-Android 端当前已固定读取：
+Android 端默认从公开 GitHub 仓库读取已签名授权清单：
 
 ```text
-http://154.12.85.206:3040/api/ai-license/registry
+https://raw.githubusercontent.com/Shellplusplus/shellpplicense/main/registry.json
 ```
 
-网站后台将签发私钥保存在服务器 `.runtime/ai-license/issuer.key.json` 的 Argon2id + AES-256-GCM 加密文件中。设备申请包只包含 Android Keystore 公钥、硬件证明信息和设备签名，不包含设备私钥。Android 导入授权后，会从网站的公开清单接口验证授权哈希、撤销状态和 Ed25519 签名。
+网站后台将签发私钥保存在服务器 `.runtime/ai-license/issuer.key.json` 的 Argon2id + AES-256-GCM 加密文件中。设备申请包只包含 Android Keystore 公钥、硬件证明信息和设备签名，不包含设备私钥。Android 导入授权后，会从 GitHub 公开清单文件验证授权哈希、撤销状态和 Ed25519 签名。
 
 网站后台接口：
 
-- `GET /api/ai-license/registry`：公开清单，供 Android 读取。
+- `GET /api/ai-license/registry`：本地公开清单调试端点；正式 Android 默认读取 GitHub raw 文件。
 - `GET /api/ai-license/status`：登录后查看签发密钥状态。
 - `POST /api/ai-license/setup`：登录后初始化或验证签发私钥。
 - `POST /api/ai-license/issue`：登录后验证设备申请并签发授权。
 - `POST /api/ai-license/revoke`：登录后撤销授权。
+- `POST /api/ai-license/publish-registry`：手动将本地清单重新发布到 GitHub。
 
 ## 更新接口
 

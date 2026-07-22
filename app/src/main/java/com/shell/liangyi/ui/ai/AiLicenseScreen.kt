@@ -1,13 +1,7 @@
 package com.shell.liangyi.ui.ai
 
-import android.content.ClipData
-import android.content.Context
-import android.content.Intent
-import android.content.pm.ResolveInfo
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.FileProvider
-import androidx.core.net.toUri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -31,26 +25,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
-import com.shell.liangyi.BuildConfig
 import com.shell.liangyi.security.ai.AiLicenseState
 import com.shell.liangyi.security.ai.AiLicenseStatus
 import com.shell.liangyi.ui.ShellViewModel
 import com.shell.liangyi.ui.components.ShellBackScaffold
 import com.shell.liangyi.ui.theme.ShellTheme
-import com.shell.liangyi.util.AtomicFileWriter
-import com.shell.liangyi.util.FileCacheTrimmer
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardColors
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.text.SimpleDateFormat
 import java.util.Date
-import java.util.LinkedHashSet
 import java.util.Locale
 import java.util.concurrent.TimeUnit
-import java.io.File
-
-private const val AI_LICENSE_REQUEST_CACHE_LIMIT = 5
 
 @Composable
 fun AiLicenseScreen(
@@ -72,7 +59,8 @@ fun AiLicenseScreen(
                 shellViewModel.importAiLicense(content).onFailure {
                     toast(context, it.message ?: "授权文件无效")
                 }.onSuccess {
-                    toast(context, "授权文件已导入，请联网验证")
+                    toast(context, "授权文件已导入，正在检查 GitHub 清单")
+                    shellViewModel.refreshAiLicense()
                 }
             },
             onFailure = { toast(context, it.message ?: "无法读取授权文件") },
@@ -113,25 +101,6 @@ fun AiLicenseScreen(
             item { LicenseStatusCard(state) }
             item {
                 ActionCard(
-                    title = "发送授权申请邮件",
-                    summary = "生成申请 JSON 附件后弹出系统选择器，选择 Outlook 或其他邮箱应用发送",
-                    onClick = {
-                        runCatching {
-                            val requestContent = shellViewModel.exportAiLicenseRequest()
-                            launchRequestMailChooser(
-                                context = context,
-                                requestContent = requestContent,
-                                fileName = buildRequestFileName(state),
-                                state = state,
-                            )
-                        }.onFailure {
-                            toast(context, it.message ?: "无法拉起邮箱应用")
-                        }
-                    },
-                )
-            }
-            item {
-                ActionCard(
                     title = "导出授权申请 JSON",
                     summary = "保存设备申请 JSON 文件，只导出设备公钥和申请签名，不会导出设备私钥",
                     onClick = {
@@ -154,8 +123,8 @@ fun AiLicenseScreen(
             }
             item {
                 ActionCard(
-                    title = "重新检查 GitHub 状态",
-                    summary = "联网确认授权是否存在、有效且未撤销",
+                    title = "重新检查 GitHub 清单",
+                    summary = "从公开仓库确认授权是否存在、有效且未撤销",
                     onClick = { shellViewModel.refreshAiLicense() },
                 )
             }
@@ -278,115 +247,6 @@ private fun buildRequestFileName(state: AiLicenseState): String {
     val timestamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.getDefault())
         .format(Date())
     return "shellpp-ai-request-$suffix-$timestamp.json"
-}
-
-private fun launchRequestMailChooser(
-    context: Context,
-    requestContent: String,
-    fileName: String,
-    state: AiLicenseState,
-) {
-    val requestDir = File(context.cacheDir, "ai-license").apply { mkdirs() }
-    val requestFile = File(requestDir, fileName)
-    AtomicFileWriter.writeText(requestFile, requestContent)
-    FileCacheTrimmer.trim(requestDir, AI_LICENSE_REQUEST_CACHE_LIMIT) { file ->
-        file.extension.equals("json", ignoreCase = true)
-    }
-    val requestUri = FileProvider.getUriForFile(
-        context,
-        "${context.packageName}.fileprovider",
-        requestFile,
-    )
-    val mailQueryIntent = Intent(Intent.ACTION_SENDTO).apply {
-        data = "mailto:".toUri()
-    }
-    val packageManager = context.packageManager
-    val directMailPackages = packageManager
-        .queryIntentActivities(mailQueryIntent, 0)
-        .map { it.activityInfo.packageName }
-    val attachmentSendIntent = Intent(Intent.ACTION_SEND).apply {
-        type = "*/*"
-        putExtra(Intent.EXTRA_STREAM, requestUri)
-    }
-    val attachmentCandidates = packageManager.queryIntentActivities(attachmentSendIntent, 0)
-    val emailPackages = LinkedHashSet<String>().apply {
-        addAll(directMailPackages)
-        attachmentCandidates
-            .filter { resolveInfo -> looksLikeMailApp(packageManager, resolveInfo) }
-            .mapTo(this) { it.activityInfo.packageName }
-    }
-    val emailIntents = emailPackages.map { packageName ->
-        Intent(Intent.ACTION_SEND).apply {
-            type = "application/json"
-            `package` = packageName
-            putExtra(Intent.EXTRA_STREAM, requestUri)
-            clipData = ClipData.newRawUri(fileName, requestUri)
-            if (BuildConfig.AI_LICENSE_MAILBOX_ADDRESS.isNotBlank()) {
-                putExtra(Intent.EXTRA_EMAIL, arrayOf(BuildConfig.AI_LICENSE_MAILBOX_ADDRESS))
-            }
-            putExtra(Intent.EXTRA_SUBJECT, buildMailSubject(state))
-            putExtra(Intent.EXTRA_TEXT, buildMailBody(state))
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-    }
-    require(emailIntents.isNotEmpty()) { "未找到可用的邮箱应用" }
-    emailIntents.forEach { intent ->
-        intent.`package`?.let { packageName ->
-            context.grantUriPermission(packageName, requestUri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-    }
-    val chooser = Intent.createChooser(emailIntents.first(), "选择邮箱应用").apply {
-        if (emailIntents.size > 1) {
-            putExtra(Intent.EXTRA_INITIAL_INTENTS, emailIntents.drop(1).toTypedArray())
-        }
-        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    }
-    context.startActivity(chooser)
-}
-
-private fun buildMailSubject(state: AiLicenseState): String {
-    val suffix = state.deviceFingerprint.takeLast(8).ifBlank { "device" }
-    return "Shell++ AI 授权申请 - $suffix"
-}
-
-private fun buildMailBody(state: AiLicenseState): String = buildString {
-    append("你好，这是一份 Shell++ AI 助手授权申请。")
-    append("\n\n")
-    append("设备指纹：")
-    append(state.deviceFingerprint.ifBlank { "未生成" })
-    append("\n")
-    append("硬件密钥：")
-    append(if (state.hardwareBacked) "Trusted hardware" else "软件/未知")
-    append("\n\n")
-    append("申请 JSON 已作为附件附上，请直接签发并回邮授权文件。")
-}
-
-private fun looksLikeMailApp(
-    packageManager: android.content.pm.PackageManager,
-    resolveInfo: ResolveInfo,
-): Boolean {
-    val packageName = resolveInfo.activityInfo.packageName.lowercase(Locale.ROOT)
-    val activityName = resolveInfo.activityInfo.name.lowercase(Locale.ROOT)
-    val label = resolveInfo.loadLabel(packageManager).toString().lowercase(Locale.ROOT)
-    val haystacks = listOf(packageName, activityName, label)
-    val keywords = listOf(
-        "mail",
-        "email",
-        "gmail",
-        "outlook",
-        "qqmail",
-        "foxmail",
-        "proton",
-        "spark",
-        "aqua",
-        "yahoo",
-        "netease",
-        "邮箱",
-        "邮件",
-        "qq邮箱",
-        "网易邮箱",
-    )
-    return haystacks.any { value -> keywords.any { keyword -> value.contains(keyword) } }
 }
 
 private fun toast(context: android.content.Context, message: String) {
