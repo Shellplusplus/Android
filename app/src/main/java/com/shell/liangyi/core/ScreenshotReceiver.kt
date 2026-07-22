@@ -157,6 +157,7 @@ class ScreenshotReceiver(
         try {
             val payload = org.json.JSONObject().apply {
                 put("url", "http://$address")
+                put("authToken", httpServer.getAuthToken())
             }
             messageCenter.send("wifiServerInfo", payload)
             Log.i(TAG, "Notified watch of WiFi server: $address")

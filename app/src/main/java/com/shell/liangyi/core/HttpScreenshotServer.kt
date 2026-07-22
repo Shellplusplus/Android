@@ -293,7 +293,7 @@ class HttpScreenshotServer(
 
     private fun handlePing(socket: Socket) {
         val ip = getWifiIp() ?: "unknown"
-        val json = """{"ok":true,"device":"shell-plus-plus","ip":"$ip","port":$port,"chunkUpload":true}"""
+        val json = """{"ok":true,"device":"shell-plus-plus","ip":"$ip","port":$port,"chunkUpload":true,"authToken":"${escapeJson(authToken)}"}"""
         respond(socket, 200, json)
     }
 
