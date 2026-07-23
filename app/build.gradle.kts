@@ -47,7 +47,7 @@ val hasLocalSigningConfig = localSigningKeystore.exists() && hasSigningCredentia
 fun buildConfigString(value: String): String =
     "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
-val aiIssuerPublicKey = "DQiAZpfHiaT1rSx7EGStL0I0tYUiJO5wyvwoueJZ4fk"
+val aiIssuerPublicKey = "IwhDUu5byrMvZSdRGtqVkx0XnHM9XAMr5yyJ7MQOSlw"
 val aiLicenseRegistryUrl = "https://raw.githubusercontent.com/Shellplusplus/shellpplicense/main/registry.json"
 
 if (aiIssuerPublicKey.isBlank()) {
