@@ -450,7 +450,7 @@ private fun DeclarationPage(
         snapshotFlow {
             val maxValue = scrollState.maxValue
             when {
-                maxValue <= 0 -> 0f
+                maxValue <= 0 -> 1f
                 scrollState.value >= maxValue -> 1f
                 else -> scrollState.value.toFloat() / maxValue.toFloat()
             }.coerceIn(0f, 1f)
