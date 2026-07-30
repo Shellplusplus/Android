@@ -87,7 +87,7 @@
     <string name="developers">开发者</string>
     <string name="open_source_components">开源组件</string>
     <string name="open_source_notice">本应用使用了上述开源项目，感谢所有贡献者。hyperos-bg 项目基于 MIT 许可协议的 miuix 重新实现，相关版权归原作者所有。</string>
-    <string name="library_miuix">MIUIX (MIT) - HyperOS 设计系统</string>
+    <string name="library_miuix">MIUIX (Apache-2.0) - HyperOS 设计系统与渐进模糊</string>
     <string name="library_hyperos_bg">hyperos-bg (MIT) - 动态背景效果</string>
     <string name="screenshot_preview">截图预览</string>
     <string name="screenshot_transferring">传输中 %1$d/%2$d</string>

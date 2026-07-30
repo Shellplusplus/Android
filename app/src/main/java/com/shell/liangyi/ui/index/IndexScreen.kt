@@ -62,6 +62,9 @@ import com.shell.liangyi.feature.AgentEntryPointProvider
 import com.shell.liangyi.ui.Routes
 import com.shell.liangyi.ui.ShellViewModel
 import com.shell.liangyi.ui.ai.AiAuthorizedFeatureMode
+import com.shell.liangyi.ui.components.ShellProgressiveTopBar
+import com.shell.liangyi.ui.components.rememberShellProgressiveTopBarBackdrop
+import com.shell.liangyi.ui.components.shellTopBarBackdrop
 import com.shell.liangyi.ui.theme.ShellTheme
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardColors
@@ -101,6 +104,7 @@ fun IndexScreen(
         aiLicenseState.canUse &&
         aiAuthorizedFeatureMode == AiAuthorizedFeatureMode.AiAssistant
     val scrollBehavior = MiuixScrollBehavior()
+    val backdrop = rememberShellProgressiveTopBarBackdrop()
     val bottomInnerPadding = 16.dp + bottomContentPadding
     val isBusy = syncState is ScreenshotReceiver.SyncState.Receiving ||
         syncState is ScreenshotReceiver.SyncState.WaitingAck
@@ -110,6 +114,7 @@ fun IndexScreen(
             TopBar(
                 onOpenLogs = onOpenLogs,
                 scrollBehavior = scrollBehavior,
+                backdrop = backdrop,
             )
         },
         popupHost = { },
@@ -118,50 +123,56 @@ fun IndexScreen(
             .add(WindowInsets.displayCutout)
             .only(WindowInsetsSides.Horizontal),
     ) { innerPadding ->
-        LazyColumn(
+        Box(
             modifier = Modifier
-                .fillMaxHeight()
-                .scrollEndHaptic()
-                .overScrollVertical()
-                .nestedScroll(scrollBehavior.nestedScrollConnection)
-                .padding(horizontal = 12.dp),
-            contentPadding = innerPadding,
-            overscrollEffect = null,
+                .fillMaxSize()
+                .shellTopBarBackdrop(backdrop),
         ) {
-            item {
-                Column(
-                    modifier = Modifier.padding(vertical = 12.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    StatusCard(
-                        state = HomeState(
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .scrollEndHaptic()
+                    .overScrollVertical()
+                    .nestedScroll(scrollBehavior.nestedScrollConnection)
+                    .padding(horizontal = 12.dp),
+                contentPadding = innerPadding,
+                overscrollEffect = null,
+            ) {
+                item {
+                    Column(
+                        modifier = Modifier.padding(vertical = 12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        StatusCard(
+                            state = HomeState(
+                                connectionState = connectionState,
+                                watchProductCode = watchProductCode,
+                                isBusy = isBusy,
+                                receiveProgress = receiveProgress,
+                                screenshotCount = screenshots.size,
+                                httpRunning = httpRunning,
+                                httpAddress = if (httpRunning && httpIp.isNotBlank()) "$httpIp:$httpPort" else "",
+                            ),
+                            actions = HomeActions(
+                                onRefreshConnection = shellViewModel::ensureConnection,
+                                onOpenLan = { navController.navigate(Routes.FETCH) },
+                                onOpenTimeline = { navController.navigate(Routes.SCREENSHOT_TIMELINE) },
+                            ),
+                        )
+                        ActionList(navController, openAiByDefault)
+                        InfoCard(
                             connectionState = connectionState,
-                            watchProductCode = watchProductCode,
-                            isBusy = isBusy,
-                            receiveProgress = receiveProgress,
                             screenshotCount = screenshots.size,
                             httpRunning = httpRunning,
-                            httpAddress = if (httpRunning && httpIp.isNotBlank()) "$httpIp:$httpPort" else "",
-                        ),
-                        actions = HomeActions(
-                            onRefreshConnection = shellViewModel::ensureConnection,
-                            onOpenLan = { navController.navigate(Routes.FETCH) },
-                            onOpenTimeline = { navController.navigate(Routes.SCREENSHOT_TIMELINE) },
-                        ),
-                    )
-                    ActionList(navController, openAiByDefault)
-                    InfoCard(
-                        connectionState = connectionState,
-                        screenshotCount = screenshots.size,
-                        httpRunning = httpRunning,
-                        httpAddress = if (httpRunning && httpIp.isNotBlank()) {
-                            "$httpIp:$httpPort"
-                        } else {
-                            stringResource(R.string.not_enabled)
-                        },
-                    )
-                    Spacer(Modifier.height(bottomInnerPadding))
+                            httpAddress = if (httpRunning && httpIp.isNotBlank()) {
+                                "$httpIp:$httpPort"
+                            } else {
+                                stringResource(R.string.not_enabled)
+                            },
+                        )
+                        Spacer(Modifier.height(bottomInnerPadding))
+                    }
                 }
             }
         }
@@ -200,37 +211,40 @@ private data class HomeActionItem(
 private fun TopBar(
     onOpenLogs: () -> Unit,
     scrollBehavior: ScrollBehavior,
+    backdrop: top.yukonga.miuix.kmp.blur.LayerBackdrop?,
 ) {
     val colors = MiuixTheme.colorScheme
-    TopAppBar(
-        color = ShellTheme.colors.pageBackground,
-        title = "Shell++",
-        actions = {
-            Card(
-                modifier = Modifier
-                    .padding(end = 10.dp)
-                    .size(34.dp),
-                colors = CardColors(
-                    color = Color.Transparent,
-                    contentColor = colors.onBackground,
-                ),
-                cornerRadius = 12.dp,
-                onClick = onOpenLogs,
-                showIndication = true,
-                pressFeedbackType = PressFeedbackType.Sink,
-            ) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.Article,
-                        contentDescription = stringResource(R.string.logs),
-                        modifier = Modifier.size(18.dp),
-                        tint = colors.onBackground,
-                    )
+    ShellProgressiveTopBar(backdrop = backdrop) { barColor ->
+        TopAppBar(
+            color = barColor,
+            title = "Shell++",
+            actions = {
+                Card(
+                    modifier = Modifier
+                        .padding(end = 10.dp)
+                        .size(34.dp),
+                    colors = CardColors(
+                        color = Color.Transparent,
+                        contentColor = colors.onBackground,
+                    ),
+                    cornerRadius = 12.dp,
+                    onClick = onOpenLogs,
+                    showIndication = true,
+                    pressFeedbackType = PressFeedbackType.Sink,
+                ) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.Article,
+                            contentDescription = stringResource(R.string.logs),
+                            modifier = Modifier.size(18.dp),
+                            tint = colors.onBackground,
+                        )
+                    }
                 }
-            }
-        },
-        scrollBehavior = scrollBehavior,
-    )
+            },
+            scrollBehavior = scrollBehavior,
+        )
+    }
 }
 
 @Composable

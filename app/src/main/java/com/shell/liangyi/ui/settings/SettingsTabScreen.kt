@@ -6,6 +6,7 @@ import android.widget.Toast
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -25,6 +26,10 @@ import com.shell.liangyi.R
 import com.shell.liangyi.feature.AgentEntryPointProvider
 import com.shell.liangyi.ui.ShellViewModel
 import com.shell.liangyi.ui.ai.AiAuthorizedFeatureMode
+import com.shell.liangyi.ui.components.ShellProgressiveTopBar
+import com.shell.liangyi.ui.components.rememberShellProgressiveTopBarBackdrop
+import com.shell.liangyi.ui.components.shellTopBarBackdrop
+import com.shell.liangyi.ui.theme.ShellTheme
 import com.shell.liangyi.ui.theme.ShellThemeMode
 import top.yukonga.miuix.kmp.basic.BasicComponent
 import top.yukonga.miuix.kmp.basic.Card
@@ -131,29 +136,39 @@ fun SettingsTabScreen(
     }
 
     val scrollBehavior = MiuixScrollBehavior(rememberTopAppBarState())
+    val backdrop = rememberShellProgressiveTopBarBackdrop()
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = stringResource(R.string.settings),
-                largeTitle = stringResource(R.string.settings),
-                scrollBehavior = scrollBehavior,
-            )
+            ShellProgressiveTopBar(backdrop = backdrop) { barColor ->
+                TopAppBar(
+                    color = barColor,
+                    title = stringResource(R.string.settings),
+                    largeTitle = stringResource(R.string.settings),
+                    scrollBehavior = scrollBehavior,
+                )
+            }
         },
         popupHost = { MiuixPopupUtils.Companion.MiuixPopupHost() },
+        containerColor = ShellTheme.colors.pageBackground,
     ) { paddingValues ->
-        LazyColumn(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .overScrollVertical()
-                .scrollEndHaptic()
-                .nestedScroll(scrollBehavior.nestedScrollConnection),
-            contentPadding = PaddingValues(
-                top = paddingValues.calculateTopPadding(),
-                bottom = bottomContentPadding + 24.dp,
-            ),
+                .shellTopBarBackdrop(backdrop),
         ) {
-            item {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .overScrollVertical()
+                    .scrollEndHaptic()
+                    .nestedScroll(scrollBehavior.nestedScrollConnection),
+                contentPadding = PaddingValues(
+                    top = paddingValues.calculateTopPadding(),
+                    bottom = bottomContentPadding + 24.dp,
+                ),
+            ) {
+                item {
                 SmallTitle(
                     text = stringResource(R.string.settings_section_appearance),
                     modifier = Modifier.padding(top = 12.dp),
@@ -360,6 +375,7 @@ fun SettingsTabScreen(
                         )
                     }
                 }
+            }
             }
         }
     }

@@ -90,12 +90,11 @@ fun BluetoothScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
                 .nestedScroll(scrollBehavior.nestedScrollConnection)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 12.dp)
         ) {
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(innerPadding.calculateTopPadding() + 12.dp))
             BluetoothHeroCard(
                 connectionState = connectionState,
                 isBusy = isBusy,

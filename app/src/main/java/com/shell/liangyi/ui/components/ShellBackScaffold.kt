@@ -50,80 +50,92 @@ fun ShellBackScaffold(
 ) {
     val shellColors = ShellTheme.colors
     val colors = MiuixTheme.colorScheme
+    val backdrop = rememberShellProgressiveTopBarBackdrop()
 
     Scaffold(
         modifier = modifier.background(shellColors.pageBackground),
         topBar = {
-            if (collapseTitleOnScroll) {
-                TopAppBar(
-                    title = title,
-                    color = shellColors.pageBackground,
-                    navigationIcon = {
-                        if (showBackButton) {
-                            IconButton(onClick = onBack) {
-                                val layoutDirection = LocalLayoutDirection.current
-                                Icon(
-                                    modifier = Modifier.graphicsLayer {
-                                        if (layoutDirection == LayoutDirection.Rtl) scaleX = -1f
-                                    },
-                                    imageVector = MiuixIcons.Back,
-                                    contentDescription = null,
-                                    tint = colors.onBackground
-                                )
+            ShellProgressiveTopBar(
+                backdrop = backdrop,
+                bottomFadeHeight = if (collapseTitleOnScroll) 24.dp else 0.dp,
+            ) { barColor ->
+                if (collapseTitleOnScroll) {
+                    TopAppBar(
+                        title = title,
+                        color = barColor,
+                        navigationIcon = {
+                            if (showBackButton) {
+                                IconButton(onClick = onBack) {
+                                    val layoutDirection = LocalLayoutDirection.current
+                                    Icon(
+                                        modifier = Modifier.graphicsLayer {
+                                            if (layoutDirection == LayoutDirection.Rtl) scaleX = -1f
+                                        },
+                                        imageVector = MiuixIcons.Back,
+                                        contentDescription = null,
+                                        tint = colors.onBackground
+                                    )
+                                }
+                            } else {
+                                Spacer(modifier = Modifier.width(40.dp))
                             }
-                        } else {
-                            Spacer(modifier = Modifier.width(40.dp))
-                        }
-                    },
-                    actions = actions,
-                    scrollBehavior = scrollBehavior,
-                )
-            } else {
-                SmallTopAppBar(
-                    title = "",
-                    color = shellColors.pageBackground,
-                    navigationIcon = {
-                        if (showBackButton) {
-                            IconButton(onClick = onBack) {
-                                val layoutDirection = LocalLayoutDirection.current
-                                Icon(
-                                    modifier = Modifier.graphicsLayer {
-                                        if (layoutDirection == LayoutDirection.Rtl) scaleX = -1f
-                                    },
-                                    imageVector = MiuixIcons.Back,
-                                    contentDescription = null,
-                                    tint = colors.onBackground
-                                )
+                        },
+                        actions = actions,
+                        scrollBehavior = scrollBehavior,
+                    )
+                } else {
+                    SmallTopAppBar(
+                        title = "",
+                        color = barColor,
+                        navigationIcon = {
+                            if (showBackButton) {
+                                IconButton(onClick = onBack) {
+                                    val layoutDirection = LocalLayoutDirection.current
+                                    Icon(
+                                        modifier = Modifier.graphicsLayer {
+                                            if (layoutDirection == LayoutDirection.Rtl) scaleX = -1f
+                                        },
+                                        imageVector = MiuixIcons.Back,
+                                        contentDescription = null,
+                                        tint = colors.onBackground
+                                    )
+                                }
+                            } else {
+                                Spacer(modifier = Modifier.width(40.dp))
                             }
-                        } else {
-                            Spacer(modifier = Modifier.width(40.dp))
-                        }
-                    },
-                    actions = actions
-                )
+                        },
+                        actions = actions
+                    )
+                }
             }
         },
         popupHost = {},
         contentWindowInsets = WindowInsets.systemBars.add(WindowInsets.displayCutout).only(WindowInsetsSides.Horizontal)
     ) { innerPadding ->
-        if (collapseTitleOnScroll) {
-            content(innerPadding)
-        } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-            ) {
-                Text(
-                    text = title,
-                    modifier = Modifier.padding(start = 26.dp, top = 12.dp),
-                    fontSize = 30.sp,
-                    fontWeight = FontWeight.Normal,
-                    fontFamily = FontFamily.Default,
-                    color = colors.onSurface
-                )
-                Box(modifier = Modifier.weight(1f)) {
-                    content(PaddingValues(0.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .shellTopBarBackdrop(backdrop),
+        ) {
+            if (collapseTitleOnScroll) {
+                content(innerPadding)
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                ) {
+                    Text(
+                        text = title,
+                        modifier = Modifier.padding(start = 26.dp, top = 12.dp),
+                        fontSize = 30.sp,
+                        fontWeight = FontWeight.Normal,
+                        fontFamily = FontFamily.Default,
+                        color = colors.onSurface
+                    )
+                    Box(modifier = Modifier.weight(1f)) {
+                        content(PaddingValues(0.dp))
+                    }
                 }
             }
         }

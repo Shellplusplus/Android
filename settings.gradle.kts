@@ -31,3 +31,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "ShellPlus"
 include(":app")
+include(":miuix-blur")

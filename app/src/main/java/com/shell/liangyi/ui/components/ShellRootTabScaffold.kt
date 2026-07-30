@@ -2,6 +2,8 @@ package com.shell.liangyi.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
@@ -24,15 +26,18 @@ fun ShellRootTabScaffold(
     content: @Composable (PaddingValues) -> Unit,
 ) {
     val shellColors = ShellTheme.colors
+    val backdrop = rememberShellProgressiveTopBarBackdrop()
 
     Scaffold(
         modifier = modifier.background(shellColors.pageBackground),
         topBar = {
-            TopAppBar(
-                color = shellColors.pageBackground,
-                title = title,
-                actions = actions,
-            )
+            ShellProgressiveTopBar(backdrop = backdrop) { barColor ->
+                TopAppBar(
+                    color = barColor,
+                    title = title,
+                    actions = actions,
+                )
+            }
         },
         popupHost = {
             MiuixPopupUtils.Companion.MiuixPopupHost()
@@ -41,6 +46,13 @@ fun ShellRootTabScaffold(
         contentWindowInsets = WindowInsets.systemBars
             .add(WindowInsets.displayCutout)
             .only(WindowInsetsSides.Horizontal),
-        content = content,
-    )
+    ) { innerPadding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .shellTopBarBackdrop(backdrop),
+        ) {
+            content(innerPadding)
+        }
+    }
 }

@@ -103,6 +103,9 @@ import com.shell.liangyi.core.onboarding.GitHubProxySources
 import com.shell.liangyi.core.onboarding.GitHubUrlResolver
 import com.shell.liangyi.ui.ShellViewModel
 import com.shell.liangyi.ui.about.AboutScreen
+import com.shell.liangyi.ui.components.ShellProgressiveTopBar
+import com.shell.liangyi.ui.components.rememberShellProgressiveTopBarBackdrop
+import com.shell.liangyi.ui.components.shellTopBarBackdrop
 import com.shell.liangyi.ui.settings.SettingsTabScreen
 import com.shell.liangyi.ui.theme.ShellTheme
 import kotlinx.coroutines.launch
@@ -410,6 +413,7 @@ private fun DeclarationPage(
     val shellColors = ShellTheme.colors
     val colors = MiuixTheme.colorScheme
     val scrollBehavior = MiuixScrollBehavior()
+    val backdrop = rememberShellProgressiveTopBarBackdrop()
     val scrollState = rememberScrollState()
     val title = stringResource(R.string.onboarding_declaration_title)
     val sections = listOf(
@@ -462,70 +466,78 @@ private fun DeclarationPage(
     Scaffold(
         modifier = Modifier.background(shellColors.pageBackground),
         topBar = {
-            TopAppBar(
-                color = shellColors.pageBackground,
-                title = title,
-                scrollBehavior = scrollBehavior,
-            )
+            ShellProgressiveTopBar(backdrop = backdrop) { barColor ->
+                TopAppBar(
+                    color = barColor,
+                    title = title,
+                    scrollBehavior = scrollBehavior,
+                )
+            }
         },
         containerColor = shellColors.pageBackground,
         contentWindowInsets = WindowInsets.systemBars
             .add(WindowInsets.displayCutout)
             .only(WindowInsetsSides.Horizontal),
     ) { innerPadding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .nestedScroll(scrollBehavior.nestedScrollConnection)
-                .verticalScroll(scrollState)
-                .padding(
-                    start = 12.dp,
-                    top = innerPadding.calculateTopPadding() + 12.dp,
-                    end = 12.dp,
-                    bottom = 160.dp,
-                ),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .shellTopBarBackdrop(backdrop),
         ) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardColors(
-                    color = shellColors.cardBackground,
-                    contentColor = colors.onSurface,
-                ),
-                cornerRadius = 22.dp,
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .nestedScroll(scrollBehavior.nestedScrollConnection)
+                    .verticalScroll(scrollState)
+                    .padding(
+                        start = 12.dp,
+                        top = innerPadding.calculateTopPadding() + 12.dp,
+                        end = 12.dp,
+                        bottom = 160.dp,
+                    ),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 18.dp, vertical = 18.dp),
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardColors(
+                        color = shellColors.cardBackground,
+                        contentColor = colors.onSurface,
+                    ),
+                    cornerRadius = 22.dp,
                 ) {
-                    sections.forEachIndexed { index, section ->
-                        if (index > 0) {
-                            Spacer(modifier = Modifier.height(14.dp))
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 18.dp, vertical = 18.dp),
+                    ) {
+                        sections.forEachIndexed { index, section ->
+                            if (index > 0) {
+                                Spacer(modifier = Modifier.height(14.dp))
+                            }
+                            if (index > 0) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(1.dp)
+                                        .background(colors.onSurface.copy(alpha = 0.06f)),
+                                )
+                                Spacer(modifier = Modifier.height(14.dp))
+                            }
+                            DeclarationSectionCard(section = section)
                         }
-                        if (index > 0) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(1.dp)
-                                    .background(colors.onSurface.copy(alpha = 0.06f)),
-                            )
-                            Spacer(modifier = Modifier.height(14.dp))
-                        }
-                        DeclarationSectionCard(section = section)
                     }
                 }
             }
-        }
 
-        if (showVerificationDialog) {
-            DeclarationVerificationDialog(
-                codeInput = verificationCodeInput,
-                showError = verificationShowError,
-                onCodeInputChange = onVerificationCodeInputChange,
-                onDismissRequest = onVerificationDismissRequest,
-                onConfirm = onVerificationConfirm,
-            )
+            if (showVerificationDialog) {
+                DeclarationVerificationDialog(
+                    codeInput = verificationCodeInput,
+                    showError = verificationShowError,
+                    onCodeInputChange = onVerificationCodeInputChange,
+                    onDismissRequest = onVerificationDismissRequest,
+                    onConfirm = onVerificationConfirm,
+                )
+            }
         }
     }
 }
@@ -676,17 +688,20 @@ private fun ProxySelectionPage(
     val shellColors = ShellTheme.colors
     val selectedSource = remember(selectedSourceId) { GitHubProxySources.findById(selectedSourceId) }
     val scrollBehavior = MiuixScrollBehavior()
+    val backdrop = rememberShellProgressiveTopBarBackdrop()
     val listState = rememberLazyListState()
     val title = stringResource(R.string.onboarding_proxy_title)
 
     Scaffold(
         modifier = Modifier.background(shellColors.pageBackground),
         topBar = {
-            TopAppBar(
-                color = shellColors.pageBackground,
-                title = title,
-                scrollBehavior = scrollBehavior,
-            )
+            ShellProgressiveTopBar(backdrop = backdrop) { barColor ->
+                TopAppBar(
+                    color = barColor,
+                    title = title,
+                    scrollBehavior = scrollBehavior,
+                )
+            }
         },
         popupHost = {},
         containerColor = shellColors.pageBackground,
@@ -694,56 +709,62 @@ private fun ProxySelectionPage(
             .add(WindowInsets.displayCutout)
             .only(WindowInsetsSides.Horizontal),
     ) { innerPadding ->
-        LazyColumn(
-            state = listState,
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .scrollEndHaptic()
-                .overScrollVertical()
-                .nestedScroll(scrollBehavior.nestedScrollConnection)
-                .padding(horizontal = 12.dp),
-            contentPadding = PaddingValues(
-                start = 0.dp,
-                top = innerPadding.calculateTopPadding() + 12.dp,
-                end = 0.dp,
-                bottom = 160.dp,
-            ),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            overscrollEffect = null,
+                .shellTopBarBackdrop(backdrop),
         ) {
-            item {
-                ProxyBenchmarkStatusCard(
-                    selectedSourceTitle = selectedSource.title,
-                    benchmarkState = benchmarkState,
-                    onRetest = onRetest,
-                )
-            }
-            items(GitHubProxySources.builtInSources.size) { index ->
-                val source = GitHubProxySources.builtInSources[index]
-                val result = benchmarkState.results.firstOrNull { it.sourceId == source.id }
-                ProxySourceCard(
-                    title = source.title,
-                    selected = selectedSourceId == source.id,
-                    isFastest = benchmarkState.fastestSourceId == source.id,
-                    result = result,
-                    onClick = { onSelectSource(source.id) },
-                )
-            }
-            item {
-                ProxySourceCard(
-                    title = GitHubProxySources.custom.title,
-                    selected = selectedSourceId == GitHubProxySources.custom.id,
-                    isFastest = false,
-                    result = null,
-                    onClick = { onSelectSource(GitHubProxySources.custom.id) },
-                )
-            }
-            if (selectedSourceId == GitHubProxySources.custom.id) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .scrollEndHaptic()
+                    .overScrollVertical()
+                    .nestedScroll(scrollBehavior.nestedScrollConnection)
+                    .padding(horizontal = 12.dp),
+                contentPadding = PaddingValues(
+                    start = 0.dp,
+                    top = innerPadding.calculateTopPadding() + 12.dp,
+                    end = 0.dp,
+                    bottom = 160.dp,
+                ),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                overscrollEffect = null,
+            ) {
                 item {
-                    ProxyCustomUrlCard(
-                        customBaseUrl = customBaseUrl,
-                        onCustomBaseUrlChange = onCustomBaseUrlChange,
+                    ProxyBenchmarkStatusCard(
+                        selectedSourceTitle = selectedSource.title,
+                        benchmarkState = benchmarkState,
+                        onRetest = onRetest,
                     )
+                }
+                items(GitHubProxySources.builtInSources.size) { index ->
+                    val source = GitHubProxySources.builtInSources[index]
+                    val result = benchmarkState.results.firstOrNull { it.sourceId == source.id }
+                    ProxySourceCard(
+                        title = source.title,
+                        selected = selectedSourceId == source.id,
+                        isFastest = benchmarkState.fastestSourceId == source.id,
+                        result = result,
+                        onClick = { onSelectSource(source.id) },
+                    )
+                }
+                item {
+                    ProxySourceCard(
+                        title = GitHubProxySources.custom.title,
+                        selected = selectedSourceId == GitHubProxySources.custom.id,
+                        isFastest = false,
+                        result = null,
+                        onClick = { onSelectSource(GitHubProxySources.custom.id) },
+                    )
+                }
+                if (selectedSourceId == GitHubProxySources.custom.id) {
+                    item {
+                        ProxyCustomUrlCard(
+                            customBaseUrl = customBaseUrl,
+                            onCustomBaseUrlChange = onCustomBaseUrlChange,
+                        )
+                    }
                 }
             }
         }

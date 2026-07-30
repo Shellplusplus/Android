@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.add
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
@@ -47,6 +48,9 @@ import android.os.SystemClock
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import com.shell.liangyi.BuildConfig
 import com.shell.liangyi.R
+import com.shell.liangyi.ui.components.ShellProgressiveTopBar
+import com.shell.liangyi.ui.components.rememberShellProgressiveTopBarBackdrop
+import com.shell.liangyi.ui.components.shellTopBarBackdrop
 import com.shell.liangyi.ui.theme.ShellTheme
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardColors
@@ -72,6 +76,7 @@ fun AboutScreen(
     val scrollBehavior = MiuixScrollBehavior()
     val shellColors = ShellTheme.colors
     val colors = MiuixTheme.colorScheme
+    val backdrop = rememberShellProgressiveTopBarBackdrop()
     val title = stringResource(R.string.about)
     val versionLabel = BuildConfig.VERSION_NAME
     val effectiveShowBackButton = showBackButton && !previewMode
@@ -93,31 +98,33 @@ fun AboutScreen(
     Scaffold(
         modifier = Modifier.background(shellColors.pageBackground),
         topBar = {
-            if (effectiveShowBackButton) {
-                SmallTopAppBar(
-                    title = title,
-                    color = shellColors.pageBackground,
-                    navigationIcon = {
-                        IconButton(onClick = { backDispatcher?.onBackPressed() }) {
-                            val layoutDirection = LocalLayoutDirection.current
-                            Icon(
-                                modifier = Modifier.graphicsLayer {
-                                    if (layoutDirection == LayoutDirection.Rtl) scaleX = -1f
-                                },
-                                imageVector = MiuixIcons.Back,
-                                contentDescription = null,
-                                tint = colors.onBackground,
-                            )
-                        }
-                    },
-                    scrollBehavior = scrollBehavior,
-                )
-            } else {
-                TopAppBar(
-                    color = shellColors.pageBackground,
-                    title = title,
-                    scrollBehavior = scrollBehavior,
-                )
+            ShellProgressiveTopBar(backdrop = backdrop) { barColor ->
+                if (effectiveShowBackButton) {
+                    SmallTopAppBar(
+                        title = title,
+                        color = barColor,
+                        navigationIcon = {
+                            IconButton(onClick = { backDispatcher?.onBackPressed() }) {
+                                val layoutDirection = LocalLayoutDirection.current
+                                Icon(
+                                    modifier = Modifier.graphicsLayer {
+                                        if (layoutDirection == LayoutDirection.Rtl) scaleX = -1f
+                                    },
+                                    imageVector = MiuixIcons.Back,
+                                    contentDescription = null,
+                                    tint = colors.onBackground,
+                                )
+                            }
+                        },
+                        scrollBehavior = scrollBehavior,
+                    )
+                } else {
+                    TopAppBar(
+                        color = barColor,
+                        title = title,
+                        scrollBehavior = scrollBehavior,
+                    )
+                }
             }
         },
         popupHost = {},
@@ -126,14 +133,20 @@ fun AboutScreen(
             .add(WindowInsets.displayCutout)
             .only(WindowInsetsSides.Horizontal),
     ) { innerPadding ->
-        AboutContent(
-            innerPadding = innerPadding,
-            bottomContentPadding = bottomContentPadding,
-            title = title,
-            versionLabel = versionLabel,
-            scrollBehavior = scrollBehavior,
-            onSecretAreaClick = onSecretAreaClick,
-        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .shellTopBarBackdrop(backdrop),
+        ) {
+            AboutContent(
+                innerPadding = innerPadding,
+                bottomContentPadding = bottomContentPadding,
+                title = title,
+                versionLabel = versionLabel,
+                scrollBehavior = scrollBehavior,
+                onSecretAreaClick = onSecretAreaClick,
+            )
+        }
     }
 }
 
@@ -150,9 +163,11 @@ private fun AboutContent(
 
     LazyColumn(
         modifier = Modifier
-            .padding(innerPadding)
             .nestedScroll(scrollBehavior.nestedScrollConnection),
-        contentPadding = PaddingValues(bottom = 13.dp + bottomContentPadding),
+        contentPadding = PaddingValues(
+            top = innerPadding.calculateTopPadding(),
+            bottom = innerPadding.calculateBottomPadding() + 13.dp + bottomContentPadding,
+        ),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         item {
@@ -238,7 +253,7 @@ private fun OpenSourceCard() {
     val libraries = listOf(
         OpenSourceLibrary(
             name = "MIUIX",
-            license = "MIT",
+            license = "Apache-2.0",
             summary = stringResource(R.string.library_miuix),
         ),
         OpenSourceLibrary(

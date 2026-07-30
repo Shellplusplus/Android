@@ -172,7 +172,7 @@ dependencies {
 
     // MIUIX
     implementation(libs.miuix.ui)
-    implementation(libs.miuix.blur)
+    implementation(project(":miuix-blur"))
     implementation(libs.miuix.preference)
     implementation(libs.miuix.icons)
     implementation(libs.bouncycastle)
