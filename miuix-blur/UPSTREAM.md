@@ -7,7 +7,8 @@ This module contains the Android and common source sets from
 - Upstream module: `miuix-blur`
 - Upstream license: Apache License 2.0
 - Local build-only changes: the upstream multiplatform build script is replaced with the
-  repository's Android-compatible Gradle configuration, and the local minimum SDK remains 26.
+  repository's Android-compatible Gradle configuration, the local minimum SDK remains 26,
+  and the MIUIX shader AAR metadata check is disabled while the project remains on compile SDK 36.
 - Source files retain their upstream copyright and SPDX headers.
 
 The snapshot is included because the progressive blur API was available in upstream source but

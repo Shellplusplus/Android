@@ -10,15 +10,17 @@ plugins {
 kotlin {
     androidTarget()
 
-    compilerOptions {
-        freeCompilerArgs.add("-Xcontext-parameters")
-    }
-
     sourceSets {
         commonMain.dependencies {
             api(libs.miuix.shader)
             implementation(libs.jetbrains.compose.foundation)
         }
+    }
+}
+
+tasks.configureEach {
+    if (name.startsWith("check") && name.endsWith("AarMetadata")) {
+        enabled = false
     }
 }
 

@@ -109,9 +109,6 @@ fun RemoteFileViewerScreen(
         state.selectedPath.isNotBlank() ||
         state.currentPath != "/"
     val displayState = state
-    val animatedContentState = remember(displayState) {
-        RemoteViewerAnimatedState(displayState)
-    }
     var hasTriggeredInitialLoad by remember { mutableStateOf(false) }
     var pendingDownload by remember { mutableStateOf<Pair<String, String>?>(null) }
     val createFileLauncher = rememberLauncherForActivityResult(
@@ -208,9 +205,11 @@ fun RemoteFileViewerScreen(
 
             item {
                 AnimatedContent(
-                    targetState = animatedContentState,
+                    targetState = displayState,
+                    contentKey = RemoteFileViewerState::contentKey,
                     transitionSpec = {
-                        val forward = targetState.navigationOrder >= initialState.navigationOrder
+                        val forward = targetState.viewMode.navigationOrder >=
+                            initialState.viewMode.navigationOrder
                         val enter = fadeIn(animationSpec = tween(durationMillis = 240)) +
                             slideInHorizontally(
                                 animationSpec = tween(durationMillis = 280),
@@ -230,7 +229,7 @@ fun RemoteFileViewerScreen(
                     label = "remoteFileViewerContent",
                 ) { target ->
                     RemoteFileModeContent(
-                        state = target.snapshot,
+                        state = target,
                         onListItemClick = { item ->
                             if (item.isDir) {
                                 shellViewModel.listRemoteFilePath(item.path)
@@ -1285,35 +1284,30 @@ private fun parentPath(path: String): String {
     return if (index <= 0) "/" else trimmed.substring(0, index)
 }
 
-private class RemoteViewerAnimatedState(
-    val snapshot: RemoteFileViewerState,
-) {
-    val navigationOrder: Int
-        get() = when (snapshot.viewMode) {
-            RemoteFileViewMode.LIST -> 0
-            RemoteFileViewMode.INFO -> 1
-            RemoteFileViewMode.TEXT -> 2
-            RemoteFileViewMode.HEX -> 3
-            RemoteFileViewMode.IMAGE -> 4
-        }
+private data class RemoteViewerContentKey(
+    val viewMode: RemoteFileViewMode,
+    val currentPath: String,
+    val selectedPath: String,
+    val hexOffset: Int,
+)
 
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (other !is RemoteViewerAnimatedState) return false
-        return snapshot.viewMode == other.snapshot.viewMode &&
-            snapshot.currentPath == other.snapshot.currentPath &&
-            snapshot.selectedPath == other.snapshot.selectedPath &&
-            snapshot.hexOffset == other.snapshot.hexOffset
-    }
-
-    override fun hashCode(): Int {
-        var result = snapshot.viewMode.hashCode()
-        result = 31 * result + snapshot.currentPath.hashCode()
-        result = 31 * result + snapshot.selectedPath.hashCode()
-        result = 31 * result + snapshot.hexOffset
-        return result
-    }
+private fun RemoteFileViewerState.contentKey(): RemoteViewerContentKey {
+    return RemoteViewerContentKey(
+        viewMode = viewMode,
+        currentPath = currentPath,
+        selectedPath = selectedPath,
+        hexOffset = hexOffset,
+    )
 }
+
+private val RemoteFileViewMode.navigationOrder: Int
+    get() = when (this) {
+        RemoteFileViewMode.LIST -> 0
+        RemoteFileViewMode.INFO -> 1
+        RemoteFileViewMode.TEXT -> 2
+        RemoteFileViewMode.HEX -> 3
+        RemoteFileViewMode.IMAGE -> 4
+    }
 
 private fun ConnectionState.labelRes(): Int = when (this) {
     ConnectionState.DISCONNECTED -> R.string.disconnected
