@@ -146,7 +146,18 @@ android {
 
 tasks.configureEach {
     if (name.startsWith("check") && name.endsWith("AarMetadata")) {
-        enabled = false
+        setActions(emptyList())
+        val variantName = name
+            .removePrefix("check")
+            .removeSuffix("AarMetadata")
+            .replaceFirstChar { it.lowercase() }
+        doLast {
+            project.layout.buildDirectory
+                .dir("intermediates/aar_metadata_check/$variantName/$name")
+                .get()
+                .asFile
+                .mkdirs()
+        }
     }
 }
 

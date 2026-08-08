@@ -26,63 +26,122 @@ permissions:
 
 jobs:
   build:
+    name: Build public release APK
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+
     steps:
       - name: Check out requested source
         uses: actions/checkout@v5
         with:
           ref: ${{ inputs.source_ref }}
           fetch-depth: 0
+
       - name: Set up JDK 17
         uses: actions/setup-java@v5
         with:
-          java-version: "17"
           distribution: temurin
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v5
+          java-version: "17"
+
       - name: Set up Android SDK 36
         uses: android-actions/setup-android@v4
         with:
+          cmdline-tools-version: "11076708"
           packages: "platform-tools platforms;android-36 build-tools;36.0.0"
-      - name: Decode signing keystore
-        run: |
-          mkdir -p sign
-          printf '%s' "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > sign/Android.jks
-      - name: Create local.properties
-        run: |
-          echo "sdk.dir=${ANDROID_SDK_ROOT}" > local.properties
-          echo "shell.storePassword=${{ secrets.STORE_PASSWORD }}" >> local.properties
-          echo "shell.keyAlias=${{ secrets.KEY_ALIAS }}" >> local.properties
-          echo "shell.keyPassword=${{ secrets.KEY_PASSWORD }}" >> local.properties
-          echo "shell.aiIssuerPublicKey=${{ secrets.AI_LICENSE_ISSUER_PUBLIC_KEY }}" >> local.properties
-      - run: chmod +x gradlew
-      - name: Calculate Android version code
+          log-accepted-android-sdk-licenses: false
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v5
+
+      - name: Validate inputs and build secrets
         shell: bash
+        env:
+          APP_VERSION: ${{ inputs.app_version }}
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          IFS='.' read -r major minor patch <<< "${{ inputs.app_version }}"
-          patch="${patch%%[-+]*}"
-          if ! [[ "$major" =~ ^[0-9]+$ && "$minor" =~ ^[0-9]+$ && "$patch" =~ ^[0-9]+$ ]]; then
-            echo "app_version must use x.y.z format" >&2
+          set -euo pipefail
+          for name in KEYSTORE_BASE64 STORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::$name is not configured."
+              exit 1
+            fi
+          done
+          if ! [[ "$APP_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-][A-Za-z0-9.-]+)?$ ]]; then
+            echo '::error::app_version must use x.y.z format with an optional suffix.'
             exit 1
           fi
+
+      - name: Configure signing and local properties
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          AI_LICENSE_ISSUER_PUBLIC_KEY: ${{ secrets.AI_LICENSE_ISSUER_PUBLIC_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p sign
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > sign/Android.jks
+          {
+            printf 'sdk.dir=%s\n' "$ANDROID_SDK_ROOT"
+            printf 'shell.storePassword=%s\n' "$STORE_PASSWORD"
+            printf 'shell.keyAlias=%s\n' "$KEY_ALIAS"
+            printf 'shell.keyPassword=%s\n' "$KEY_PASSWORD"
+            if [ -n "$AI_LICENSE_ISSUER_PUBLIC_KEY" ]; then
+              printf 'shell.aiIssuerPublicKey=%s\n' "$AI_LICENSE_ISSUER_PUBLIC_KEY"
+            fi
+          } > local.properties
+          chmod +x gradlew
+
+      - name: Calculate Android version code
+        id: version
+        shell: bash
+        env:
+          APP_VERSION: ${{ inputs.app_version }}
+        run: |
+          set -euo pipefail
+          core_version="${APP_VERSION%%[-+]*}"
+          IFS='.' read -r major minor patch <<< "$core_version"
           if (( minor > 99 || patch > 99 )); then
-            echo "minor and patch must be between 0 and 99" >&2
+            echo '::error::minor and patch must be between 0 and 99.'
             exit 1
           fi
           version_code=$((major * 10000 + minor * 100 + patch))
           if (( version_code > 2147483647 )); then
-            echo "calculated versionCode exceeds Android's limit" >&2
+            echo "::error::Calculated versionCode exceeds Android's limit."
             exit 1
           fi
-          echo "VERSION_CODE=$version_code" >> "$GITHUB_ENV"
-      - name: Build release APK
-        run: ./gradlew assembleRelease
+          echo "code=$version_code" >> "$GITHUB_OUTPUT"
+
+      - name: Build public release APK
+        shell: bash
         env:
+          VERSION_CODE: ${{ steps.version.outputs.code }}
           VERSION_NAME: ${{ inputs.app_version }}
+        run: ./gradlew --no-daemon --console=plain --stacktrace :app:assembleRelease
+
+      - name: Verify release APK
+        id: apk
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(find app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' | sort)
+          if [ "${#files[@]}" -ne 1 ]; then
+            echo "::error::Expected exactly one release APK, found ${#files[@]}."
+            printf '%s\n' "${files[@]:-}"
+            exit 1
+          fi
+          echo "path=${files[0]}" >> "$GITHUB_OUTPUT"
+          ls -lh "${files[0]}"
+
       - name: Upload Release Center artifact
         uses: actions/upload-artifact@v6
         with:
           name: shellpp-apk-${{ inputs.task_id }}
-          path: app/build/outputs/apk/release/*.apk
+          path: ${{ steps.apk.outputs.path }}
           if-no-files-found: error
           retention-days: 7

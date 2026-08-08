@@ -2,25 +2,26 @@ name: Build & Release APK
 
 on:
   push:
-    branches: [ main, android ]
+    branches:
+      - main
+      - android
   workflow_dispatch:
     inputs:
       release_repository:
-        description: "Override target release repository (owner/repo)"
+        description: Override target release repository (owner/repo)
         required: false
         type: string
 
-env:
-  DEFAULT_PUBLIC_RELEASE_REPOSITORY: DefateStar/public-shellpp
-
 jobs:
   build:
+    name: Build signed release APK
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: write
 
     steps:
-      - name: Checkout code
+      - name: Check out source
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
@@ -28,227 +29,206 @@ jobs:
       - name: Set up JDK 17
         uses: actions/setup-java@v5
         with:
+          distribution: temurin
           java-version: "17"
-          distribution: "temurin"
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v5
 
       - name: Set up Android SDK 36
         uses: android-actions/setup-android@v4
         with:
+          cmdline-tools-version: "11076708"
           packages: "platform-tools platforms;android-36 build-tools;36.0.0"
+          log-accepted-android-sdk-licenses: false
 
-      - name: Decode keystore
-        run: |
-          mkdir -p sign
-          printf '%s' "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > sign/Android.jks
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v5
 
-      - name: Create local.properties
-        run: |
-          echo "sdk.dir=${ANDROID_SDK_ROOT}" > local.properties
-          echo "shell.storePassword=${{ secrets.STORE_PASSWORD }}" >> local.properties
-          echo "shell.keyAlias=${{ secrets.KEY_ALIAS }}" >> local.properties
-          echo "shell.keyPassword=${{ secrets.KEY_PASSWORD }}" >> local.properties
-          echo "shell.aiIssuerPublicKey=${{ secrets.AI_LICENSE_ISSUER_PUBLIC_KEY }}" >> local.properties
-
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
-
-      - name: Build Release APK
-        run: ./gradlew assembleRelease
+      - name: Validate build secrets
+        shell: bash
         env:
-          VERSION_CODE: ${{ github.run_number }}
-          VERSION_NAME: "beta${{ github.run_number }}"
-
-      - name: Prepare release target
-        id: release_target
-        env:
-          DEFAULT_PUBLIC_RELEASE_REPOSITORY: ${{ env.DEFAULT_PUBLIC_RELEASE_REPOSITORY }}
-          INPUT_RELEASE_REPOSITORY: ${{ github.event.inputs.release_repository || '' }}
-          PUBLIC_RELEASE_REPOSITORY: ${{ vars.PUBLIC_RELEASE_REPOSITORY }}
-          PUBLIC_SHELLPP_TOKEN: ${{ secrets.PUBLIC_SHELLPP_TOKEN }}
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          trim() {
-            printf '%s' "$1" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//'
-          }
-
-          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
-            TARGET_REPOSITORY="$GITHUB_REPOSITORY"
-          else
-            TARGET_REPOSITORY="$(trim "${INPUT_RELEASE_REPOSITORY:-}")"
-            if [ -z "$TARGET_REPOSITORY" ]; then
-              TARGET_REPOSITORY="$GITHUB_REPOSITORY"
-            fi
-          fi
-
-          if ! printf '%s' "$TARGET_REPOSITORY" | grep -Eq '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'; then
-            echo "::error::Invalid release repository '$TARGET_REPOSITORY'. Expected owner/repo."
-            exit 1
-          fi
-
-          RELEASE_TAG="beta${GITHUB_RUN_NUMBER}"
-          RELEASE_NAME="Shell++ ${RELEASE_TAG}"
-
-          if [ "$TARGET_REPOSITORY" = "$GITHUB_REPOSITORY" ]; then
-            EXTERNAL_REPOSITORY=false
-            TOKEN_SOURCE="github.token"
-          else
-            EXTERNAL_REPOSITORY=true
-            TOKEN_SOURCE="secrets.PUBLIC_SHELLPP_TOKEN"
-            if [ -z "${PUBLIC_SHELLPP_TOKEN:-}" ]; then
-              echo "::error::PUBLIC_SHELLPP_TOKEN is required when publishing to external repository '$TARGET_REPOSITORY'."
+          set -euo pipefail
+          for name in KEYSTORE_BASE64 STORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::$name is not configured."
               exit 1
             fi
-          fi
+          done
 
-          {
-            echo "repository=$TARGET_REPOSITORY"
-            echo "tag=$RELEASE_TAG"
-            echo "name=$RELEASE_NAME"
-            echo "external_repo=$EXTERNAL_REPOSITORY"
-          } >> "$GITHUB_OUTPUT"
-
-          {
-            echo "### Release target"
-            echo ""
-            echo "- Source repository: \`$GITHUB_REPOSITORY\`"
-            echo "- Target repository: \`$TARGET_REPOSITORY\`"
-            echo "- Tag: \`$RELEASE_TAG\`"
-            echo "- Token source: \`$TOKEN_SOURCE\`"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Generate release notes
-        id: changelog
+      - name: Configure signing and local properties
+        shell: bash
         env:
-          RELEASE_TAG: ${{ steps.release_target.outputs.tag }}
-          RELEASE_NAME: ${{ steps.release_target.outputs.name }}
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          AI_LICENSE_ISSUER_PUBLIC_KEY: ${{ secrets.AI_LICENSE_ISSUER_PUBLIC_KEY }}
         run: |
-          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-          if [ -z "$LAST_TAG" ]; then
-            LOG=$(git log --pretty=format:"- %s" -20)
-          else
-            LOG=$(git log --pretty=format:"- %s" ${LAST_TAG}..HEAD)
-          fi
-          if [ -z "$LOG" ]; then
-            LOG="- 首次发布"
-          fi
-
-          BODY_PATH="$RUNNER_TEMP/release-notes.md"
+          set -euo pipefail
+          mkdir -p sign
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > sign/Android.jks
           {
-            echo "## ${RELEASE_NAME}"
-            echo ""
-            echo "### 更新内容"
-            echo "$LOG"
-            echo ""
-            echo "### 安装说明"
-            echo "下载下方 APK 文件，直接安装即可。"
-          } > "$BODY_PATH"
+            printf 'sdk.dir=%s\n' "$ANDROID_SDK_ROOT"
+            printf 'shell.storePassword=%s\n' "$STORE_PASSWORD"
+            printf 'shell.keyAlias=%s\n' "$KEY_ALIAS"
+            printf 'shell.keyPassword=%s\n' "$KEY_PASSWORD"
+            if [ -n "$AI_LICENSE_ISSUER_PUBLIC_KEY" ]; then
+              printf 'shell.aiIssuerPublicKey=%s\n' "$AI_LICENSE_ISSUER_PUBLIC_KEY"
+            fi
+          } > local.properties
+          chmod +x gradlew
 
-          echo "body_path=$BODY_PATH" >> "$GITHUB_OUTPUT"
+      - name: Build release APK
+        shell: bash
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+          VERSION_NAME: beta${{ github.run_number }}
+        run: ./gradlew --no-daemon --console=plain --stacktrace :app:assembleRelease
+
+      - name: Verify release APK
+        id: apk
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(find app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' | sort)
+          if [ "${#files[@]}" -ne 1 ]; then
+            echo "::error::Expected exactly one release APK, found ${#files[@]}."
+            printf '%s\n' "${files[@]:-}"
+            exit 1
+          fi
+          echo "path=${files[0]}" >> "$GITHUB_OUTPUT"
+          echo "name=$(basename "${files[0]}")" >> "$GITHUB_OUTPUT"
+          ls -lh "${files[0]}"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v6
         with:
-          name: release-apks
-          path: app/build/outputs/apk/release/*.apk
+          name: release-apk
+          path: ${{ steps.apk.outputs.path }}
           if-no-files-found: error
           retention-days: 7
 
-      - name: List built APK files
-        # Keep this for runner-side path debugging when artifact layouts change.
-        run: find app/build/outputs/apk -type f | sort
-
-      - name: Publish release
+      - name: Resolve release target
+        id: release
+        shell: bash
         env:
-          GH_TOKEN: ${{ steps.release_target.outputs.external_repo == 'true' && secrets.PUBLIC_SHELLPP_TOKEN || github.token }}
-          TARGET_REPOSITORY: ${{ steps.release_target.outputs.repository }}
-          RELEASE_TAG: ${{ steps.release_target.outputs.tag }}
-          RELEASE_NAME: ${{ steps.release_target.outputs.name }}
-          RELEASE_BODY_PATH: ${{ steps.changelog.outputs.body_path }}
+          REQUESTED_REPOSITORY: ${{ inputs.release_repository || '' }}
+          EXTERNAL_TOKEN: ${{ secrets.PUBLIC_SHELLPP_TOKEN }}
         run: |
-          mapfile -t APK_FILES < <(find app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' | sort)
-          if [ "${#APK_FILES[@]}" -eq 0 ]; then
-            echo "::error::No release APK files were found."
+          set -euo pipefail
+          target="$(printf '%s' "$REQUESTED_REPOSITORY" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+          if [ -z "$target" ]; then
+            target="$GITHUB_REPOSITORY"
+          fi
+          if ! printf '%s' "$target" | grep -Eq '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'; then
+            echo "::error::Invalid release repository '$target'. Expected owner/repo."
             exit 1
           fi
-
-          TARGET_ARGS=()
-          if [ "$TARGET_REPOSITORY" = "$GITHUB_REPOSITORY" ]; then
-            TARGET_ARGS+=(--target "$GITHUB_SHA")
-          fi
-
-          if gh release view "$RELEASE_TAG" --repo "$TARGET_REPOSITORY" >/dev/null 2>&1; then
-            LATEST_ARGS=(--latest)
-            if [ "$(gh release view "$RELEASE_TAG" --repo "$TARGET_REPOSITORY" --json isDraft,isPrerelease --jq '.isDraft or .isPrerelease')" = "true" ]; then
-              LATEST_ARGS=()
-              echo "::notice::Release '$RELEASE_TAG' is draft or prerelease; skip marking it as latest."
+          external=false
+          if [ "$target" != "$GITHUB_REPOSITORY" ]; then
+            external=true
+            if [ -z "$EXTERNAL_TOKEN" ]; then
+              echo "::error::PUBLIC_SHELLPP_TOKEN is required for external repository '$target'."
+              exit 1
             fi
+          fi
+          tag="beta${GITHUB_RUN_NUMBER}"
+          {
+            echo "repository=$target"
+            echo "external=$external"
+            echo "tag=$tag"
+            echo "title=Shell++ $tag"
+          } >> "$GITHUB_OUTPUT"
 
-            gh release upload "$RELEASE_TAG" "${APK_FILES[@]}" --repo "$TARGET_REPOSITORY" --clobber
+      - name: Generate release notes
+        id: notes
+        shell: bash
+        env:
+          RELEASE_TITLE: ${{ steps.release.outputs.title }}
+        run: |
+          set -euo pipefail
+          previous_tag="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+          if [ -n "$previous_tag" ]; then
+            changes="$(git log --pretty=format:'- %s' "$previous_tag"..HEAD)"
+          else
+            changes="$(git log --pretty=format:'- %s' -20)"
+          fi
+          if [ -z "$changes" ]; then
+            changes='- 首次发布'
+          fi
+          notes="$RUNNER_TEMP/release-notes.md"
+          {
+            echo "## $RELEASE_TITLE"
+            echo
+            echo '### 更新内容'
+            echo "$changes"
+            echo
+            echo '### 安装说明'
+            echo '下载下方 APK 文件，直接安装即可。'
+          } > "$notes"
+          echo "path=$notes" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.release.outputs.external == 'true' && secrets.PUBLIC_SHELLPP_TOKEN || github.token }}
+          APK_PATH: ${{ steps.apk.outputs.path }}
+          TARGET_REPOSITORY: ${{ steps.release.outputs.repository }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          RELEASE_TITLE: ${{ steps.release.outputs.title }}
+          RELEASE_NOTES: ${{ steps.notes.outputs.path }}
+        run: |
+          set -euo pipefail
+          target_args=()
+          if [ "$TARGET_REPOSITORY" = "$GITHUB_REPOSITORY" ]; then
+            target_args=(--target "$GITHUB_SHA")
+          fi
+          if gh release view "$RELEASE_TAG" --repo "$TARGET_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "$APK_PATH" --repo "$TARGET_REPOSITORY" --clobber
             gh release edit "$RELEASE_TAG" \
               --repo "$TARGET_REPOSITORY" \
-              --title "$RELEASE_NAME" \
-              --notes-file "$RELEASE_BODY_PATH" \
-              "${LATEST_ARGS[@]}"
+              --title "$RELEASE_TITLE" \
+              --notes-file "$RELEASE_NOTES"
           else
-            gh release create "$RELEASE_TAG" \
-              "${APK_FILES[@]}" \
+            gh release create "$RELEASE_TAG" "$APK_PATH" \
               --repo "$TARGET_REPOSITORY" \
-              --title "$RELEASE_NAME" \
-              --notes-file "$RELEASE_BODY_PATH" \
+              --title "$RELEASE_TITLE" \
+              --notes-file "$RELEASE_NOTES" \
               --latest \
-              "${TARGET_ARGS[@]}"
+              "${target_args[@]}"
           fi
 
       - name: Notify QQ group
         if: always() && github.event_name == 'push'
+        shell: bash
         env:
           WEBHOOK_URL: ${{ secrets.QQ_WEBHOOK_URL }}
           WEBHOOK_TOKEN: ${{ secrets.QQ_WEBHOOK_TOKEN }}
           JOB_STATUS: ${{ job.status }}
         run: |
-          if [ -z "$WEBHOOK_URL" ]; then
-            echo "QQ_WEBHOOK_URL is not configured, skip QQ notification."
+          set -u
+          if [ -z "${WEBHOOK_URL:-}" ]; then
+            echo 'QQ_WEBHOOK_URL is not configured; skipping notification.'
             exit 0
           fi
-
-          COMMIT_MESSAGE="$(git log -1 --pretty=%s)"
-          COMMIT_AUTHOR="$(git log -1 --pretty=%an)"
-          RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          COMPARE_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/${{ github.event.before }}...${GITHUB_SHA}"
-
-          PAYLOAD="$(jq -n \
+          payload="$(jq -n \
             --arg repository "$GITHUB_REPOSITORY" \
             --arg branch "$GITHUB_REF_NAME" \
             --arg sha "$GITHUB_SHA" \
             --arg actor "$GITHUB_ACTOR" \
-            --arg event_name "$GITHUB_EVENT_NAME" \
             --arg workflow "$GITHUB_WORKFLOW" \
             --arg run_number "$GITHUB_RUN_NUMBER" \
-            --arg run_url "$RUN_URL" \
-            --arg commit_message "$COMMIT_MESSAGE" \
-            --arg commit_author "$COMMIT_AUTHOR" \
-            --arg compare_url "$COMPARE_URL" \
+            --arg run_url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --arg commit_message "$(git log -1 --pretty=%s)" \
+            --arg commit_author "$(git log -1 --pretty=%an)" \
             --arg status "$JOB_STATUS" \
-            '{
-              repository: $repository,
-              branch: $branch,
-              sha: $sha,
-              actor: $actor,
-              event_name: $event_name,
-              workflow: $workflow,
-              run_number: $run_number,
-              run_url: $run_url,
-              commit_message: $commit_message,
-              commit_author: $commit_author,
-              compare_url: $compare_url,
-              status: $status
-            }')"
-
-          if ! curl -fsS -X POST "$WEBHOOK_URL" \
-            -H "Content-Type: application/json" \
+            '{repository:$repository,branch:$branch,sha:$sha,actor:$actor,workflow:$workflow,run_number:$run_number,run_url:$run_url,commit_message:$commit_message,commit_author:$commit_author,status:$status}')"
+          if ! curl --fail --silent --show-error -X POST "$WEBHOOK_URL" \
+            -H 'Content-Type: application/json' \
             -H "X-Webhook-Token: $WEBHOOK_TOKEN" \
-            --data "$PAYLOAD"; then
-            echo "QQ notification failed, but build result is kept unchanged."
+            --data "$payload"; then
+            echo 'QQ notification failed; preserving the build result.'
           fi
