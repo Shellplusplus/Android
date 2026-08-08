@@ -2,11 +2,14 @@ package com.shell.liangyi.ui
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.net.Uri
 import android.text.format.Formatter
 import androidx.core.content.edit
 import androidx.lifecycle.ViewModel
 import com.shell.liangyi.R
+import com.shell.liangyi.core.FileTransferController
 import com.shell.liangyi.core.RemoteExecResult
+import com.shell.liangyi.core.RemoteFileTransferState
 import com.shell.liangyi.core.RemoteFileViewerState
 import com.shell.liangyi.core.RemoteTerminalBridge
 import com.shell.liangyi.core.RemoteToolController
@@ -70,6 +73,9 @@ class ShellViewModel : ViewModel() {
         private set
 
     lateinit var remoteToolController: RemoteToolController
+        private set
+
+    lateinit var fileTransferController: FileTransferController
         private set
 
     lateinit var onboardingStateStore: OnboardingStateStore
@@ -140,6 +146,7 @@ class ShellViewModel : ViewModel() {
         remoteTerminalBridge = RemoteTerminalBridge(wearMessageCenter, scope)
         screenshotReceiver = ScreenshotReceiver(appContext, scope)
         remoteToolController = RemoteToolController(appContext, scope, wearMessageCenter)
+        fileTransferController = FileTransferController(appContext, scope, wearMessageCenter)
         loadRemoteTerminalPreferences(appContext)
         loadThemePreferences(appContext)
         loadAiAuthorizedFeatureMode(appContext)
@@ -224,6 +231,9 @@ class ShellViewModel : ViewModel() {
 
     val remoteToolMessages: SharedFlow<String>
         get() = remoteToolController.messages
+
+    val remoteFileTransferState: StateFlow<RemoteFileTransferState>
+        get() = fileTransferController.state
 
     fun requestFromWatch() = screenshotReceiver.requestFromWatch()
     fun ensureConnection() = wearMessageCenter.ensureConnection()
@@ -390,6 +400,13 @@ class ShellViewModel : ViewModel() {
     fun openRemoteFileText() = remoteToolController.openFileText()
     fun openRemoteFileHex(offset: Int) = remoteToolController.openFileHex(offset)
     fun openRemoteFileImage() = remoteToolController.openFileImage()
+    fun downloadRemoteFile(destination: Uri, path: String, fileName: String) {
+        fileTransferController.start(
+            path = path,
+            fileName = fileName,
+            destination = destination,
+        )
+    }
     fun showRemoteFileList() = remoteToolController.showFileList()
     fun showRemoteFileInfo() = remoteToolController.showFileInfo()
     fun restartOnboarding() {
@@ -862,6 +879,9 @@ class ShellViewModel : ViewModel() {
         }
         if (::remoteToolController.isInitialized) {
             remoteToolController.destroy()
+        }
+        if (::fileTransferController.isInitialized) {
+            fileTransferController.destroy()
         }
         if (::screenshotReceiver.isInitialized) {
             screenshotReceiver.destroy()

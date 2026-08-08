@@ -1,5 +1,8 @@
 package com.shell.liangyi.ui.remote
 
+import android.text.format.Formatter
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
@@ -26,6 +29,7 @@ import androidx.compose.material.icons.automirrored.rounded.Article
 import androidx.compose.material.icons.automirrored.rounded.InsertDriveFile
 import androidx.compose.material.icons.automirrored.rounded.Subject
 import androidx.compose.material.icons.rounded.Folder
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.animation.AnimatedContent
@@ -72,8 +76,11 @@ import coil.request.ImageRequest
 import com.shell.liangyi.R
 import com.shell.liangyi.core.ConnectionState
 import com.shell.liangyi.core.RemoteFileItem
+import com.shell.liangyi.core.RemoteFileTransferState
+import com.shell.liangyi.core.RemoteFileTransferStatus
 import com.shell.liangyi.core.RemoteFileViewMode
 import com.shell.liangyi.core.RemoteFileViewerState
+import com.shell.liangyi.core.REMOTE_HEX_PAGE_SIZE
 import com.shell.liangyi.ui.ShellViewModel
 import com.shell.liangyi.ui.components.ShellBackScaffold
 import com.shell.liangyi.ui.theme.ShellTheme
@@ -92,6 +99,7 @@ fun RemoteFileViewerScreen(
     shellViewModel: ShellViewModel,
 ) {
     val state by shellViewModel.remoteFileViewerState.collectAsStateWithLifecycle()
+    val transferState by shellViewModel.remoteFileTransferState.collectAsStateWithLifecycle()
     val connectionState by shellViewModel.connectionState.collectAsStateWithLifecycle(
         initialValue = ConnectionState.DISCONNECTED,
     )
@@ -105,6 +113,16 @@ fun RemoteFileViewerScreen(
         RemoteViewerAnimatedState(displayState)
     }
     var hasTriggeredInitialLoad by remember { mutableStateOf(false) }
+    var pendingDownload by remember { mutableStateOf<Pair<String, String>?>(null) }
+    val createFileLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/octet-stream"),
+    ) { destination ->
+        val request = pendingDownload
+        pendingDownload = null
+        if (destination != null && request != null) {
+            shellViewModel.downloadRemoteFile(destination, request.first, request.second)
+        }
+    }
 
     LaunchedEffect(connectionState) {
         when (connectionState) {
@@ -182,6 +200,11 @@ fun RemoteFileViewerScreen(
                     },
                 )
             }
+            if (transferState.status != RemoteFileTransferStatus.IDLE) {
+                item {
+                    FileTransferStatusCard(transferState)
+                }
+            }
 
             item {
                 AnimatedContent(
@@ -224,11 +247,23 @@ fun RemoteFileViewerScreen(
                         onOpenImage = { targetState ->
                             shellViewModel.openRemoteFileImage()
                         },
+                        onDownload = { targetState ->
+                            val fileName = targetState.selectedName.ifBlank {
+                                targetState.selectedPath.substringAfterLast('/').ifBlank { "watch-file" }
+                            }
+                            pendingDownload = targetState.selectedPath to fileName
+                            createFileLauncher.launch(
+                                fileName,
+                            )
+                        },
+                        transferState = transferState,
                         onPreviousHexPage = { targetState ->
-                            shellViewModel.openRemoteFileHex((targetState.hexOffset - 128).coerceAtLeast(0))
+                            shellViewModel.openRemoteFileHex(
+                                (targetState.hexOffset - REMOTE_HEX_PAGE_SIZE).coerceAtLeast(0),
+                            )
                         },
                         onNextHexPage = { targetState ->
-                            shellViewModel.openRemoteFileHex(targetState.hexOffset + 128)
+                            shellViewModel.openRemoteFileHex(targetState.hexOffset + REMOTE_HEX_PAGE_SIZE)
                         },
                     )
                 }
@@ -245,6 +280,8 @@ private fun RemoteFileModeContent(
     onOpenText: (RemoteFileViewerState) -> Unit,
     onOpenHex: (RemoteFileViewerState) -> Unit,
     onOpenImage: (RemoteFileViewerState) -> Unit,
+    onDownload: (RemoteFileViewerState) -> Unit,
+    transferState: RemoteFileTransferState,
     onPreviousHexPage: (RemoteFileViewerState) -> Unit,
     onNextHexPage: (RemoteFileViewerState) -> Unit,
 ) {
@@ -294,6 +331,17 @@ private fun RemoteFileModeContent(
             }
 
             RemoteFileViewMode.INFO -> {
+                RemoteActionCard(
+                    title = stringResource(R.string.remote_file_download),
+                    summary = if (transferState.isActive && transferState.path == state.selectedPath) {
+                        stringResource(R.string.remote_file_download_active)
+                    } else {
+                        stringResource(R.string.remote_file_download_desc)
+                    },
+                    icon = Icons.Rounded.Download,
+                    enabled = !state.isLoading && !transferState.isActive,
+                    onClick = { onDownload(state) },
+                )
                 if (fileTooLarge) {
                     FileEmptyCard(
                         title = stringResource(R.string.remote_file_too_large),
@@ -795,6 +843,7 @@ private fun RemoteActionCard(
     title: String,
     summary: String,
     icon: ImageVector,
+    enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
     val colors = MiuixTheme.colorScheme
@@ -803,8 +852,8 @@ private fun RemoteActionCard(
         modifier = Modifier.fillMaxWidth(),
         colors = CardColors(color = shellColors.cardBackground, contentColor = colors.onSurface),
         cornerRadius = 18.dp,
-        onClick = onClick,
-        showIndication = true,
+        onClick = if (enabled) onClick else ({}),
+        showIndication = enabled,
         pressFeedbackType = PressFeedbackType.Sink,
     ) {
         Row(
@@ -817,14 +866,14 @@ private fun RemoteActionCard(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(RoundedCornerShape(14.dp))
-                    .background(shellColors.primaryAction.copy(alpha = 0.14f)),
+                    .background(shellColors.primaryAction.copy(alpha = if (enabled) 0.14f else 0.07f)),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
                     modifier = Modifier.size(20.dp),
-                    tint = shellColors.primaryAction,
+                    tint = shellColors.primaryAction.copy(alpha = if (enabled) 1f else 0.45f),
                 )
             }
             Spacer(modifier = Modifier.width(12.dp))
@@ -833,11 +882,101 @@ private fun RemoteActionCard(
                     text = title,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = colors.onSurface,
+                    color = colors.onSurface.copy(alpha = if (enabled) 1f else 0.55f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 Spacer(modifier = Modifier.height(3.dp))
+                Text(
+                    text = summary,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = colors.onSurfaceVariantSummary.copy(alpha = if (enabled) 1f else 0.55f),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = colors.outline.copy(alpha = if (enabled) 1f else 0.45f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun FileTransferStatusCard(state: RemoteFileTransferState) {
+    val colors = MiuixTheme.colorScheme
+    val shellColors = ShellTheme.colors
+    val context = LocalContext.current
+    val accent = when (state.status) {
+        RemoteFileTransferStatus.COMPLETED -> shellColors.success
+        RemoteFileTransferStatus.FAILED -> shellColors.danger
+        RemoteFileTransferStatus.PREPARING,
+        RemoteFileTransferStatus.RECEIVING -> shellColors.warning
+        RemoteFileTransferStatus.IDLE -> shellColors.primaryAction
+    }
+    val title = when (state.status) {
+        RemoteFileTransferStatus.PREPARING -> stringResource(R.string.remote_file_transfer_preparing)
+        RemoteFileTransferStatus.RECEIVING -> stringResource(R.string.remote_file_transfer_receiving)
+        RemoteFileTransferStatus.COMPLETED -> stringResource(R.string.remote_file_transfer_completed)
+        RemoteFileTransferStatus.FAILED -> stringResource(R.string.remote_file_transfer_failed)
+        RemoteFileTransferStatus.IDLE -> stringResource(R.string.remote_file_download)
+    }
+    val summary = when (state.status) {
+        RemoteFileTransferStatus.RECEIVING -> stringResource(
+            R.string.remote_file_transfer_progress,
+            Formatter.formatShortFileSize(context, state.receivedBytes),
+            Formatter.formatShortFileSize(context, state.totalBytes),
+        )
+        RemoteFileTransferStatus.COMPLETED -> state.fileName
+        RemoteFileTransferStatus.FAILED -> stringResource(
+            R.string.remote_file_transfer_failed_detail,
+            state.message.ifBlank { "transfer_failed" },
+        )
+        else -> state.fileName
+    }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardColors(
+            color = accent.copy(alpha = 0.14f),
+            contentColor = colors.onSurface,
+        ),
+        cornerRadius = 18.dp,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(accent.copy(alpha = 0.16f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Download,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = accent,
+                )
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                Text(
+                    text = title,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.onSurface,
+                )
                 Text(
                     text = summary,
                     fontSize = 12.sp,
@@ -847,12 +986,6 @@ private fun RemoteActionCard(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = null,
-                modifier = Modifier.size(20.dp),
-                tint = colors.outline,
-            )
         }
     }
 }

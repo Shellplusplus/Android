@@ -66,6 +66,13 @@ object MessageType {
     const val REMOTE_TOOL_BINARY_ABORT = "remoteToolBinaryAbort"
     const val REMOTE_TOOL_BINARY_ACK = "remoteToolBinaryAck"
 
+    const val FILE_TRANSFER_REQUEST = "fileTransferRequest"
+    const val FILE_TRANSFER_START = "fileTransferStart"
+    const val FILE_TRANSFER_PART = "fileTransferPart"
+    const val FILE_TRANSFER_ACK = "fileTransferAck"
+    const val FILE_TRANSFER_ABORT = "fileTransferAbort"
+    const val FILE_TRANSFER_RESULT = "fileTransferResult"
+
     // 连接保活
     const val HEARTBEAT = "heartbeat"
     const val HEARTBEAT_ACK = "heartbeatAck"
@@ -589,7 +596,9 @@ class WearMessageCenter private constructor(private val context: Context) {
             type != MessageType.SCREENSHOT_BULK_DATA &&
             type != MessageType.SCREENSHOT_CHUNK_PART &&
             type != MessageType.REMOTE_TOOL_BINARY_CHUNK &&
-            type != MessageType.REMOTE_TOOL_BINARY_ACK
+            type != MessageType.REMOTE_TOOL_BINARY_ACK &&
+            type != MessageType.FILE_TRANSFER_PART &&
+            type != MessageType.FILE_TRANSFER_ACK
     }
 
     private fun shouldLogRawTraffic(message: String): Boolean {

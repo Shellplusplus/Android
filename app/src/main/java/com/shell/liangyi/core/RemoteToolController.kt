@@ -27,6 +27,7 @@ private const val REMOTE_TOOL_TAG = "RemoteToolController"
 private const val REMOTE_TOOL_TIMEOUT_MS = 25_000L
 private const val REMOTE_FILE_CACHE_LIMIT = 32
 private const val REMOTE_PREVIEW_CACHE_LIMIT = 12
+const val REMOTE_HEX_PAGE_SIZE = 2_048
 
 enum class RemoteFileViewMode {
     LIST,
@@ -229,7 +230,7 @@ class RemoteToolController(
             payload = JSONObject().apply {
                 put("path", path)
                 put("offset", safeOffset)
-                put("length", 128)
+                put("length", REMOTE_HEX_PAGE_SIZE)
             },
         )
     }
