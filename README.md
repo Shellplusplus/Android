@@ -1,127 +1,79 @@
 # Shell++ Android
 
-Shell++ Android 是 Shell++ / Vela 手表的 Android 端配套应用，负责把手表截图同步到手机，并提供局域网直传、截图预览导出、应用内更新检查，以及配套的发布通知能力。
+Shell++ Android 是 Shell++ / Xiaomi Vela 手表端的配套 Android 应用。它负责通过小米穿戴消息通道与手表通信，并提供截图同步、局域网直传、远程终端、远程文件查看、诊断和应用内更新等能力。
 
-## 当前功能
+> 这是 Android 客户端仓库，不包含 Xiaomi Vela 手表端源码、AI 授权签发后台或发行签名私钥。
 
-- 通过小米穿戴消息通道与手表建立连接，获取截图列表并按需拉取截图
-- 内置轻量 HTTP 服务，支持同局域网下的 PNG 截图直传与分片上传
-- 截图详情页支持预览、保存到系统相册、生成带机型边框版本、删除本地缓存
-- 首页集中展示手表连接状态、截图缓存数量、LAN 服务状态与最近传输进度
-- 远程终端支持向手表端发送单条命令，并保留最近命令与收藏命令
-- 设置页支持手动检查更新、跳过非强制更新提醒
-- 关于页展示开发者信息与开源组件说明
-- 通过 GitHub Release 元数据驱动应用内更新提示
+## 功能
+
+- 连接 Vela 手表，获取截图列表并按需拉取图片
+- 支持分片传输、断点恢复和批量截图同步
+- 通过局域网 HTTP 服务接收 PNG 截图
+- 预览、导出、加设备边框或清理本地截图缓存
+- 向手表发送经过安全校验的单条终端命令
+- 浏览并传输手表端文件
+- 导出经过脱敏的诊断报告
+- 检查 GitHub Release 并完成应用内更新
+- 在有效的签名授权下使用可选 AI 助手
 
 ## 技术栈
 
-- Kotlin `2.3.20`
+- Kotlin `2.4.10`
 - Android Gradle Plugin `8.13.2`
-- Jetpack Compose + Navigation Compose
-- Material 3 + MIUIX / HyperOS 风格组件
-- Kotlin Coroutines + Coil
-- 本地 AAR 形式接入 Xiaomi Wearable SDK
-- Gradle Kotlin DSL
-
-## 环境要求
-
 - JDK `17`
-- Android SDK `compileSdk 36`
-- `targetSdk 36`
-- `minSdk 26`
-- 支持 AGP `8.9` / Kotlin `2.3` 的 Android Studio
+- Android `compileSdk 36` / `targetSdk 36` / `minSdk 26`
+- Jetpack Compose、Material 3、Navigation Compose
+- MIUIX / HyperOS 风格组件
+- Kotlin Coroutines、Coil、Bouncy Castle
+- Xiaomi Wearable SDK（本地 AAR）
+- Gradle Kotlin DSL
 
 ## 项目结构
 
 ```text
 .
-├─ .github/
-│  └─ workflows/
-│     └─ build.yml                GitHub Actions：构建、发布、通知
-├─ app/                           Android 应用模块
-│  ├─ libs/                       本地 AAR / JAR 依赖
-│  ├─ release/                    当前导出的发布产物
+├─ .github/workflows/           GitHub Actions 构建与发布流程
+├─ app/
+│  ├─ libs/                     Xiaomi Wearable SDK 等本地依赖
 │  └─ src/
-│     ├─ androidTest/             仪器测试
-│     ├─ main/
-│     │  ├─ java/com/shell/liangyi/
-│     │  │  ├─ core/              手表通信、截图接收、HTTP 服务
-│     │  │  │  └─ update/         应用内更新检查
-│     │  │  ├─ model/             数据模型
-│     │  │  ├─ ui/
-│     │  │  │  ├─ about/          关于页
-│     │  │  │  ├─ ai/             AI 助手授权页
-│     │  │  │  ├─ bluetooth/      蓝牙 / 穿戴通道截图同步页
-│     │  │  │  ├─ components/     通用 Compose 组件
-│     │  │  │  ├─ fetch/          LAN / HTTP 直传页
-│     │  │  │  ├─ index/          首页状态面板
-│     │  │  │  ├─ remote/         手表远程文件浏览页
-│     │  │  │  ├─ screenshot/     截图详情页
-│     │  │  │  ├─ settings/       设置与日志入口
-│     │  │  │  ├─ terminal/       远程终端页
-│     │  │  │  └─ theme/          主题与配色
-│     │  │  └─ util/              相册保存、图片处理
-│     │  └─ res/                  图片、字符串、主题、设备边框素材
-│     └─ test/                    单元测试
-├─ gradle/                        Gradle Wrapper 与版本目录
-├─ sign/                          本地签名文件目录
-├─ build.gradle.kts               根构建脚本
-├─ settings.gradle.kts            Gradle 模块配置
-├─ gradle.properties              Gradle 全局参数
-└─ README.md
+│     ├─ main/                  正式应用源码与资源
+│     ├─ developer/             AI 助手实现；当前并入唯一正式 APK
+│     ├─ test/                  JVM 单元测试
+│     └─ androidTest/           Android 仪器测试
+├─ docs/                        架构与维护文档
+├─ gradle/                      Wrapper 与版本目录
+├─ miuix-blur/                  固定上游版本的本地源码快照
+├─ CONTRIBUTING.md              贡献流程
+├─ SECURITY.md                  安全问题报告方式
+└─ THIRD_PARTY_NOTICES.md       第三方代码与二进制说明
 ```
 
-## 关键模块
+核心模块和数据流见 [架构说明](docs/ARCHITECTURE.md)。
 
-- `app/src/main/java/com/shell/liangyi/core/WearMessageCenter.kt`
-  负责与手表侧建立消息通道、握手、保活、日志记录与指令发送。
-- `app/src/main/java/com/shell/liangyi/core/ScreenshotReceiver.kt`
-  负责截图列表同步、按图拉取、分片重传、断点恢复、本地缓存索引与同步进度维护。
-- `app/src/main/java/com/shell/liangyi/core/HttpScreenshotServer.kt`
-  零外部依赖的轻量 HTTP 服务，处理同局域网下的截图上传。
-- `app/src/main/java/com/shell/liangyi/core/update/UpdateChecker.kt`
-  读取远端更新信息并决定是否展示可选/强制更新提示。
-- `app/src/main/java/com/shell/liangyi/ui/`
-  Compose UI 层，包含首页、蓝牙同步页、LAN 传输页、设置页、关于页、截图详情页与通用组件。
+## 开发环境
 
-## 构建
+1. 安装 JDK 17 和包含 Android SDK 36 的 Android Studio。
+2. 克隆仓库，并确认 `app/libs/xms-wearable-lib_1.4_release.aar` 存在。
+3. 将 `local.properties.example` 复制为 `local.properties`，至少填写本机 `sdk.dir`。
+4. 使用 Android Studio 同步 Gradle，或在命令行执行构建。
 
 Windows PowerShell：
-
-```powershell
-.\gradlew.bat assembleRelease
-```
-
-macOS / Linux：
-
-```bash
-./gradlew assembleRelease
-```
-
-默认输出路径：
-
-```text
-app/build/outputs/apk/release/app-release.apk
-```
-
-如果需要调试包：
 
 ```powershell
 .\gradlew.bat assembleDebug
 ```
 
-应用版本号支持通过环境变量覆盖：
+macOS / Linux：
 
-```text
-VERSION_CODE
-VERSION_NAME
+```bash
+./gradlew assembleDebug
 ```
 
-未提供时默认分别为 `1` 和 `1.0`。
+APK 默认输出到 `app/build/outputs/apk/`。版本号可通过 `VERSION_CODE` 和 `VERSION_NAME` 环境变量覆盖；未指定时分别为 `1` 和 `1.0`。
 
-## 签名配置
+## 签名与手表通信
 
-项目默认从仓库根目录下的 `sign/Android.jks` 读取 keystore，并从 `local.properties` 读取签名密码：
+本地构建不要求项目的发行签名。需要自定义签名时，在仓库根目录放置 `sign/Android.jks`，并在 `local.properties` 配置：
 
 ```properties
 shell.storePassword=your-store-password
@@ -129,55 +81,50 @@ shell.keyAlias=key
 shell.keyPassword=your-key-password
 ```
 
-如果 `sign/Android.jks` 或上述字段不完整，Gradle 不会启用 `localShellSign` 这套本地签名配置。
+签名文件与密码均不得提交。缺少完整签名配置时，Gradle 会使用默认调试签名。
 
-## AI 助手网站授权
+Xiaomi Wearable SDK 的鉴权可能与应用包名、开发者平台配置和证书指纹绑定。自行编译的 APK 可以完成普通 Android 构建，但不保证能直接连接正式版手表应用；请使用你自己的小米开发者配置和签名进行联调。
 
-AI 授权文件和公开清单使用 Ed25519 签名。签发流程已迁移到私有网站后台仓库 `YdefateStar/website`，不再使用本地 Rust 签发工具。该网站前端基于 `satnaing/shadcn-admin`，后端使用 Rust Axum；管理员登录后进入“AI 授权签发”页面即可初始化加密密钥、验证设备申请、签发授权和撤销授权。
+## AI 授权配置
 
-网站部署后，在 `local.properties` 只需要配置网站公钥：
+客户端只包含授权验证逻辑，不包含签发私钥或签发后台。默认发行配置内置公开的 Ed25519 验证公钥和公开授权清单地址；公钥不是秘密。
+
+开发者可以在 `local.properties` 覆盖测试环境：
 
 ```properties
-shell.aiIssuerPublicKey=网站“AI 授权签发”页面显示的 BASE64URL 公钥
+shell.aiIssuerPublicKey=BASE64URL_PUBLIC_KEY
+shell.aiLicenseRegistryUrl=https://example.com/registry.json
 ```
 
-Android 端默认从公开 GitHub 仓库读取已签名授权清单：
+正式授权清单默认地址：
 
 ```text
 https://raw.githubusercontent.com/Shellplusplus/shellpplicense/main/registry.json
 ```
 
-网站后台将签发私钥保存在服务器 `.runtime/ai-license/issuer.key.json` 的 Argon2id + AES-256-GCM 加密文件中。设备申请包只包含 Android Keystore 公钥、硬件证明信息和设备签名，不包含设备私钥。Android 导入授权后，会从 GitHub 公开清单文件验证授权哈希、撤销状态和 Ed25519 签名。
+## 应用更新
 
-网站后台接口：
-
-- `GET /api/ai-license/registry`：本地公开清单调试端点；正式 Android 默认读取 GitHub raw 文件。
-- `GET /api/ai-license/status`：登录后查看签发密钥状态。
-- `POST /api/ai-license/setup`：登录后初始化或验证签发私钥。
-- `POST /api/ai-license/issue`：登录后验证设备申请并签发授权。
-- `POST /api/ai-license/revoke`：登录后撤销授权。
-- `POST /api/ai-license/publish-registry`：手动将本地清单重新发布到 GitHub。
-
-## 更新接口
-
-应用内更新检查默认请求：
+客户端默认读取以下仓库的最新 GitHub Release：
 
 ```text
-https://api.github.com/repos/DefateStar/public-shellpp/releases/latest
+https://api.github.com/repos/Shellplusplus/Shellplusplus/releases/latest
 ```
 
-`UpdateChecker.kt` 会读取最新 GitHub Release，优先选择 `app-release.apk` 作为下载资产。Release `tag_name` 需要包含版本号，例如 `beta20`；Release 正文可用 `min_supported_version_code: 18` 声明强制更新的最低支持版本，剩余正文会作为更新日志展示。
+Release `tag_name` 需要包含版本号。Release 正文可用 `min_supported_version_code: 18` 声明强制更新的最低版本，其余正文作为更新日志展示。下载器优先选择 `app-release.apk`。
 
-## CI / 发布链路
+## CI
 
-- `.github/workflows/build.yml`
-  在 `main` / `android` 分支 push 或手动触发时执行构建。
-- 工作流会：
-  - 解码签名文件
-  - 生成 `local.properties`
-  - 构建 release APK
-  - 上传 artifact
-  - 默认向公开仓库 `DefateStar/public-shellpp` 创建或更新 GitHub Release
-- 手动触发时可通过 `release_repository` 输入临时覆盖发布目标仓库。
-- 如果需要覆盖默认公开仓库，可配置仓库变量 `PUBLIC_RELEASE_REPOSITORY`。
-- 当发布目标不是当前仓库时，必须配置 `PUBLIC_SHELLPP_TOKEN`，并确保该 token 对目标仓库具备 `Contents: Read and write` 权限。
+- `.github/workflows/build.yml`：在 `main` / `android` 分支 push 或手动触发时构建并发布 APK。
+- push 默认向当前仓库发布；手动触发时可指定其他 `owner/repo`。
+- 发布到外部仓库时需要 `PUBLIC_SHELLPP_TOKEN`。
+- `.github/workflows/public-release.yml`：由发布中心按指定源码引用和版本号构建公开产物。
+
+仓库管理员还需在 Actions Secrets 中配置签名相关值。Secret 名称和完整说明见工作流文件；任何私钥、keystore、token 或密码都不应写入源码。
+
+## 参与贡献
+
+开始修改前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。安全漏洞请按 [SECURITY.md](SECURITY.md) 私下报告，不要在公开 Issue 中披露利用细节。
+
+## 开源许可
+
+Shell++ Android 的项目源码以 [GNU AGPL v3](LICENSE) 发布。仓库包含的第三方源码、依赖和厂商二进制仍遵循各自许可，详见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

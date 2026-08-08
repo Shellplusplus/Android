@@ -5,6 +5,7 @@ import android.util.Base64
 import android.util.Log
 import androidx.annotation.StringRes
 import com.shell.liangyi.R
+import com.shell.liangyi.core.diagnostics.DiagnosticManager
 import com.shell.liangyi.model.Screenshot
 import com.shell.liangyi.util.AtomicFileWriter
 import kotlinx.coroutines.CancellationException
@@ -138,6 +139,13 @@ class ScreenshotReceiver(
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start HTTP server", e)
+            DiagnosticManager.getInstance(context).reportFailure(
+                category = "screenshot_transfer",
+                scene = "lan_screenshot_server",
+                code = "server_start_failed",
+                summary = e.message ?: "局域网截图服务启动失败",
+                throwable = e,
+            )
             null
         }
     }
@@ -511,6 +519,13 @@ class ScreenshotReceiver(
         }
         if (reason.isNotEmpty()) {
             Log.w(TAG, "transfer failed for $shotId: $reason")
+            DiagnosticManager.getInstance(context).reportFailure(
+                category = "screenshot_transfer",
+                scene = "screenshot_sync",
+                code = "transfer_failed",
+                summary = reason,
+                metadata = mapOf("hasShotId" to shotId.isNotBlank().toString()),
+            )
         }
     }
 
@@ -1132,6 +1147,13 @@ class ScreenshotReceiver(
                     throw e
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to handle screenshot message", e)
+                    DiagnosticManager.getInstance(context).reportFailure(
+                        category = "screenshot_transfer",
+                        scene = "screenshot_message",
+                        code = "message_handle_failed",
+                        summary = e.message ?: "截图消息处理失败",
+                        throwable = e,
+                    )
                     currentRequestedShotId?.let { shotId ->
                         markTransferFailed(shotId, e.message ?: "message handling failed")
                     }
@@ -1876,6 +1898,13 @@ class ScreenshotReceiver(
             onPulledScreenshotReceived(shotId)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to persist legacy screenshot payload", e)
+            DiagnosticManager.getInstance(context).reportFailure(
+                category = "screenshot_transfer",
+                scene = "legacy_screenshot_receive",
+                code = "payload_persist_failed",
+                summary = e.message ?: "旧版截图数据保存失败",
+                throwable = e,
+            )
         }
     }
 

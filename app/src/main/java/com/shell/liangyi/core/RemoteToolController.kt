@@ -3,6 +3,7 @@ package com.shell.liangyi.core
 import android.content.Context
 import android.util.Base64
 import android.util.Log
+import com.shell.liangyi.core.diagnostics.DiagnosticManager
 import com.shell.liangyi.R
 import com.shell.liangyi.util.FileCacheTrimmer
 import kotlinx.coroutines.CancellationException
@@ -581,7 +582,12 @@ class RemoteToolController(
                 )
             }
         }
-        emitMessage(message.ifBlank { context.getString(R.string.remote_tool_request_failed) })
+        DiagnosticManager.getInstance(context).reportFailure(
+            category = "remote_tool",
+            scene = request?.feature ?: "remote_file_viewer",
+            code = "request_failed",
+            summary = message.ifBlank { context.getString(R.string.remote_tool_request_failed) },
+        )
     }
 
     private fun emitMessage(message: String) {

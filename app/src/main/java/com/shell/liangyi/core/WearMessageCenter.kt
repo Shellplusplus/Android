@@ -7,6 +7,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Base64
 import android.util.Log
+import com.shell.liangyi.core.diagnostics.DiagnosticManager
 import androidx.annotation.StringRes
 import com.shell.liangyi.R
 import com.xiaomi.xms.wearable.Wearable
@@ -567,6 +568,14 @@ class WearMessageCenter private constructor(private val context: Context) {
             }
             _logs.tryEmit(logEntries.toList())
         }
+        if (direction == "ERROR") {
+            DiagnosticManager.getInstance(context).reportFailure(
+                category = "wear_connection",
+                scene = "wear_message_center",
+                code = type,
+                summary = message.ifBlank { "手表连接或消息处理异常" },
+            )
+        }
     }
 
     fun addExternalLog(direction: String, type: String, message: String = "") {
@@ -578,6 +587,10 @@ class WearMessageCenter private constructor(private val context: Context) {
             logEntries.clear()
             _logs.tryEmit(emptyList())
         }
+    }
+
+    fun snapshotLogs(): List<LogEntry> {
+        return synchronized(logEntries) { logEntries.toList() }
     }
 
     private fun updateWatchProductCode(productCode: String) {

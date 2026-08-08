@@ -47,13 +47,27 @@ val hasLocalSigningConfig = localSigningKeystore.exists() && hasSigningCredentia
 fun buildConfigString(value: String): String =
     "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 
-val aiIssuerPublicKey = "IwhDUu5byrMvZSdRGtqVkx0XnHM9XAMr5yyJ7MQOSlw"
-val aiLicenseRegistryUrl = "https://raw.githubusercontent.com/Shellplusplus/shellpplicense/main/registry.json"
+val defaultAiIssuerPublicKey = "IwhDUu5byrMvZSdRGtqVkx0XnHM9XAMr5yyJ7MQOSlw"
+val defaultAiLicenseRegistryUrl =
+    "https://raw.githubusercontent.com/Shellplusplus/shellpplicense/main/registry.json"
+val aiIssuerPublicKey = localProps
+    .getProperty("shell.aiIssuerPublicKey", defaultAiIssuerPublicKey)
+    .trim()
+val aiLicenseRegistryUrl = localProps
+    .getProperty("shell.aiLicenseRegistryUrl", defaultAiLicenseRegistryUrl)
+    .trim()
 
 if (aiIssuerPublicKey.isBlank()) {
     logger.warn(
         "AI license issuer public key is not configured. " +
-            "Update aiIssuerPublicKey in app/build.gradle.kts."
+            "Set shell.aiIssuerPublicKey in local.properties."
+    )
+}
+
+if (aiLicenseRegistryUrl.isBlank()) {
+    logger.warn(
+        "AI license registry URL is not configured. " +
+            "Set shell.aiLicenseRegistryUrl in local.properties."
     )
 }
 

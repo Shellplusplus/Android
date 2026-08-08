@@ -1,7 +1,10 @@
 package com.shell.liangyi.ui.screenshot
 
+import android.Manifest
 import android.content.Context
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -61,6 +64,8 @@ import com.shell.liangyi.ui.components.ShellBackScaffold
 import com.shell.liangyi.ui.theme.ShellColors
 import com.shell.liangyi.ui.theme.ShellTheme
 import com.shell.liangyi.util.FileCacheTrimmer
+import com.shell.liangyi.util.GalleryFileNamePolicy
+import com.shell.liangyi.util.GallerySaveResult
 import com.shell.liangyi.util.GallerySaver
 import com.shell.liangyi.util.ImageProcessor
 import kotlinx.coroutines.Dispatchers
@@ -89,6 +94,8 @@ fun ScreenshotDetailScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var actionInProgress by remember { mutableStateOf(false) }
+    var permissionRequestInProgress by remember { mutableStateOf(false) }
+    var pendingGalleryAction by remember { mutableStateOf<(() -> Unit)?>(null) }
     var showFramePicker by remember { mutableStateOf(false) }
     val frameSet = remember(watchProductCode) {
         DeviceFrameCatalog.resolve(watchProductCode)
@@ -127,6 +134,7 @@ fun ScreenshotDetailScreen(
             out.absolutePath
         }
     }
+    val imageReady = shot?.isComplete == true && hasLocalFile && roundedPath != null
 
     val gallerySaver = remember { GallerySaver(shellViewModel.appContext()) }
     val displayTitle = shot?.displayTitle?.takeIf { it.isNotBlank() }
@@ -140,6 +148,89 @@ fun ScreenshotDetailScreen(
     val screenshotSavedText = stringResource(R.string.screenshot_saved)
     val compositeFailedText = stringResource(R.string.composite_failed)
     val saveFailedText = stringResource(R.string.save_failed)
+    val storagePermissionRequiredText = stringResource(R.string.screenshot_storage_permission_required)
+    val invalidImageText = stringResource(R.string.screenshot_invalid_image)
+    val storageUnavailableText = stringResource(R.string.screenshot_storage_unavailable)
+
+    fun showGallerySaveResult(result: GallerySaveResult, scene: String = "screenshot_save") {
+        val message = when (result) {
+            GallerySaveResult.Success -> screenshotSavedText
+            GallerySaveResult.PermissionDenied -> storagePermissionRequiredText
+            GallerySaveResult.InvalidImage -> invalidImageText
+            GallerySaveResult.StorageUnavailable -> storageUnavailableText
+            GallerySaveResult.SourceMissing,
+            GallerySaveResult.MediaStoreFailure -> saveFailedText
+        }
+        when (result) {
+            GallerySaveResult.Success,
+            GallerySaveResult.PermissionDenied -> {
+                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            }
+            else -> {
+                shellViewModel.reportDiagnosticFailure(
+                    category = "screenshot",
+                    scene = scene,
+                    code = result.name,
+                    summary = message,
+                    metadata = mapOf(
+                        "screenshotIndex" to (shot?.index ?: 0).toString(),
+                        "isComplete" to (shot?.isComplete == true).toString(),
+                    ),
+                )
+            }
+        }
+    }
+
+    val storagePermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        permissionRequestInProgress = false
+        val pendingAction = pendingGalleryAction
+        pendingGalleryAction = null
+        if (granted) {
+            pendingAction?.invoke()
+        } else {
+            Toast.makeText(
+                context,
+                storagePermissionRequiredText,
+                Toast.LENGTH_SHORT,
+            ).show()
+        }
+    }
+
+    fun runWithGalleryPermission(action: () -> Unit) {
+        if (gallerySaver.hasStoragePermission()) {
+            action()
+        } else if (!permissionRequestInProgress) {
+            pendingGalleryAction = action
+            permissionRequestInProgress = true
+            storagePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        }
+    }
+
+    fun saveOriginalScreenshot() {
+        if (actionInProgress) return
+        val inputPath = resolvedPath ?: return
+        actionInProgress = true
+        scope.launch {
+            val result = try {
+                withContext(Dispatchers.IO) {
+                    gallerySaver.saveFileToGallery(
+                        inputPath,
+                        buildGalleryFileName("Shell++", shot),
+                    )
+                }
+            } catch (error: Exception) {
+                if (error is CancellationException) {
+                    throw error
+                }
+                GallerySaveResult.MediaStoreFailure
+            } finally {
+                actionInProgress = false
+            }
+            showGallerySaveResult(result)
+        }
+    }
 
     fun saveFramedScreenshot(
         selectedFrameSet: DeviceFrameSet,
@@ -168,12 +259,17 @@ fun ScreenshotDetailScreen(
                         return@withContext SaveResult.CompositeFailed
                     }
                     FileCacheTrimmer.trim(cacheDir, PROCESSED_IMAGE_CACHE_LIMIT)
-                    val suffix = shot?.index ?: System.currentTimeMillis()
-                    val fileName = "Shell++_framed_${variant.id}_$suffix"
-                    if (gallerySaver.saveFileToGallery(out.absolutePath, fileName)) {
-                        SaveResult.Success
-                    } else {
-                        SaveResult.SaveFailed
+                    val fileName = buildGalleryFileName(
+                        "Shell++_framed_${variant.id}",
+                        shot,
+                    )
+                    when (gallerySaver.saveFileToGallery(out.absolutePath, fileName)) {
+                        GallerySaveResult.Success -> SaveResult.Success
+                        GallerySaveResult.PermissionDenied -> SaveResult.PermissionDenied
+                        GallerySaveResult.StorageUnavailable -> SaveResult.StorageUnavailable
+                        GallerySaveResult.InvalidImage,
+                        GallerySaveResult.SourceMissing -> SaveResult.CompositeFailed
+                        GallerySaveResult.MediaStoreFailure -> SaveResult.SaveFailed
                     }
                 }
             } catch (error: Exception) {
@@ -184,15 +280,31 @@ fun ScreenshotDetailScreen(
             } finally {
                 actionInProgress = false
             }
-            Toast.makeText(
-                context,
-                when (result) {
+            val message = when (result) {
                     SaveResult.Success -> screenshotSavedText
                     SaveResult.CompositeFailed -> compositeFailedText
                     SaveResult.SaveFailed -> saveFailedText
-                },
-                Toast.LENGTH_SHORT,
-            ).show()
+                    SaveResult.PermissionDenied -> storagePermissionRequiredText
+                    SaveResult.StorageUnavailable -> storageUnavailableText
+                }
+            when (result) {
+                SaveResult.Success,
+                SaveResult.PermissionDenied -> {
+                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                }
+                else -> {
+                    shellViewModel.reportDiagnosticFailure(
+                        category = "screenshot",
+                        scene = "framed_screenshot_save",
+                        code = result.name,
+                        summary = message,
+                        metadata = mapOf(
+                            "frameVariant" to variant.id,
+                            "screenshotIndex" to (shot?.index ?: 0).toString(),
+                        ),
+                    )
+                }
+            }
         }
     }
 
@@ -215,8 +327,8 @@ fun ScreenshotDetailScreen(
                     roundedPath = roundedPath,
                     shot = shot,
                     shellViewModel = shellViewModel,
-                    hasLocalFile = hasLocalFile,
-                    actionInProgress = actionInProgress,
+                    hasLocalFile = imageReady,
+                    actionInProgress = actionInProgress || permissionRequestInProgress,
                     onFrameClick = {
                         if (actionInProgress) return@PreviewActionCard
                         val selectedFrameSet = frameSet
@@ -234,34 +346,16 @@ fun ScreenshotDetailScreen(
                             return@PreviewActionCard
                         }
                         if (selectedFrameSet.variants.size == 1) {
-                            saveFramedScreenshot(selectedFrameSet, selectedFrameSet.variants.first())
+                            runWithGalleryPermission {
+                                saveFramedScreenshot(selectedFrameSet, selectedFrameSet.variants.first())
+                            }
                         } else {
                             showFramePicker = true
                         }
                     },
                     onSaveClick = {
-                        if (actionInProgress) return@PreviewActionCard
-                        val inputPath = resolvedPath ?: return@PreviewActionCard
-                        actionInProgress = true
-                        scope.launch {
-                            val ok = try {
-                                withContext(Dispatchers.IO) {
-                                    val fileName = "Shell++_${shot?.index ?: System.currentTimeMillis()}"
-                                    gallerySaver.saveFileToGallery(inputPath, fileName)
-                                }
-                            } catch (error: Exception) {
-                                if (error is CancellationException) {
-                                    throw error
-                                }
-                                false
-                            } finally {
-                                actionInProgress = false
-                            }
-                            Toast.makeText(
-                                context,
-                                if (ok) screenshotSavedText else saveFailedText,
-                                Toast.LENGTH_SHORT
-                            ).show()
+                        runWithGalleryPermission {
+                            saveOriginalScreenshot()
                         }
                     },
                     onDeleteClick = {
@@ -286,7 +380,9 @@ fun ScreenshotDetailScreen(
             onDismissRequest = { showFramePicker = false },
             onSelect = { variant ->
                 showFramePicker = false
-                saveFramedScreenshot(frameSet, variant)
+                runWithGalleryPermission {
+                    saveFramedScreenshot(frameSet, variant)
+                }
             },
         )
     }
@@ -857,6 +953,17 @@ private enum class SaveResult {
     Success,
     CompositeFailed,
     SaveFailed,
+    PermissionDenied,
+    StorageUnavailable,
+}
+
+private fun buildGalleryFileName(prefix: String, shot: Screenshot?): String {
+    return GalleryFileNamePolicy.screenshotBaseName(
+        prefix = prefix,
+        index = shot?.index ?: 0,
+        shotId = shot?.shotId.orEmpty(),
+        timestamp = System.currentTimeMillis(),
+    )
 }
 
 private fun prepareDevice(

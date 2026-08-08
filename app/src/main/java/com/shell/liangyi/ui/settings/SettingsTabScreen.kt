@@ -53,6 +53,7 @@ fun SettingsTabScreen(
     previewMode: Boolean = false,
     showRestartOnboardingEntry: Boolean = true,
     onRestartOnboarding: (() -> Unit)? = null,
+    onOpenDiagnostics: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val qqGroupUrl = "https://qm.qq.com/q/OopppLfV28"
@@ -182,7 +183,7 @@ fun SettingsTabScreen(
                         summary = stringResource(R.string.app_theme_summary),
                         items = themeItems,
                         selectedIndex = themeIndex,
-                        renderInRootScaffold = false,
+                        renderInRootScaffold = true,
                         onSelectedIndexChange = { index ->
                             val nextMode = when (index) {
                                 1 -> ShellThemeMode.LIGHT
@@ -195,6 +196,32 @@ fun SettingsTabScreen(
                             } else {
                                 shellViewModel.setThemeMode(nextMode)
                             }
+                        },
+                    )
+                }
+            }
+
+            item {
+                SmallTitle(
+                    text = stringResource(R.string.settings_section_diagnostics),
+                    modifier = Modifier.padding(top = 12.dp),
+                )
+                Card(
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                    insideMargin = PaddingValues(0.dp),
+                ) {
+                    BasicComponent(
+                        title = stringResource(R.string.diagnostics_entry_title),
+                        summary = stringResource(R.string.diagnostics_entry_summary),
+                        endActions = {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                contentDescription = null,
+                                tint = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                            )
+                        },
+                        onClick = {
+                            if (previewMode) showPreviewToast() else onOpenDiagnostics?.invoke()
                         },
                     )
                 }
@@ -244,7 +271,7 @@ fun SettingsTabScreen(
                             summary = stringResource(R.string.ai_authorized_feature_summary),
                             items = aiFeatureItems,
                             selectedIndex = aiFeatureIndex,
-                            renderInRootScaffold = false,
+                            renderInRootScaffold = true,
                             onSelectedIndexChange = { index ->
                                 val nextMode = if (index == 0) {
                                     AiAuthorizedFeatureMode.RemoteTerminal

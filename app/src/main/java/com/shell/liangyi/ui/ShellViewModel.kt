@@ -16,6 +16,11 @@ import com.shell.liangyi.core.RemoteToolController
 import com.shell.liangyi.core.ScreenshotReceiver
 import com.shell.liangyi.core.WearMessageCenter
 import com.shell.liangyi.core.WearConnectionPreferences
+import com.shell.liangyi.core.diagnostics.DiagnosticAlert
+import com.shell.liangyi.core.diagnostics.DiagnosticCheckItem
+import com.shell.liangyi.core.diagnostics.DiagnosticEvent
+import com.shell.liangyi.core.diagnostics.DiagnosticManager
+import com.shell.liangyi.core.diagnostics.DiagnosticSeverity
 import com.shell.liangyi.core.onboarding.GitHubProxyBenchmarkUiState
 import com.shell.liangyi.core.onboarding.GitHubProxyBenchmarker
 import com.shell.liangyi.core.onboarding.GitHubProxySelection
@@ -64,6 +69,7 @@ class ShellViewModel : ViewModel() {
     private var updateDownloadJob: Job? = null
     private var activeDownloadPrompt: UpdatePrompt? = null
     private lateinit var remoteTerminalBridge: RemoteTerminalBridge
+    private lateinit var diagnosticManager: DiagnosticManager
     private var initialized = false
 
     lateinit var wearMessageCenter: WearMessageCenter
@@ -125,6 +131,16 @@ class ShellViewModel : ViewModel() {
     val remoteTerminalUiState = _remoteTerminalUiState.asStateFlow()
     private val _remoteTerminalMessages = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val remoteTerminalMessages = _remoteTerminalMessages.asSharedFlow()
+    private val _diagnosticChecks = MutableStateFlow<List<DiagnosticCheckItem>>(emptyList())
+    val diagnosticChecks = _diagnosticChecks.asStateFlow()
+    private val _diagnosticMessages = MutableSharedFlow<String>(extraBufferCapacity = 4)
+    val diagnosticMessages = _diagnosticMessages.asSharedFlow()
+
+    val diagnosticEvents: StateFlow<List<DiagnosticEvent>>
+        get() = diagnosticManager.events
+
+    val diagnosticAlert: StateFlow<DiagnosticAlert?>
+        get() = diagnosticManager.activeAlert
 
     fun initialize(context: Context) {
         if (initialized) {
@@ -132,6 +148,8 @@ class ShellViewModel : ViewModel() {
         }
         val appContext = context.applicationContext
         appCtx = appContext
+        diagnosticManager = DiagnosticManager.getInstance(appContext)
+        diagnosticManager.initialize()
         val licenseManager = AiLicenseManager(appContext)
         aiLicenseManager = licenseManager
         _aiLicenseState.value = licenseManager.currentState()
@@ -152,6 +170,81 @@ class ShellViewModel : ViewModel() {
         loadAiAuthorizedFeatureMode(appContext)
         loadWearConnectionPreferences(appContext)
         initialized = true
+    }
+
+    fun updateDiagnosticScene(scene: String) {
+        if (::diagnosticManager.isInitialized) diagnosticManager.updateCurrentScene(scene)
+    }
+
+    fun reportDiagnosticFailure(
+        category: String,
+        scene: String,
+        code: String,
+        summary: String,
+        throwable: Throwable? = null,
+        metadata: Map<String, String> = emptyMap(),
+        severity: DiagnosticSeverity = DiagnosticSeverity.Error,
+        showDialog: Boolean = true,
+    ) {
+        if (!::diagnosticManager.isInitialized) return
+        diagnosticManager.reportFailure(
+            category = category,
+            scene = scene,
+            code = code,
+            summary = summary,
+            throwable = throwable,
+            metadata = metadata,
+            severity = severity,
+            showDialog = showDialog,
+        )
+    }
+
+    fun dismissDiagnosticAlert() {
+        if (::diagnosticManager.isInitialized) diagnosticManager.dismissAlert()
+    }
+
+    fun runDiagnosticSelfCheck() {
+        if (!::diagnosticManager.isInitialized || !::wearMessageCenter.isInitialized) return
+        scope.launch {
+            _diagnosticChecks.value = withContext(Dispatchers.IO) {
+                diagnosticManager.runSelfCheck(wearMessageCenter.getCurrentConnectionState())
+            }
+        }
+    }
+
+    fun clearDiagnostics() {
+        if (!::diagnosticManager.isInitialized) return
+        diagnosticManager.clear()
+        _diagnosticChecks.value = emptyList()
+    }
+
+    fun exportDiagnostics(destination: Uri, userNote: String = "") {
+        val context = appCtx ?: return
+        if (!::diagnosticManager.isInitialized || !::wearMessageCenter.isInitialized) return
+        scope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    val report = diagnosticManager.exportReport(
+                        logs = wearMessageCenter.snapshotLogs(),
+                        userNote = userNote,
+                    )
+                    context.contentResolver.openOutputStream(destination, "w")?.use { output ->
+                        output.write(report)
+                        output.flush()
+                    } ?: throw IllegalStateException("无法打开导出文件")
+                }
+                _diagnosticMessages.emit("诊断报告已导出")
+            } catch (error: Exception) {
+                error.throwIfCancellation()
+                reportDiagnosticFailure(
+                    category = "diagnostic_export",
+                    scene = "diagnostics",
+                    code = "export_failed",
+                    summary = error.message ?: "诊断报告导出失败",
+                    throwable = error,
+                )
+            }
+        }
     }
     fun refreshAiLicense() {
         val manager = aiLicenseManager ?: return
@@ -557,8 +650,11 @@ class ShellViewModel : ViewModel() {
                             UpdateChecker.readOptionalUpdatePreferenceState(context),
                         )
                         if (manual) {
-                            _updateMessages.tryEmit(
-                                context.getString(R.string.update_check_failed, result.message)
+                            reportDiagnosticFailure(
+                                category = "app_update",
+                                scene = "manual_update_check",
+                                code = "update_check_failed",
+                                summary = context.getString(R.string.update_check_failed, result.message),
                             )
                         }
                     }
@@ -618,11 +714,15 @@ class ShellViewModel : ViewModel() {
                 throwable.throwIfCancellation()
                 _updateDownloadState.value = UpdateDownloadUiState()
                 activeDownloadPrompt?.let { _updatePrompt.value = it }
-                _updateMessages.tryEmit(
-                    context.getString(
+                reportDiagnosticFailure(
+                    category = "app_update",
+                    scene = "update_download",
+                    code = "update_download_failed",
+                    summary = context.getString(
                         R.string.update_download_failed,
                         throwable.message ?: context.getString(R.string.update_download_failed_default),
                     ),
+                    throwable = throwable,
                 )
             }
         }
@@ -637,8 +737,11 @@ class ShellViewModel : ViewModel() {
         val context = appCtx ?: return
         _updateDownloadState.value = UpdateDownloadUiState()
         activeDownloadPrompt?.let { _updatePrompt.value = it }
-        _updateMessages.tryEmit(
-            context.getString(R.string.update_install_launch_failed, message),
+        reportDiagnosticFailure(
+            category = "app_update",
+            scene = "update_install",
+            code = "installer_launch_failed",
+            summary = context.getString(R.string.update_install_launch_failed, message),
         )
     }
 

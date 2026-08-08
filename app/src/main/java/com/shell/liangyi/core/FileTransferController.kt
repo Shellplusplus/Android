@@ -6,6 +6,7 @@ import android.os.storage.StorageManager
 import android.provider.DocumentsContract
 import android.util.Base64
 import android.util.Log
+import com.shell.liangyi.core.diagnostics.DiagnosticManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -421,6 +422,18 @@ class FileTransferController(
             totalBytes = transfer.totalBytes,
             message = reason,
         )
+        if (reason != "replaced" && reason != "controller_destroyed") {
+            DiagnosticManager.getInstance(context).reportFailure(
+                category = "file_transfer",
+                scene = "remote_file_download",
+                code = reason,
+                summary = "远程文件传输失败：$reason",
+                metadata = mapOf(
+                    "receivedBytes" to transfer.receivedBytes.toString(),
+                    "totalBytes" to transfer.totalBytes.toString(),
+                ),
+            )
+        }
     }
 
     private fun deleteDestination(uri: Uri) {

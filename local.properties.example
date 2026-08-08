@@ -1,0 +1,15 @@
+# Copy this file to local.properties and adjust it for your machine.
+# Never commit local.properties, signing passwords, tokens, or private keys.
+
+# Windows example: C\:\\Users\\your-name\\AppData\\Local\\Android\\Sdk
+# macOS example: /Users/your-name/Library/Android/sdk
+sdk.dir=C\:\\path\\to\\Android\\Sdk
+
+# Optional local signing configuration. The keystore itself belongs at sign/Android.jks.
+# shell.storePassword=change-me
+# shell.keyAlias=key
+# shell.keyPassword=change-me
+
+# Optional AI authorization test configuration. These values are public verification data.
+# shell.aiIssuerPublicKey=BASE64URL_PUBLIC_KEY
+# shell.aiLicenseRegistryUrl=https://example.com/registry.json

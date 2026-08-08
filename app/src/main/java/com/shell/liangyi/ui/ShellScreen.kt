@@ -52,6 +52,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.shell.liangyi.R
 import com.shell.liangyi.core.update.UpdateInstaller
+import com.shell.liangyi.core.diagnostics.KnownDiagnosticIssue
 import com.shell.liangyi.feature.AgentEntryPointProvider
 import com.shell.liangyi.ui.about.AboutScreen
 import com.shell.liangyi.ui.ai.AiAuthorizedFeatureMode
@@ -64,6 +65,7 @@ import com.shell.liangyi.ui.components.LiquidGlassTabItem
 import com.shell.liangyi.ui.components.LiquidGlassUpdateDialog
 import com.shell.liangyi.ui.components.LiquidGlassUpdateProgressDialog
 import com.shell.liangyi.ui.components.rememberShellBlurBackdrop
+import com.shell.liangyi.ui.diagnostics.DiagnosticsScreen
 import com.shell.liangyi.ui.fetch.FetchScreen
 import com.shell.liangyi.ui.glassport.rememberCatalogDialogBackdrop
 import com.shell.liangyi.ui.index.IndexScreen
@@ -79,6 +81,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
+import top.yukonga.miuix.kmp.basic.Scaffold as MiuixScaffold
 import kotlin.math.abs
 import com.shell.liangyi.ui.glassport.backdrops.layerBackdrop as catalogLayerBackdrop
 
@@ -91,6 +94,7 @@ object Routes {
     const val AI_LICENSE = "ai_license"
     const val AI_ASSISTANT = "ai_assistant"
     const val LOGS = "logs"
+    const val DIAGNOSTICS = "diagnostics"
     const val SCREENSHOT_TIMELINE = "screenshot_timeline"
     const val SCREENSHOT_DETAIL = "screenshot_detail/{shotId}"
 
@@ -127,6 +131,7 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
     val updateDownloadState by shellViewModel.updateDownloadState.collectAsStateWithLifecycle()
     val skipOptionalUpdateInfoDialogVisible by shellViewModel.skipOptionalUpdateInfoDialogVisible.collectAsStateWithLifecycle()
     val deleteScreenshotConfirmShotId by shellViewModel.deleteScreenshotConfirmShotId.collectAsStateWithLifecycle()
+    val diagnosticAlert by shellViewModel.diagnosticAlert.collectAsStateWithLifecycle()
     val updateInstallLaunchFailedDefault = stringResource(R.string.update_install_launch_failed_default)
     val updateInstallPermissionRequired = stringResource(R.string.update_install_permission_required)
     var pendingInstallApkFilePath by rememberSaveable { mutableStateOf<String?>(null) }
@@ -156,6 +161,11 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
     }
     var displayedDeleteScreenshotShotId by remember { mutableStateOf(deleteScreenshotConfirmShotId) }
     var deleteConfirmDialogVisible by remember { mutableStateOf(deleteScreenshotConfirmShotId != null) }
+    var displayedDiagnosticAlert by remember { mutableStateOf(diagnosticAlert) }
+    var diagnosticDialogVisible by remember { mutableStateOf(diagnosticAlert != null) }
+    var pendingDiagnosticSolution by remember { mutableStateOf<KnownDiagnosticIssue?>(null) }
+    var displayedDiagnosticSolution by remember { mutableStateOf<KnownDiagnosticIssue?>(null) }
+    var diagnosticSolutionDialogVisible by remember { mutableStateOf(false) }
 
     LaunchedEffect(showOnboarding) {
         if (!showOnboarding) {
@@ -234,6 +244,21 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
             deleteConfirmDialogVisible = true
         } else if (displayedDeleteScreenshotShotId != null) {
             deleteConfirmDialogVisible = false
+        }
+    }
+
+    LaunchedEffect(diagnosticAlert) {
+        if (diagnosticAlert != null) {
+            displayedDiagnosticAlert = diagnosticAlert
+            diagnosticDialogVisible = true
+        } else if (displayedDiagnosticAlert != null) {
+            diagnosticDialogVisible = false
+        }
+    }
+
+    LaunchedEffect(navController) {
+        navController.currentBackStackEntryFlow.collect { entry ->
+            shellViewModel.updateDiagnosticScene(entry.destination.route.orEmpty())
         }
     }
 
@@ -366,6 +391,9 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
                     composable(Routes.LOGS) {
                         SettingsScreen(navController, shellViewModel)
                     }
+                    composable(Routes.DIAGNOSTICS) {
+                        DiagnosticsScreen(navController, shellViewModel)
+                    }
                     composable(Routes.SCREENSHOT_DETAIL) { backStackEntry ->
                         val rawShotId = backStackEntry.arguments?.getString("shotId") ?: "0"
                         val shotId = Uri.decode(rawShotId)
@@ -447,7 +475,136 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
                 backdrop = catalogDialogBackdrop,
             )
         }
+
+        displayedDiagnosticAlert?.let { alert ->
+            LiquidGlassConfirmDialog(
+                title = stringResource(R.string.diagnostic_error_dialog_title),
+                message = stringResource(
+                    if (alert.knownIssue != null) {
+                        R.string.diagnostic_error_dialog_known_message
+                    } else {
+                        R.string.diagnostic_error_dialog_message
+                    },
+                    alert.scene,
+                    alert.summary.take(180),
+                ),
+                confirmText = stringResource(
+                    if (alert.knownIssue != null) {
+                        R.string.diagnostic_error_dialog_solution
+                    } else {
+                        R.string.diagnostic_error_dialog_view
+                    },
+                ),
+                dismissText = stringResource(R.string.later),
+                visible = diagnosticDialogVisible,
+                onDismissRequest = {
+                    pendingDiagnosticSolution = null
+                    shellViewModel.dismissDiagnosticAlert()
+                },
+                onConfirm = {
+                    val knownIssue = alert.knownIssue
+                    if (knownIssue != null) {
+                        pendingDiagnosticSolution = knownIssue
+                        shellViewModel.dismissDiagnosticAlert()
+                    } else {
+                        shellViewModel.dismissDiagnosticAlert()
+                        navController.navigate(Routes.DIAGNOSTICS) { launchSingleTop = true }
+                    }
+                },
+                onExitFinished = {
+                    if (!diagnosticDialogVisible) {
+                        displayedDiagnosticAlert = null
+                        pendingDiagnosticSolution?.let { knownIssue ->
+                            pendingDiagnosticSolution = null
+                            displayedDiagnosticSolution = knownIssue
+                            diagnosticSolutionDialogVisible = true
+                        }
+                    }
+                },
+                backdrop = catalogDialogBackdrop,
+            )
+        }
+
+        displayedDiagnosticSolution?.let { knownIssue ->
+            val content = diagnosticSolutionContent(knownIssue)
+            LiquidGlassInfoDialog(
+                title = content.title,
+                message = content.message,
+                buttonText = stringResource(R.string.diagnostic_solution_acknowledge),
+                visible = diagnosticSolutionDialogVisible,
+                onDismissRequest = { diagnosticSolutionDialogVisible = false },
+                onExitFinished = {
+                    if (!diagnosticSolutionDialogVisible) displayedDiagnosticSolution = null
+                },
+                backdrop = catalogDialogBackdrop,
+            )
+        }
     }
+}
+
+private data class DiagnosticSolutionContent(
+    val title: String,
+    val message: String,
+)
+
+@Composable
+private fun diagnosticSolutionContent(issue: KnownDiagnosticIssue): DiagnosticSolutionContent = when (issue) {
+    KnownDiagnosticIssue.StorageSpaceLow -> DiagnosticSolutionContent(
+        stringResource(R.string.diagnostic_solution_storage_title),
+        stringResource(R.string.diagnostic_solution_storage_message),
+    )
+    KnownDiagnosticIssue.ScreenshotDamaged -> DiagnosticSolutionContent(
+        stringResource(R.string.diagnostic_solution_screenshot_damaged_title),
+        stringResource(R.string.diagnostic_solution_screenshot_damaged_message),
+    )
+    KnownDiagnosticIssue.ScreenshotSaveFailed -> DiagnosticSolutionContent(
+        stringResource(R.string.diagnostic_solution_screenshot_save_title),
+        stringResource(R.string.diagnostic_solution_screenshot_save_message),
+    )
+    KnownDiagnosticIssue.ScreenshotTransferInterrupted -> DiagnosticSolutionContent(
+        stringResource(R.string.diagnostic_solution_screenshot_transfer_title),
+        stringResource(R.string.diagnostic_solution_screenshot_transfer_message),
+    )
+    KnownDiagnosticIssue.NearbyDevicePermission -> DiagnosticSolutionContent(
+        stringResource(R.string.diagnostic_solution_nearby_permission_title),
+        stringResource(R.string.diagnostic_solution_nearby_permission_message),
+    )
+    KnownDiagnosticIssue.WatchDisconnected -> DiagnosticSolutionContent(
+        stringResource(R.string.diagnostic_solution_watch_disconnected_title),
+        stringResource(R.string.diagnostic_solution_watch_disconnected_message),
+    )
+    KnownDiagnosticIssue.VpnInterference -> DiagnosticSolutionContent(
+        stringResource(R.string.diagnostic_solution_vpn_title),
+        stringResource(R.string.diagnostic_solution_vpn_message),
+    )
+    KnownDiagnosticIssue.LanTransferUnavailable -> DiagnosticSolutionContent(
+        stringResource(R.string.diagnostic_solution_lan_title),
+        stringResource(R.string.diagnostic_solution_lan_message),
+    )
+    KnownDiagnosticIssue.FileSaveFailed -> DiagnosticSolutionContent(
+        stringResource(R.string.diagnostic_solution_file_save_title),
+        stringResource(R.string.diagnostic_solution_file_save_message),
+    )
+    KnownDiagnosticIssue.UpdateNetworkFailed -> DiagnosticSolutionContent(
+        stringResource(R.string.diagnostic_solution_update_network_title),
+        stringResource(R.string.diagnostic_solution_update_network_message),
+    )
+    KnownDiagnosticIssue.UpdateInstallBlocked -> DiagnosticSolutionContent(
+        stringResource(R.string.diagnostic_solution_update_install_title),
+        stringResource(R.string.diagnostic_solution_update_install_message),
+    )
+    KnownDiagnosticIssue.DiagnosticExportFailed -> DiagnosticSolutionContent(
+        stringResource(R.string.diagnostic_solution_export_title),
+        stringResource(R.string.diagnostic_solution_export_message),
+    )
+    KnownDiagnosticIssue.LowMemory -> DiagnosticSolutionContent(
+        stringResource(R.string.diagnostic_solution_memory_title),
+        stringResource(R.string.diagnostic_solution_memory_message),
+    )
+    KnownDiagnosticIssue.AppNotResponding -> DiagnosticSolutionContent(
+        stringResource(R.string.diagnostic_solution_anr_title),
+        stringResource(R.string.diagnostic_solution_anr_message),
+    )
 }
 
 private fun launchUpdateInstaller(
@@ -508,78 +665,84 @@ private fun MainPagerScreen(
         }.coerceIn(0, rootTabItems.lastIndex)
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        HorizontalPager(
-            state = pagerState,
-            beyondViewportPageCount = rootTabItems.lastIndex,
-            overscrollEffect = null,
-            modifier = if (liquidGlassBackdrop != null) {
-                Modifier
-                    .fillMaxSize()
-                    .layerBackdrop(liquidGlassBackdrop)
-            } else {
-                Modifier.fillMaxSize()
-            },
-        ) { page ->
-            when (page) {
-                0 -> IndexScreen(
-                    navController = navController,
-                    shellViewModel = shellViewModel,
-                    bottomContentPadding = rootBottomPadding,
-                    onOpenLogs = { navController.navigate(Routes.LOGS) },
-                )
-                1 -> SettingsTabScreen(
-                    shellViewModel = shellViewModel,
-                    bottomContentPadding = rootBottomPadding,
-                    onRestartOnboarding = { shellViewModel.restartOnboarding() },
-                )
-                2 -> AboutScreen(
-                    showBackButton = false,
-                    bottomContentPadding = rootBottomPadding,
-                    onSecretUnlock = { navController.navigate(Routes.AI_LICENSE) },
-                )
-            }
-        }
-
-        LiquidGlassBottomBar(
-            items = rootTabItems,
-            selectedIndex = selectedTabIndex,
-            indicatorPosition = tabIndicatorPosition,
-            onSelectedIndexChange = { index ->
-                val coercedIndex = index.coerceIn(0, rootTabItems.lastIndex)
-                if (coercedIndex == targetTabIndex && pageAnimationJob?.isActive == true) {
-                    return@LiquidGlassBottomBar
-                }
-                targetTabIndex = coercedIndex
-                if (coercedIndex == pagerState.settledPage && !pagerState.isScrollInProgress) {
-                    return@LiquidGlassBottomBar
-                }
-                pageAnimationJob?.cancel()
-                pageAnimationJob = scope.launch {
-                    if (coercedIndex == pagerState.settledPage && !pagerState.isScrollInProgress) {
-                        return@launch
-                    }
-                    val currentPosition = pagerState.currentPage + pagerState.currentPageOffsetFraction
-                    val pageDistance = abs(coercedIndex - currentPosition)
-                    pagerState.animateScrollToPage(
-                        page = coercedIndex,
-                        animationSpec = tween(
-                            durationMillis = (240 + pageDistance * 80).toInt().coerceIn(220, 420),
-                            easing = FastOutSlowInEasing,
-                        ),
+    MiuixScaffold(
+        modifier = Modifier.fillMaxSize(),
+        containerColor = pageBackground,
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            HorizontalPager(
+                state = pagerState,
+                beyondViewportPageCount = rootTabItems.lastIndex,
+                overscrollEffect = null,
+                modifier = if (liquidGlassBackdrop != null) {
+                    Modifier
+                        .fillMaxSize()
+                        .layerBackdrop(liquidGlassBackdrop)
+                } else {
+                    Modifier.fillMaxSize()
+                },
+            ) { page ->
+                when (page) {
+                    0 -> IndexScreen(
+                        navController = navController,
+                        shellViewModel = shellViewModel,
+                        bottomContentPadding = rootBottomPadding,
+                        onOpenLogs = { navController.navigate(Routes.LOGS) },
+                    )
+                    1 -> SettingsTabScreen(
+                        shellViewModel = shellViewModel,
+                        bottomContentPadding = rootBottomPadding,
+                        onRestartOnboarding = { shellViewModel.restartOnboarding() },
+                        onOpenDiagnostics = { navController.navigate(Routes.DIAGNOSTICS) },
+                    )
+                    2 -> AboutScreen(
+                        showBackButton = false,
+                        bottomContentPadding = rootBottomPadding,
+                        onSecretUnlock = { navController.navigate(Routes.AI_LICENSE) },
                     )
                 }
-            },
-            backdrop = liquidGlassBackdrop,
-            blurEnabled = blurSupported,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(
-                    start = 52.dp,
-                    end = 52.dp,
-                    bottom = 12.dp + navigationBarPadding,
-                ),
-        )
+            }
+
+            LiquidGlassBottomBar(
+                items = rootTabItems,
+                selectedIndex = selectedTabIndex,
+                indicatorPosition = tabIndicatorPosition,
+                onSelectedIndexChange = { index ->
+                    val coercedIndex = index.coerceIn(0, rootTabItems.lastIndex)
+                    if (coercedIndex == targetTabIndex && pageAnimationJob?.isActive == true) {
+                        return@LiquidGlassBottomBar
+                    }
+                    targetTabIndex = coercedIndex
+                    if (coercedIndex == pagerState.settledPage && !pagerState.isScrollInProgress) {
+                        return@LiquidGlassBottomBar
+                    }
+                    pageAnimationJob?.cancel()
+                    pageAnimationJob = scope.launch {
+                        if (coercedIndex == pagerState.settledPage && !pagerState.isScrollInProgress) {
+                            return@launch
+                        }
+                        val currentPosition = pagerState.currentPage + pagerState.currentPageOffsetFraction
+                        val pageDistance = abs(coercedIndex - currentPosition)
+                        pagerState.animateScrollToPage(
+                            page = coercedIndex,
+                            animationSpec = tween(
+                                durationMillis = (240 + pageDistance * 80).toInt().coerceIn(220, 420),
+                                easing = FastOutSlowInEasing,
+                            ),
+                        )
+                    }
+                },
+                backdrop = liquidGlassBackdrop,
+                blurEnabled = blurSupported,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(
+                        start = 52.dp,
+                        end = 52.dp,
+                        bottom = 12.dp + navigationBarPadding,
+                    ),
+            )
+        }
     }
 }
 
