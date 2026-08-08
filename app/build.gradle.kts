@@ -6,8 +6,8 @@ fun configureReleaseOptimization(buildType: com.android.build.api.dsl.Applicatio
     buildType.optimization {
         baselineProfile {
             // Work around AGP/profgen failures while compiling inherited
-            // library baseline profiles during release packaging. AGP 8.13.2
-            // still reports this ApplicationBuildType override as deprecated.
+            // library baseline profiles during release packaging. The current
+            // AGP API still reports this ApplicationBuildType override as deprecated.
             ignoreFromAllExternalDependencies = true
         }
     }
