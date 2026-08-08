@@ -18,15 +18,9 @@ kotlin {
     }
 }
 
-tasks.configureEach {
-    if (name.startsWith("check") && name.endsWith("AarMetadata")) {
-        enabled = false
-    }
-}
-
 android {
     namespace = "top.yukonga.miuix.kmp.blur"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         minSdk = 26

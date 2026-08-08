@@ -73,7 +73,7 @@ if (aiLicenseRegistryUrl.isBlank()) {
 
 android {
     namespace = "com.shell.liangyi"
-    compileSdk = 36
+    compileSdk = 37
 
 
     signingConfigs {
@@ -141,13 +141,6 @@ android {
     buildFeatures {
         buildConfig = true
         compose = true
-    }
-}
-
-// Bypass MIUIX AAR metadata check requiring compileSdk 37
-tasks.configureEach {
-    if (name.startsWith("check") && name.endsWith("AarMetadata")) {
-        enabled = false
     }
 }
 
