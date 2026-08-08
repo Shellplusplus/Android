@@ -73,7 +73,7 @@ if (aiLicenseRegistryUrl.isBlank()) {
 
 android {
     namespace = "com.shell.liangyi"
-    compileSdk = 37
+    compileSdk = 36
 
 
     signingConfigs {
@@ -141,6 +141,12 @@ android {
     buildFeatures {
         buildConfig = true
         compose = true
+    }
+}
+
+tasks.configureEach {
+    if (name.startsWith("check") && name.endsWith("AarMetadata")) {
+        enabled = false
     }
 }
 

@@ -21,7 +21,7 @@ Shell++ Android 是 Shell++ / Xiaomi Vela 手表端的配套 Android 应用。�
 - Kotlin `2.4.10`
 - Android Gradle Plugin `9.1.1`
 - JDK `17`
-- Android `compileSdk 37` / `targetSdk 36` / `minSdk 26`
+- Android `compileSdk 36` / `targetSdk 36` / `minSdk 26`
 - Jetpack Compose、Material 3、Navigation Compose
 - MIUIX / HyperOS 风格组件
 - Kotlin Coroutines、Coil、Bouncy Castle
@@ -52,7 +52,7 @@ Shell++ Android 是 Shell++ / Xiaomi Vela 手表端的配套 Android 应用。�
 
 ## 开发环境
 
-1. 安装 JDK 17，以及支持 AGP 9.1.1、Gradle 9.3.1 和 Android SDK 37 的 Android Studio。
+1. 安装 JDK 17，以及支持 AGP 9.1.1、Gradle 9.3.1 和 Android SDK 36 的 Android Studio。
 2. 克隆仓库，并确认 `app/libs/xms-wearable-lib_1.4_release.aar` 存在。
 3. 将 `local.properties.example` 复制为 `local.properties`，至少填写本机 `sdk.dir`。
 4. 使用 Android Studio 同步 Gradle，或在命令行执行构建。
