@@ -25,3 +25,9 @@ AGENTS.md
 app/developer/release/
 
 sign
+
+# 签名与发布 (不要提交私钥!)
+/sign/
+app/release/
+app/developer/
+*.apk

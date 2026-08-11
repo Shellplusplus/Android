@@ -104,6 +104,8 @@
     <string name="app_theme_dark">深色模式</string>
     <string name="auto_launch_wear_app_title">自动拉起手表快应用</string>
     <string name="auto_launch_wear_app_summary">关闭后，安卓端建立连接时不再主动拉起手表快应用；如需连接，请先在手表端手动打开。</string>
+    <string name="disable_diagnostics_dialog_title">关闭异常弹窗</string>
+    <string name="disable_diagnostics_dialog_summary">关闭后不再弹出「应用发生异常」提示框（异常记录仍会保存，可前往异常自检页查看）</string>
     <string name="ai_authorized_feature_title">AI 授权用途</string>
     <string name="ai_authorized_feature_summary">选择 AI 助手，或将授权用于解除远程终端命令限制</string>
     <string name="ai_authorized_feature_remote_terminal">远程终端</string>

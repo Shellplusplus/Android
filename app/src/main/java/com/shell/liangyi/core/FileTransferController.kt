@@ -40,6 +40,7 @@ data class RemoteFileTransferState(
     val fileName: String = "",
     val receivedBytes: Long = 0L,
     val totalBytes: Long = 0L,
+    val offset: Long = 0L,
     val message: String = "",
 ) {
     val isActive: Boolean
@@ -52,8 +53,9 @@ internal object RemoteFileTransferGuard {
     private const val MIN_CHUNK_BYTES = 1_024
     private const val MAX_CHUNK_BYTES = 6_144
 
-    fun canStart(totalBytes: Long, totalParts: Int, chunkSize: Int): Boolean {
+    fun canStart(totalBytes: Long, totalParts: Int, chunkSize: Int, offset: Long): Boolean {
         if (totalBytes <= 0L || totalBytes > MAX_TRANSFER_BYTES) return false
+        if (offset < 0L || offset >= totalBytes) return false
         if (totalParts <= 0) return false
         return chunkSize in MIN_CHUNK_BYTES..MAX_CHUNK_BYTES
     }
@@ -84,6 +86,8 @@ private data class ActiveFileTransfer(
     val tempFile: File,
     val outputStream: FileOutputStream,
     var fileName: String = requestedName,
+    var offset: Long = 0L,
+    var length: Long = 0L,
     var totalBytes: Long = 0L,
     var totalParts: Int = 0,
     var chunkSize: Int = 0,
@@ -122,10 +126,64 @@ class FileTransferController(
         }
     }
 
-    fun start(path: String, fileName: String, destination: Uri) {
+    fun start(path: String, fileName: String, destination: Uri, offset: Long = 0L, length: Long = 0L) {
         scope.launch(Dispatchers.IO) {
-            beginTransfer(path, fileName, destination)
+            beginTransfer(path, fileName, destination, offset, length)
         }
+    }
+
+    /** 立刻保存：停止传输，把已收到的部分保存到目标文件 */
+    fun savePartialNow() {
+        Log.d(FILE_TRANSFER_TAG, "savePartialNow called, activeTransfer=${activeTransfer != null}")
+        val transfer = activeTransfer ?: return
+        Log.d(FILE_TRANSFER_TAG, "savePartialNow transfer: started=${transfer.started} received=${transfer.receivedBytes} dest=${transfer.destination}")
+        if (!transfer.started || transfer.receivedBytes <= 0L) {
+            Log.d(FILE_TRANSFER_TAG, "savePartialNow: nothing received, fail")
+            failTransfer(transfer, "nothing_received", notifyWatch = true)
+            return
+        }
+        timeoutJob?.cancel()
+        timeoutJob = null
+        sendAbort(transfer, "user_save_partial")
+        Log.d(FILE_TRANSFER_TAG, "savePartialNow: flushing stream")
+        try {
+            transfer.outputStream.flush()
+            transfer.outputStream.close()
+            Log.d(FILE_TRANSFER_TAG, "savePartialNow: stream closed, tempFile=${transfer.tempFile.length()}B")
+            val wrote = context.contentResolver.openOutputStream(transfer.destination, "w")?.use { output ->
+                transfer.tempFile.inputStream().use { input -> input.copyTo(output) }
+                true
+            } == true
+            Log.d(FILE_TRANSFER_TAG, "savePartialNow: wrote=$wrote")
+            if (wrote) {
+                transfer.tempFile.delete()
+                activeTransfer = null
+                _state.value = RemoteFileTransferState(
+                    status = RemoteFileTransferStatus.COMPLETED,
+                    path = transfer.path,
+                    fileName = transfer.fileName,
+                    receivedBytes = transfer.receivedBytes,
+                    totalBytes = transfer.totalBytes,
+                    message = "partial_saved",
+                )
+                Log.d(FILE_TRANSFER_TAG, "savePartialNow: COMPLETED")
+            } else {
+                Log.d(FILE_TRANSFER_TAG, "savePartialNow: destination open failed")
+                failTransfer(transfer, "partial_destination_open_failed", notifyWatch = false, streamClosed = true)
+            }
+        } catch (error: Exception) {
+            Log.e(FILE_TRANSFER_TAG, "savePartialNow exception", error)
+            failTransfer(transfer, error.message ?: "partial_save_failed", notifyWatch = false, streamClosed = true)
+        }
+    }
+
+    /** 强行终止：放弃传输并舍弃已下载部分 */
+    fun abortNow() {
+        Log.d(FILE_TRANSFER_TAG, "abortNow called, activeTransfer=${activeTransfer != null}")
+        val transfer = activeTransfer ?: return
+        Log.d(FILE_TRANSFER_TAG, "abortNow transfer: path=${transfer.path} received=${transfer.receivedBytes}")
+        failTransfer(transfer, "user_aborted", notifyWatch = true)
+        Log.d(FILE_TRANSFER_TAG, "abortNow: failTransfer done, state=${_state.value.status}")
     }
 
     fun destroy() {
@@ -142,11 +200,19 @@ class FileTransferController(
         activeTransfer = null
     }
 
-    private fun beginTransfer(path: String, fileName: String, destination: Uri) {
+    private fun beginTransfer(path: String, fileName: String, destination: Uri, offset: Long, length: Long) {
         if (path.isBlank()) {
             _state.value = RemoteFileTransferState(
                 status = RemoteFileTransferStatus.FAILED,
                 message = "invalid_path",
+            )
+            deleteDestination(destination)
+            return
+        }
+        if (offset < 0L || length < 0L) {
+            _state.value = RemoteFileTransferState(
+                status = RemoteFileTransferStatus.FAILED,
+                message = "invalid_offset",
             )
             deleteDestination(destination)
             return
@@ -191,12 +257,15 @@ class FileTransferController(
             destination = destination,
             tempFile = tempFile,
             outputStream = outputStream,
+            offset = offset,
+            length = length,
         )
         activeTransfer = transfer
         _state.value = RemoteFileTransferState(
             status = RemoteFileTransferStatus.PREPARING,
             path = path,
             fileName = normalizedName,
+            offset = offset,
         )
         scheduleTimeout(transfer)
         val payload = JSONObject().apply {
@@ -204,6 +273,8 @@ class FileTransferController(
             put("sessionId", sessionId)
             put("path", path)
             put("chunkSize", FILE_TRANSFER_CHUNK_SIZE)
+            put("offset", offset)
+            put("length", length)
         }
         messageCenter.send(MessageType.FILE_TRANSFER_REQUEST, payload) { success, error ->
             if (!success) {
@@ -235,7 +306,9 @@ class FileTransferController(
         val totalBytes = json.optLong("size", 0L)
         val totalParts = json.optInt("total", 0)
         val chunkSize = json.optInt("chunkSize", 0)
-        if (!RemoteFileTransferGuard.canStart(totalBytes, totalParts, chunkSize)) {
+        val offset = json.optLong("offset", transfer.offset)
+        val length = json.optLong("length", 0L)
+        if (!RemoteFileTransferGuard.canStart(totalBytes, totalParts, chunkSize, offset)) {
             failTransfer(transfer, "invalid_start", notifyWatch = true)
             return
         }
@@ -244,7 +317,10 @@ class FileTransferController(
             return
         }
         transfer.fileName = json.optString("name", transfer.requestedName).ifBlank { transfer.requestedName }
-        transfer.totalBytes = totalBytes
+        transfer.offset = offset
+        transfer.length = length
+        // totalBytes = 本次实际要传的字节数（length > 0 用 length，否则到文件尾）
+        transfer.totalBytes = if (length > 0L) length else (totalBytes - offset).coerceAtLeast(0L)
         transfer.totalParts = totalParts
         transfer.chunkSize = chunkSize
         transfer.started = true
@@ -252,7 +328,9 @@ class FileTransferController(
             status = RemoteFileTransferStatus.RECEIVING,
             path = transfer.path,
             fileName = transfer.fileName,
-            totalBytes = totalBytes,
+            totalBytes = transfer.totalBytes,
+            receivedBytes = 0L,
+            offset = offset,
         )
         scheduleTimeout(transfer)
     }
@@ -274,7 +352,7 @@ class FileTransferController(
         if (!RemoteFileTransferGuard.canAcceptPart(
                 expectedIndex = transfer.lastIndex + 1,
                 index = index,
-                expectedPosition = transfer.receivedBytes,
+                expectedPosition = transfer.offset + transfer.receivedBytes,
                 position = position,
                 expectedTotalParts = transfer.totalParts,
                 declaredTotalParts = declaredTotal,
@@ -422,7 +500,12 @@ class FileTransferController(
             totalBytes = transfer.totalBytes,
             message = reason,
         )
-        if (reason != "replaced" && reason != "controller_destroyed") {
+        if (reason != "replaced" &&
+            reason != "controller_destroyed" &&
+            reason != "user_aborted" &&
+            reason != "user_save_partial" &&
+            reason != "nothing_received"
+        ) {
             DiagnosticManager.getInstance(context).reportFailure(
                 category = "file_transfer",
                 scene = "remote_file_download",

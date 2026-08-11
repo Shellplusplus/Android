@@ -13,9 +13,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
@@ -58,6 +61,10 @@ fun LiquidGlassConfirmDialog(
     onConfirm: () -> Unit,
     onExitFinished: () -> Unit,
     backdrop: Backdrop? = null,
+    showCheckbox: Boolean = false,
+    checkboxText: String = "",
+    checkboxChecked: Boolean = false,
+    onCheckboxChange: (Boolean) -> Unit = {},
 ) {
     val isLightTheme = !ShellTheme.isDarkTheme
     val contentColor = if (isLightTheme) Color.Black else Color.White
@@ -221,6 +228,49 @@ fun LiquidGlassConfirmDialog(
                     fontSize = 15.sp,
                 ),
             )
+            if (showCheckbox) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 24.dp, top = 6.dp, end = 24.dp, bottom = 4.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { onCheckboxChange(!checkboxChecked) },
+                        ),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    // 自定义 Miuix 风格复选框：圆角方块 + 勾选态
+                    Box(
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(
+                                if (checkboxChecked) accentColor else contentColor.copy(alpha = 0.15f)
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (checkboxChecked) {
+                            BasicText(
+                                text = "✓",
+                                style = TextStyle(
+                                    color = Color.White,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                ),
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    BasicText(
+                        text = checkboxText,
+                        style = TextStyle(
+                            color = contentColor.copy(alpha = 0.75f),
+                            fontSize = 14.sp,
+                        ),
+                    )
+                }
+            }
             Row(
                 modifier = Modifier
                     .padding(start = 24.dp, top = 12.dp, end = 24.dp, bottom = 24.dp)

@@ -56,6 +56,7 @@ fun SettingsTabScreen(
     onOpenDiagnostics: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
+    val joinQqGroupFailedMessage = stringResource(R.string.join_qq_group_failed)
     val qqGroupUrl = "https://qm.qq.com/q/OopppLfV28"
     val previewModeSettingMessage = stringResource(R.string.preview_mode_setting_message)
 
@@ -64,6 +65,7 @@ fun SettingsTabScreen(
     val skipOptionalUpdateHint by shellViewModel.skipOptionalUpdateHint.collectAsStateWithLifecycle()
     val themeMode by shellViewModel.themeMode.collectAsStateWithLifecycle()
     val autoLaunchWearApp by shellViewModel.autoLaunchWearApp.collectAsStateWithLifecycle()
+    val diagnosticsEnabled by shellViewModel.diagnosticsEnabled.collectAsStateWithLifecycle()
     val aiLicenseState by shellViewModel.aiLicenseState.collectAsStateWithLifecycle()
     val aiAuthorizedFeatureMode by shellViewModel.aiAuthorizedFeatureMode.collectAsStateWithLifecycle()
 
@@ -79,6 +81,9 @@ fun SettingsTabScreen(
     }
     var previewAutoLaunchWearApp by remember(previewMode, autoLaunchWearApp) {
         mutableStateOf(autoLaunchWearApp)
+    }
+    var previewDiagnosticsEnabled by remember(previewMode, diagnosticsEnabled) {
+        mutableStateOf(diagnosticsEnabled)
     }
     var previewAiAuthorizedFeatureMode by remember(previewMode, aiAuthorizedFeatureMode) {
         mutableStateOf(aiAuthorizedFeatureMode)
@@ -98,6 +103,11 @@ fun SettingsTabScreen(
         previewAutoLaunchWearApp
     } else {
         autoLaunchWearApp
+    }
+    val effectiveDiagnosticsEnabled = if (previewMode) {
+        previewDiagnosticsEnabled
+    } else {
+        diagnosticsEnabled
     }
     val effectiveAiAuthorizedFeatureMode = if (previewMode) {
         previewAiAuthorizedFeatureMode
@@ -253,6 +263,31 @@ fun SettingsTabScreen(
                             )
                         },
                     )
+                                        BasicComponent(
+                        title = stringResource(R.string.disable_diagnostics_dialog_title),
+                        summary = stringResource(R.string.disable_diagnostics_dialog_summary),
+                        endActions = {
+                            Switch(
+                                checked = effectiveDiagnosticsEnabled,
+                                onCheckedChange = { checked ->
+                                    if (previewMode) {
+                                        previewDiagnosticsEnabled = checked
+                                        showPreviewToast()
+                                    } else {
+                                        shellViewModel.setDiagnosticsEnabled(checked)
+                                    }
+                                },
+                            )
+                        },
+                        onClick = {
+                            if (previewMode) {
+                                previewDiagnosticsEnabled = !effectiveDiagnosticsEnabled
+                                showPreviewToast()
+                            } else {
+                                shellViewModel.setDiagnosticsEnabled(!effectiveDiagnosticsEnabled)
+                            }
+                        },
+                    )
                 }
             }
 
@@ -377,7 +412,7 @@ fun SettingsTabScreen(
                             if (previewMode) {
                                 showPreviewToast()
                             } else {
-                                openUrl(qqGroupUrl, context.getString(R.string.join_qq_group_failed))
+                                openUrl(qqGroupUrl, joinQqGroupFailedMessage)
                             }
                         },
                     )

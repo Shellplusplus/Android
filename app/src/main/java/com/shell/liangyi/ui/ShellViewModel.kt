@@ -123,6 +123,9 @@ class ShellViewModel : ViewModel() {
     private val _autoLaunchWearApp = MutableStateFlow(true)
     val autoLaunchWearApp = _autoLaunchWearApp.asStateFlow()
 
+    private val _diagnosticsEnabled = MutableStateFlow(true)
+    val diagnosticsEnabled = _diagnosticsEnabled.asStateFlow()
+
     private val _updateMessages = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val updateMessages = _updateMessages.asSharedFlow()
     private val _installUpdateRequests = MutableSharedFlow<String>(extraBufferCapacity = 1)
@@ -169,6 +172,7 @@ class ShellViewModel : ViewModel() {
         loadThemePreferences(appContext)
         loadAiAuthorizedFeatureMode(appContext)
         loadWearConnectionPreferences(appContext)
+        loadDiagnosticsPreference(appContext)
         initialized = true
     }
 
@@ -361,6 +365,15 @@ class ShellViewModel : ViewModel() {
         WearConnectionPreferences.setAutoLaunchWearAppEnabled(context, enabled)
     }
 
+    /** 全局「应用发生异常」弹窗开关 */
+    fun setDiagnosticsEnabled(enabled: Boolean) {
+        val context = appCtx ?: return
+        _diagnosticsEnabled.value = enabled
+        context.getSharedPreferences(APP_UI_PREFS, Context.MODE_PRIVATE).edit {
+            putBoolean(DIAGNOSTICS_ENABLED_KEY, enabled)
+        }
+    }
+
     fun isLanTransferBlocked(productCode: String = watchProductCode.value): Boolean {
         val normalized = productCode
             .trim()
@@ -493,12 +506,38 @@ class ShellViewModel : ViewModel() {
     fun openRemoteFileText() = remoteToolController.openFileText()
     fun openRemoteFileHex(offset: Int) = remoteToolController.openFileHex(offset)
     fun openRemoteFileImage() = remoteToolController.openFileImage()
-    fun downloadRemoteFile(destination: Uri, path: String, fileName: String) {
+    fun downloadRemoteFile(destination: Uri, path: String, fileName: String, offset: Long = 0L, length: Long = 0L) {
         fileTransferController.start(
             path = path,
             fileName = fileName,
             destination = destination,
+            offset = offset,
+            length = length,
         )
+    }
+
+    /** 立刻保存：停止传输并保存已下载部分 */
+    fun savePartialNow() {
+        fileTransferController.savePartialNow()
+    }
+
+    /** 强行终止：放弃传输并舍弃文件 */
+    fun abortTransferNow() {
+        fileTransferController.abortNow()
+    }
+
+    /** 传输提示「不再提示」偏好 */
+    fun shouldShowTransferConfirm(): Boolean {
+        val context = appCtx ?: return true
+        return context.getSharedPreferences(APP_UI_PREFS, Context.MODE_PRIVATE)
+            .getBoolean(TRANSFER_CONFIRM_DONT_ASK_KEY, false).not()
+    }
+
+    fun setTransferConfirmDontAsk(dontAsk: Boolean) {
+        val context = appCtx ?: return
+        context.getSharedPreferences(APP_UI_PREFS, Context.MODE_PRIVATE).edit {
+            putBoolean(TRANSFER_CONFIRM_DONT_ASK_KEY, dontAsk)
+        }
     }
     fun showRemoteFileList() = remoteToolController.showFileList()
     fun showRemoteFileInfo() = remoteToolController.showFileInfo()
@@ -780,6 +819,11 @@ class ShellViewModel : ViewModel() {
         _autoLaunchWearApp.value = WearConnectionPreferences.isAutoLaunchWearAppEnabled(context)
     }
 
+    private fun loadDiagnosticsPreference(context: Context) {
+        _diagnosticsEnabled.value = context.getSharedPreferences(APP_UI_PREFS, Context.MODE_PRIVATE)
+            .getBoolean(DIAGNOSTICS_ENABLED_KEY, true)
+    }
+
     private fun saveRemoteTerminalList(
         context: Context,
         key: String,
@@ -996,6 +1040,8 @@ class ShellViewModel : ViewModel() {
     }
     private companion object {
         const val APP_UI_PREFS = "app_ui_prefs"
+        const val TRANSFER_CONFIRM_DONT_ASK_KEY = "transfer_confirm_dont_ask"
+        const val DIAGNOSTICS_ENABLED_KEY = "diagnostics_enabled"
         const val APP_THEME_MODE_KEY = "theme_mode"
         const val AI_AUTHORIZED_FEATURE_MODE_KEY = "ai_authorized_feature_mode"
         const val REMOTE_TERMINAL_PREFS = "remote_terminal_prefs"
