@@ -1,6 +1,7 @@
 package com.shell.liangyi.ui.remote
 
 import android.text.format.Formatter
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -25,14 +26,30 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.automirrored.rounded.Article
+import androidx.compose.material.icons.rounded.ContentCut
 import androidx.compose.material.icons.automirrored.rounded.InsertDriveFile
 import androidx.compose.material.icons.automirrored.rounded.Subject
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.TextRange
+import top.yukonga.miuix.kmp.basic.Button as MiuixButton
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.TextButton as MiuixTextButton
+import top.yukonga.miuix.kmp.basic.TextField as MiuixTextField
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
@@ -69,6 +86,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.interaction.MutableInteractionSource
+
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
@@ -82,6 +100,10 @@ import com.shell.liangyi.core.RemoteFileViewMode
 import com.shell.liangyi.core.RemoteFileViewerState
 import com.shell.liangyi.core.REMOTE_HEX_PAGE_SIZE
 import com.shell.liangyi.ui.ShellViewModel
+import com.shell.liangyi.ui.components.LiquidGlassConfirmDialog
+import com.shell.liangyi.ui.glassport.Backdrop
+import com.shell.liangyi.ui.glassport.backdrops.layerBackdrop
+import com.shell.liangyi.ui.glassport.backdrops.rememberLayerBackdrop
 import com.shell.liangyi.ui.components.ShellBackScaffold
 import com.shell.liangyi.ui.theme.ShellTheme
 import top.yukonga.miuix.kmp.basic.Card
@@ -100,6 +122,7 @@ fun RemoteFileViewerScreen(
 ) {
     val state by shellViewModel.remoteFileViewerState.collectAsStateWithLifecycle()
     val transferState by shellViewModel.remoteFileTransferState.collectAsStateWithLifecycle()
+    val liquidGlassBackdrop = rememberLayerBackdrop()
     val connectionState by shellViewModel.connectionState.collectAsStateWithLifecycle(
         initialValue = ConnectionState.DISCONNECTED,
     )
@@ -110,14 +133,17 @@ fun RemoteFileViewerScreen(
         state.currentPath != "/"
     val displayState = state
     var hasTriggeredInitialLoad by remember { mutableStateOf(false) }
-    var pendingDownload by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var pendingDownload by remember { mutableStateOf<PartialDownloadRequest?>(null) }
+    var transferActionDialog by remember { mutableStateOf<String?>(null) }
+    var transferDialogVisible by remember { mutableStateOf(false) }
+    var transferDontAsk by remember { mutableStateOf(false) }
     val createFileLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/octet-stream"),
     ) { destination ->
         val request = pendingDownload
         pendingDownload = null
         if (destination != null && request != null) {
-            shellViewModel.downloadRemoteFile(destination, request.first, request.second)
+            shellViewModel.downloadRemoteFile(destination, request.path, request.fileName, request.offset, request.length)
         }
     }
 
@@ -141,6 +167,17 @@ fun RemoteFileViewerScreen(
         }
     }
 
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .then(
+                if (liquidGlassBackdrop != null) {
+                    Modifier.layerBackdrop(liquidGlassBackdrop)
+                } else {
+                    Modifier
+                },
+            ),
+    ) {
     ShellBackScaffold(
         title = stringResource(R.string.remote_file_viewer),
         onBack = {
@@ -199,7 +236,29 @@ fun RemoteFileViewerScreen(
             }
             if (transferState.status != RemoteFileTransferStatus.IDLE) {
                 item {
-                    FileTransferStatusCard(transferState)
+                    FileTransferStatusCard(
+                        state = transferState,
+                        onSavePartial = {
+                            Log.d("TransferUI", "onSavePartial clicked")
+                            if (shellViewModel.shouldShowTransferConfirm()) {
+                                transferDontAsk = false
+                                transferActionDialog = "save"
+                                transferDialogVisible = true
+                            } else {
+                                shellViewModel.savePartialNow()
+                            }
+                        },
+                        onAbort = {
+                            Log.d("TransferUI", "onAbort clicked")
+                            if (shellViewModel.shouldShowTransferConfirm()) {
+                                transferDontAsk = false
+                                transferActionDialog = "abort"
+                                transferDialogVisible = true
+                            } else {
+                                shellViewModel.abortTransferNow()
+                            }
+                        },
+                    )
                 }
             }
 
@@ -250,7 +309,20 @@ fun RemoteFileViewerScreen(
                             val fileName = targetState.selectedName.ifBlank {
                                 targetState.selectedPath.substringAfterLast('/').ifBlank { "watch-file" }
                             }
-                            pendingDownload = targetState.selectedPath to fileName
+                            pendingDownload = PartialDownloadRequest(targetState.selectedPath, fileName, 0L, 0L)
+                            createFileLauncher.launch(
+                                fileName,
+                            )
+                        },
+                        onDownloadPartial = { targetState, startOffset, endOffset ->
+                            val fileName = targetState.selectedName.ifBlank {
+                                targetState.selectedPath.substringAfterLast('/').ifBlank { "watch-file" }
+                            }
+                            // 范围: [startOffset, endOffset)，length = endOffset - startOffset
+                            val safeStart = startOffset.coerceAtLeast(0L)
+                            val safeEnd = if (endOffset > safeStart) endOffset else safeStart
+                            val length = safeEnd - safeStart
+                            pendingDownload = PartialDownloadRequest(targetState.selectedPath, fileName, safeStart, length)
                             createFileLauncher.launch(
                                 fileName,
                             )
@@ -270,6 +342,42 @@ fun RemoteFileViewerScreen(
             item { Spacer(modifier = Modifier.height(24.dp)) }
         }
     }
+    }
+
+    // 传输操作确认提示框（复用 LiquidGlassConfirmDialog + 复选框）
+    transferActionDialog?.let { action ->
+        LiquidGlassConfirmDialog(
+            title = if (action == "save") "立刻保存" else "强行终止",
+            message = if (action == "save") {
+                "将停止传输，并把当前已下载的部分数据保存到所选位置。\n\n注意：保存的文件可能不完整，请确认后再操作。"
+            } else {
+                "将放弃本次传输，并舍弃所有已下载的数据。\n\n该操作无法撤销，已下载的部分将被删除。"
+            },
+            confirmText = if (action == "save") "保存" else "终止",
+            dismissText = "取消",
+            visible = transferDialogVisible,
+            showCheckbox = true,
+            checkboxText = "不再提示",
+            checkboxChecked = transferDontAsk,
+            onCheckboxChange = { transferDontAsk = it },
+            onDismissRequest = { transferDialogVisible = false },
+            onConfirm = {
+                Log.d("TransferUI", "dialog onConfirm action=$action")
+                if (transferDontAsk) {
+                    shellViewModel.setTransferConfirmDontAsk(true)
+                }
+                if (action == "save") shellViewModel.savePartialNow()
+                else shellViewModel.abortTransferNow()
+                transferDialogVisible = false
+            },
+            onExitFinished = {
+                if (!transferDialogVisible) {
+                    transferActionDialog = null
+                }
+            },
+            backdrop = liquidGlassBackdrop,
+        )
+    }
 }
 
 @Composable
@@ -280,6 +388,7 @@ private fun RemoteFileModeContent(
     onOpenHex: (RemoteFileViewerState) -> Unit,
     onOpenImage: (RemoteFileViewerState) -> Unit,
     onDownload: (RemoteFileViewerState) -> Unit,
+    onDownloadPartial: (RemoteFileViewerState, Long, Long) -> Unit,
     transferState: RemoteFileTransferState,
     onPreviousHexPage: (RemoteFileViewerState) -> Unit,
     onNextHexPage: (RemoteFileViewerState) -> Unit,
@@ -340,6 +449,11 @@ private fun RemoteFileModeContent(
                     icon = Icons.Rounded.Download,
                     enabled = !state.isLoading && !transferState.isActive,
                     onClick = { onDownload(state) },
+                )
+                RemotePartialDownloadCard(
+                    enabled = !state.isLoading && !transferState.isActive,
+                    selectedSizeBytes = state.selectedSizeBytes,
+                    onDownloadPartial = { startOffset, endOffset -> onDownloadPartial(state, startOffset, endOffset) },
                 )
                 if (fileTooLarge) {
                     FileEmptyCard(
@@ -906,7 +1020,11 @@ private fun RemoteActionCard(
 }
 
 @Composable
-private fun FileTransferStatusCard(state: RemoteFileTransferState) {
+private fun FileTransferStatusCard(
+    state: RemoteFileTransferState,
+    onSavePartial: () -> Unit = {},
+    onAbort: () -> Unit = {},
+) {
     val colors = MiuixTheme.colorScheme
     val shellColors = ShellTheme.colors
     val context = LocalContext.current
@@ -945,45 +1063,88 @@ private fun FileTransferStatusCard(state: RemoteFileTransferState) {
         ),
         cornerRadius = 18.dp,
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Box(
+        Column {
+            // 第一层：状态信息（图标 + 标题 + 摘要）
+            Row(
                 modifier = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(accent.copy(alpha = 0.16f)),
-                contentAlignment = Alignment.Center,
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Icon(
-                    imageVector = Icons.Rounded.Download,
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp),
-                    tint = accent,
-                )
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(accent.copy(alpha = 0.16f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Download,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = accent,
+                    )
+                }
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(3.dp),
+                ) {
+                    Text(
+                        text = title,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colors.onSurface,
+                    )
+                    Text(
+                        text = summary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = colors.onSurfaceVariantSummary,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(3.dp),
+            // 第二层：操作按钮铺满整行（仅传输进行中）
+            if (state.status == RemoteFileTransferStatus.PREPARING ||
+                state.status == RemoteFileTransferStatus.RECEIVING
             ) {
-                Text(
-                    text = title,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = colors.onSurface,
-                )
-                Text(
-                    text = summary,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = colors.onSurfaceVariantSummary,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 16.dp, bottom = 14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    MiuixButton(
+                        onClick = onSavePartial,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            color = shellColors.success,
+                            contentColor = Color.White,
+                        ),
+                    ) {
+                        Text(
+                            text = "立刻保存",
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(vertical = 6.dp),
+                        )
+                    }
+                    MiuixButton(
+                        onClick = onAbort,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            color = shellColors.danger,
+                            contentColor = Color.White,
+                        ),
+                    ) {
+                        Text(
+                            text = "强行终止",
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(vertical = 6.dp),
+                        )
+                    }
+                }
             }
         }
     }
@@ -1314,4 +1475,177 @@ private fun ConnectionState.labelRes(): Int = when (this) {
     ConnectionState.CONNECTING -> R.string.connection_state_connecting
     ConnectionState.CONNECTED -> R.string.connected
     ConnectionState.ERROR -> R.string.connection_state_error
+}
+
+
+@Composable
+
+private fun RemotePartialDownloadCard(
+    enabled: Boolean,
+    selectedSizeBytes: Long,
+    onDownloadPartial: (Long, Long) -> Unit,
+) {
+    val colors = MiuixTheme.colorScheme
+    val shellColors = ShellTheme.colors
+    var expanded by remember { mutableStateOf(false) }
+    var startValue by remember { mutableStateOf(TextFieldValue("")) }
+    var endValue by remember { mutableStateOf(TextFieldValue("")) }
+
+    val startValid = startValue.text.isNotBlank() && (startValue.text.toLongOrNull() ?: -1L) >= 0L
+    val endValid = endValue.text.isNotBlank() && (endValue.text.toLongOrNull() ?: -1L) >= 0L
+    val canDownload = enabled && startValid && endValid
+
+    // 左侧 logo：与 RemoteActionCard 一致（40dp 圆角 + primaryAction 色）
+    val headerIcon: @Composable () -> Unit = {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(shellColors.primaryAction.copy(alpha = if (enabled) 0.14f else 0.07f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.ContentCut,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = shellColors.primaryAction.copy(alpha = if (enabled) 1f else 0.45f),
+            )
+        }
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardColors(color = shellColors.cardBackground, contentColor = colors.onSurface),
+        cornerRadius = 18.dp,
+        onClick = if (enabled) { { expanded = !expanded } } else ({}),
+        showIndication = enabled,
+        pressFeedbackType = PressFeedbackType.Sink,
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                headerIcon()
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "部分下载",
+                        style = MiuixTheme.textStyles.body1,
+                        color = colors.onSurface.copy(alpha = if (enabled) 1f else 0.4f),
+                    )
+                    Text(
+                        text = "精确选择文件的下载范围",
+                        style = MiuixTheme.textStyles.body2,
+                        color = colors.onSurface.copy(alpha = 0.5f),
+                        maxLines = 1,
+                    )
+                }
+                Icon(
+                    imageVector = if (expanded) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
+                    contentDescription = null,
+                    tint = colors.onSurface.copy(alpha = 0.4f),
+                )
+            }
+            AnimatedVisibility(
+                visible = expanded,
+                enter = expandVertically(animationSpec = tween(durationMillis = 240)),
+                exit = shrinkVertically(animationSpec = tween(durationMillis = 200)),
+            ) {
+                Column {
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "从",
+                        style = MiuixTheme.textStyles.body2,
+                        color = colors.onSurface.copy(alpha = 0.6f),
+                    )
+                    MiuixTextField(
+                        value = startValue,
+                        onValueChange = { newValue ->
+                            val filteredText = newValue.text.filter(Char::isDigit).take(15)
+                            val selectionEnd = minOf(newValue.selection.end, filteredText.length)
+                            startValue = TextFieldValue(text = filteredText, selection = TextRange(selectionEnd))
+                        },
+                        modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                        useLabelAsPlaceholder = true,
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    )
+                    Text(
+                        text = "B 开始",
+                        style = MiuixTheme.textStyles.body2,
+                        color = colors.onSurface.copy(alpha = 0.6f),
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "到",
+                        style = MiuixTheme.textStyles.body2,
+                        color = colors.onSurface.copy(alpha = 0.6f),
+                    )
+                    MiuixTextField(
+                        value = endValue,
+                        onValueChange = { newValue ->
+                            val filteredText = newValue.text.filter(Char::isDigit).take(15)
+                            val selectionEnd = minOf(newValue.selection.end, filteredText.length)
+                            endValue = TextFieldValue(text = filteredText, selection = TextRange(selectionEnd))
+                        },
+                        modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                        useLabelAsPlaceholder = true,
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    )
+                    Text(
+                        text = "B 结束",
+                        style = MiuixTheme.textStyles.body2,
+                        color = colors.onSurface.copy(alpha = 0.6f),
+                    )
+                }
+                Spacer(modifier = Modifier.height(14.dp))
+                // 大按钮：铺满整行，输入不完整时禁用
+                MiuixButton(
+                    onClick = {
+                        val start = startValue.text.toLongOrNull() ?: 0L
+                        val end = endValue.text.toLongOrNull() ?: start
+                        onDownloadPartial(start, end)
+                        expanded = false
+                    },
+                    enabled = canDownload,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        color = shellColors.primaryAction,
+                        contentColor = Color.White,
+                    ),
+                ) {
+                    Text(
+                        text = "开始下载",
+                        style = MiuixTheme.textStyles.body1,
+                        modifier = Modifier.padding(vertical = 8.dp),
+                    )
+                }
+                }
+            }
+        }
+    }
+}
+
+private data class PartialDownloadRequest(
+    val path: String,
+    val fileName: String,
+    val offset: Long,
+    val length: Long,
+)
+
+private fun formatBytes(bytes: Long): String {
+    if (bytes <= 0L) return "0 B"
+    val units = arrayOf("B", "KB", "MB", "GB", "TB")
+    var value = bytes.toDouble()
+    var idx = 0
+    while (value >= 1024.0 && idx < units.size - 1) {
+        value /= 1024.0
+        idx++
+    }
+    return if (idx == 0) "${bytes} B" else String.format("%.2f %s", value, units[idx])
 }

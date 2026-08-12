@@ -132,6 +132,7 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
     val skipOptionalUpdateInfoDialogVisible by shellViewModel.skipOptionalUpdateInfoDialogVisible.collectAsStateWithLifecycle()
     val deleteScreenshotConfirmShotId by shellViewModel.deleteScreenshotConfirmShotId.collectAsStateWithLifecycle()
     val diagnosticAlert by shellViewModel.diagnosticAlert.collectAsStateWithLifecycle()
+    val diagnosticsEnabled by shellViewModel.diagnosticsEnabled.collectAsStateWithLifecycle()
     val updateInstallLaunchFailedDefault = stringResource(R.string.update_install_launch_failed_default)
     val updateInstallPermissionRequired = stringResource(R.string.update_install_permission_required)
     var pendingInstallApkFilePath by rememberSaveable { mutableStateOf<String?>(null) }
@@ -247,10 +248,13 @@ fun ShellScreen(shellViewModel: ShellViewModel) {
         }
     }
 
-    LaunchedEffect(diagnosticAlert) {
-        if (diagnosticAlert != null) {
+    LaunchedEffect(diagnosticAlert, diagnosticsEnabled) {
+        if (diagnosticAlert != null && diagnosticsEnabled) {
             displayedDiagnosticAlert = diagnosticAlert
             diagnosticDialogVisible = true
+        } else if (diagnosticAlert != null && !diagnosticsEnabled) {
+            // 全局开关已关闭：不弹「应用发生异常」提示框
+            diagnosticDialogVisible = false
         } else if (displayedDiagnosticAlert != null) {
             diagnosticDialogVisible = false
         }
